@@ -3,9 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { addPlayer, appendEvent, assignRoles, beginControllerPreparation, createRoom, fillAiSeats, invalidateRoomControllers, privateState, publicState, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
 import { announceDay, hunterShot, seerCheck, startGame, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 import { EventHub, eventStream } from './realtime.mjs';
+import { createHostCoordinator } from './host-coordinator.mjs';
 
 export const rooms = new Map();
 export const events = new EventHub();
+export const hostCoordinator = createHostCoordinator({ publish: (roomId, event) => events.publish(roomId, event) });
 export const controllerManager = { async prepare(room) { for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.READY; controller.boundAt = new Date().toISOString(); controller.lastSeenAt = controller.boundAt; controller.sessionId = `sim-${controller.seatId}-${room.controllerEpoch}`; controller.agentId = 'simulated-agent'; controller.deviceId = `simulated-device-${controller.seatId}`; controller.profileName = `simulated-${controller.seatId}`; controller.runId = `simulated-run-${controller.seatId}`; room.version += 1; } room.controllerPhase = 'ready'; return room; }, async release(room) { for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.RELEASED; controller.sessionId = null; controller.runId = null; } room.controllerPhase = 'released'; room.version += 1; } };
 const configuredLinxSeats = env => String(env.LINX_SEATS || 'P2,P3').split(',').map(value => value.trim()).filter(Boolean);
 const controllerEvent = (room, type, data = {}) => appendEvent(room, { type, data });
@@ -21,7 +23,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
       if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,OPTIONS' }); return res.end(); }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'linx-night-server', version: '0.1.0' });
-      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRoom({ hostPlayerId: playerId }); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); rooms.set(room.roomId, room); return json(res, 201, { room_id: room.roomId, player_id: playerId, state: publicState(room) }); }
+      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRoom({ hostPlayerId: playerId }); room.hostCoordinatorEnabled = true; addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); rooms.set(room.roomId, room); return json(res, 201, { room_id: room.roomId, player_id: playerId, state: publicState(room) }); }
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
       const room = roomOrFail(roomId);
       if (req.method === 'POST' && parts[3] === 'players') { const body = await readBody(req); const player = addPlayer(room, { playerId: body.player_id || `player_${randomUUID()}`, displayName: body.display_name || '玩家' }); return json(res, 201, { player, state: publicState(room) }); }
@@ -42,4 +44,4 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   return { server, port };
 }
 
-export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) events.publish(room.roomId, event); room.lastPublishedVersion = room.version; }
+export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) events.publish(room.roomId, event); room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); }
