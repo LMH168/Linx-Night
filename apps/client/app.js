@@ -1,4 +1,4 @@
-const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id.replace(/^#/, ''));
 const state = { api: sessionStorage.getItem('linx-api') || 'http://localhost:5000', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, unloading: false };
 $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
