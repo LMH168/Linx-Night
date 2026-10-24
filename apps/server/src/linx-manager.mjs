@@ -5,6 +5,7 @@ import { LinxClient } from '../../linx/src/client.mjs';
 import { readProfile } from '../../linx/src/profile.mjs';
 import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
 import { parseWav } from '../../linx/src/wav.mjs';
+import { waitForMcpDiscovery } from './mcp-discovery.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 async function requestAdmin(base, token, path, body, fetchImpl) {
@@ -34,7 +35,10 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           if (connection.state !== 'bound') throw Object.assign(new Error('软件设备尚未激活'), {code:'LINX_NOT_ACTIVATED'});
           return { profileName, agentId, identity, connection };
         },
-        bind: binding => requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/bindings', binding, fetchImpl),
+        bind: async binding => {
+          await waitForMcpDiscovery(binding,{base:required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL'),token:required(env.LINX_MCP_ADMIN_TOKEN,'LINX_MCP_ADMIN_TOKEN'),fetchImpl});
+          return requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/bindings', binding, fetchImpl);
+        },
         release: binding => requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/controllers/release', binding, fetchImpl),
       }));
     }

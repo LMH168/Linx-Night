@@ -27,3 +27,7 @@
 ## 页面检查
 
 `docs/evidence/runtime/retry.png` 是独立模拟故障房间的浏览器截图。已点击“重试 AI 回合”，确认错误提示与重试按钮消失。只证明页面交互，不是灵矽平台成功证据。
+
+## MCP 就绪门槛
+
+WSS hello 不代表游戏 MCP 可用。自动绑定前最多等待 15 秒，在受保护诊断中核对已认证且成功的 initialize/tools/list 请求，Session、Device、Agent 必须与新连接一致。没有匹配记录则显示 MCP_DISCOVERY_TIMEOUT，留在准备失败，不分配角色。检查测试 Agent 的 MCP URL、认证、独立保存关联，以及隧道是否仍运行；修复后由房主重试。旧 Session 或陌生设备的发现请求不能满足门槛。
