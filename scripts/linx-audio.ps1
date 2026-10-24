@@ -1,4 +1,4 @@
-﻿param([string]$OutputDirectory = (Join-Path $env:LOCALAPPDATA 'LinxNight/audio'))
+﻿param([string]$OutputDirectory = (Join-Path $env:LOCALAPPDATA 'LinxNight/audio'), [switch]$IncludeHunterTest)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Speech
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -16,6 +16,7 @@ try {
         speech = '先查询当前状态，轮到你时调用工具提交一段公开发言。'
         vote = '先查询当前状态，然后调用投票工具投给三号玩家。'
     }
+    if ($IncludeHunterTest) { $phrases['hunter-shoot'] = '查私密状态，调用开枪工具打三号。' }
     foreach ($name in $phrases.Keys) {
         $file = Join-Path $OutputDirectory ($name + '.wav')
         $synth.SetOutputToWaveFile($file, $format)

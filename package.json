@@ -25,7 +25,7 @@
     "test:mixed": "node tests/mixed-e2e.test.mjs",
     "test:controllers": "node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs",
     "test:hunter": "node packages/domain/test/hunter.test.mjs && node tests/hunter-integration.test.mjs",
-    "test:runtime": "node tests/hunter-runtime.test.mjs && node tests/turn-runtime.test.mjs && node tests/runtime-lifecycle.test.mjs && node apps/server/test/linx-runtime-manager.test.mjs && node tests/mcp-discovery.test.mjs",
+    "test:runtime": "node tests/hunter-lab.test.mjs && node tests/hunter-runtime.test.mjs && node tests/turn-runtime.test.mjs && node tests/runtime-lifecycle.test.mjs && node apps/server/test/linx-runtime-manager.test.mjs && node tests/mcp-discovery.test.mjs",
     "test:control": "node tests/player-control.test.mjs",
     "test:voice": "node --test apps/linx/test/voice.test.mjs && node tests/voice-api.test.mjs && node tests/browser-voice.test.mjs && node tests/action-draft.test.mjs",
     "test:delivery": "node tests/config.test.mjs && node tests/full-mixed.test.mjs"
