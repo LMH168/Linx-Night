@@ -1,0 +1,268 @@
+{
+  "scenario": "vote",
+  "exportedAt": "2026-10-24T09:45:02.501Z",
+  "armedAt": "2026-10-24T09:42:46.162Z",
+  "boundAt": "2026-10-24T09:43:15.636Z",
+  "source": "program-to-official-wss-correlated-with-authenticated-mcp",
+  "platformEvidence": "pending-console-record",
+  "browserEvidence": "observed-live-without-reload",
+  "overall": "pending",
+  "serverChecks": {
+    "acceptedOnce": true,
+    "actionOnce": true,
+    "primaryEventOnce": true,
+    "stateMatches": true,
+    "linked": true
+  },
+  "requests": [
+    {
+      "requestId": "1541fa62-f839-4ec7-9dc5-e6c81c4bd42d",
+      "at": "2026-10-24T09:43:29.372Z",
+      "tool": "get_public_game_state",
+      "status": 200,
+      "resultCode": "OK",
+      "beforeVersion": 80,
+      "afterVersion": 80,
+      "eventIds": [],
+      "roomAlias": "test-room",
+      "sessionAlias": "test-session",
+      "seatId": "P2"
+    },
+    {
+      "requestId": "cbefe929-1ed6-4209-8e3c-29567c063b1b",
+      "at": "2026-10-24T09:43:29.938Z",
+      "tool": "get_my_private_state",
+      "status": 200,
+      "resultCode": "OK",
+      "beforeVersion": 80,
+      "afterVersion": 80,
+      "eventIds": [],
+      "roomAlias": "test-room",
+      "sessionAlias": "test-session",
+      "seatId": "P2"
+    },
+    {
+      "requestId": "fd0a36ce-22ef-4b7c-a1c9-75879862bd31",
+      "actionId": "mcp_855d0410-0002-439d-b0fd-722d8853c682",
+      "at": "2026-10-24T09:43:32.186Z",
+      "tool": "submit_vote",
+      "status": 200,
+      "resultCode": "OK",
+      "beforeVersion": 80,
+      "afterVersion": 87,
+      "eventIds": [
+        "evt_931d9854-ec40-4010-ae31-744c94f2cd62",
+        "evt_a12aaab4-d533-4f76-9a55-36ac22bd47bd",
+        "evt_32f145cc-8a2f-408c-bd98-d0fc02048ff2",
+        "evt_d1f0cac2-d80d-4a10-9c92-b1b7070fb3fa"
+      ],
+      "roomAlias": "test-room",
+      "sessionAlias": "test-session",
+      "seatId": "P2"
+    }
+  ],
+  "events": [
+    {
+      "eventId": "evt_931d9854-ec40-4010-ae31-744c94f2cd62",
+      "version": 82,
+      "type": "game.vote_submitted"
+    },
+    {
+      "eventId": "evt_a12aaab4-d533-4f76-9a55-36ac22bd47bd",
+      "version": 83,
+      "type": "game.vote_resolved"
+    },
+    {
+      "eventId": "evt_32f145cc-8a2f-408c-bd98-d0fc02048ff2",
+      "version": 85,
+      "type": "game.player_eliminated"
+    },
+    {
+      "eventId": "evt_d1f0cac2-d80d-4a10-9c92-b1b7070fb3fa",
+      "version": 87,
+      "type": "game.phase_changed"
+    }
+  ],
+  "program": {
+    "source": "local-program-records-not-platform-attestation",
+    "clients": [
+      {
+        "seatId": "P2",
+        "sessionAlias": "session-P2",
+        "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+        "logStatus": "available",
+        "attempts": [
+          {
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc",
+            "startedAt": "2026-10-24T09:43:16.775Z",
+            "endedAt": "2026-10-24T09:44:03.164Z",
+            "transportOutcome": "turn_finished",
+            "durationMs": 46389,
+            "gameAccepted": "unverified"
+          }
+        ],
+        "protocol": [
+          {
+            "at": "2026-10-24T09:42:48.674Z",
+            "type": "connect_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67"
+          },
+          {
+            "at": "2026-10-24T09:42:49.596Z",
+            "type": "hello",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67"
+          },
+          {
+            "at": "2026-10-24T09:43:16.775Z",
+            "type": "input_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc",
+            "samples": 102560
+          },
+          {
+            "at": "2026-10-24T09:43:26.647Z",
+            "type": "input_stop",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:27.275Z",
+            "type": "stt",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc",
+            "textLength": 23
+          },
+          {
+            "at": "2026-10-24T09:43:28.861Z",
+            "type": "tts_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:28.863Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:31.766Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:38.998Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:41.275Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:42.769Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:44.714Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:51.383Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:43:57.437Z",
+            "type": "tts_sentence_start",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:44:03.162Z",
+            "type": "tts_stop",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc"
+          },
+          {
+            "at": "2026-10-24T09:44:03.164Z",
+            "type": "turn_finished",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67",
+            "attemptId": "3f5ef762-a7f0-4fba-bfd9-8addc7f984bc",
+            "gameAccepted": "unverified"
+          },
+          {
+            "at": "2026-10-24T09:45:02.378Z",
+            "type": "closed",
+            "runId": "3f93d04f-8999-460e-b2c3-05b5744b2c67"
+          }
+        ],
+        "mcp": [
+          {
+            "at": "2026-10-24T09:42:50.714Z",
+            "requestId": "3bb15025-9e22-45e4-850b-dce51b3000f4"
+          },
+          {
+            "at": "2026-10-24T09:42:51.223Z",
+            "requestId": "60164924-c7d2-46d8-82bc-a23f2c0cc911"
+          },
+          {
+            "at": "2026-10-24T09:42:51.739Z",
+            "requestId": "66a8e996-a051-450a-8177-35b044518d95"
+          },
+          {
+            "at": "2026-10-24T09:43:29.372Z",
+            "requestId": "1541fa62-f839-4ec7-9dc5-e6c81c4bd42d",
+            "tool": "get_public_game_state",
+            "resultCode": "OK",
+            "beforeVersion": 80,
+            "afterVersion": 80,
+            "eventIds": []
+          },
+          {
+            "at": "2026-10-24T09:43:29.938Z",
+            "requestId": "cbefe929-1ed6-4209-8e3c-29567c063b1b",
+            "tool": "get_my_private_state",
+            "resultCode": "OK",
+            "beforeVersion": 80,
+            "afterVersion": 80,
+            "eventIds": []
+          },
+          {
+            "at": "2026-10-24T09:43:32.186Z",
+            "requestId": "fd0a36ce-22ef-4b7c-a1c9-75879862bd31",
+            "tool": "submit_vote",
+            "resultCode": "OK",
+            "actionId": "mcp_855d0410-0002-439d-b0fd-722d8853c682",
+            "beforeVersion": 80,
+            "afterVersion": 87,
+            "eventIds": [
+              "evt_931d9854-ec40-4010-ae31-744c94f2cd62",
+              "evt_a12aaab4-d533-4f76-9a55-36ac22bd47bd",
+              "evt_32f145cc-8a2f-408c-bd98-d0fc02048ff2",
+              "evt_d1f0cac2-d80d-4a10-9c92-b1b7070fb3fa"
+            ]
+          }
+        ],
+        "audioSummary": {
+          "frameCount": 1714,
+          "bytes": 1096960,
+          "firstAt": "2026-10-24T09:43:28.891Z",
+          "lastAt": "2026-10-24T09:44:02.528Z"
+        }
+      }
+    ],
+    "browserEvidence": "pending",
+    "platformEvidence": "pending",
+    "overall": "pending",
+    "correlationNote": "按匿名 runId、时间窗、MCP requestId/actionId/eventIds 与平台工具记录及网页录像共同核对；不会仅凭时间自动断言成功。"
+  }
+}

@@ -7,8 +7,9 @@ const requests=[];
 const room={roomId:'room_test',phase:'LOBBY',seats:[],speeches:[],events:[]};
 const storage=new Map();
 const context=vm.createContext({
+ URLSearchParams,
  document:{getElementById:id=>elements.get(id) || null,createElement:()=>({})},
- sessionStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},
+ sessionStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
  window:{addEventListener(){}},
  setInterval(){},setTimeout(){},clearTimeout(){},
  Option:class {constructor(text,value){this.text=text;this.value=value;}},
@@ -47,3 +48,15 @@ run("state.privateState.role='hunter';state.privateState.alive=false;renderActio
 run("state.room.phase='GAME_OVER';renderActions();");assert.equal(elements.get('actionCard').hidden,true);
 run("state.room.phase='LOBBY';renderPrivate();renderActions();");assert.equal(elements.get('privateCard').hidden,true);
 console.log('Lobby, role-specific skills, speech turn, eliminated hunter and game-over visibility passed');
+
+// A link to another instance must not reuse player identity; refreshing the same link must.
+const appSource=await readFile(new URL('../app.js',import.meta.url),'utf8');
+function entryTest(search, saved) {
+  const localStore=new Map(Object.entries(saved));
+  const entryContext=vm.createContext({URLSearchParams,location:{search},document:{getElementById:()=>({})},sessionStorage:{getItem:k=>localStore.get(k),removeItem:k=>localStore.delete(k)}});
+  vm.runInContext(appSource.slice(0,appSource.indexOf('const message =')),entryContext);
+  return vm.runInContext('JSON.stringify({api:state.api,roomId:state.roomId,playerId:state.playerId})',entryContext);
+}
+assert.equal(JSON.parse(entryTest('?api=http://localhost:5100&room=lab',{'linx-api':'http://localhost:5000','linx-room':'old','linx-player':'old-player'})).playerId,'');
+assert.equal(JSON.parse(entryTest('?api=http://localhost:5100&room=lab',{'linx-api':'http://localhost:5100','linx-room':'lab','linx-player':'observer'})).playerId,'observer');
+console.log('Lab entry isolation and same-link reload identity passed');

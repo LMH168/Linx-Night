@@ -8,7 +8,7 @@
     "dev:client": "node apps/client/server.mjs",
     "dev:mcp": "node apps/mcp/src/index.mjs",
     "test:scheduler": "node apps/scheduler/test/scheduler.test.mjs",
-    "check": "node --check apps/server/src/index.mjs && node --check apps/server/src/api.mjs && node --check apps/server/test/api.test.mjs && node --check apps/server/src/realtime.mjs && node --check apps/server/test/realtime.test.mjs && node --check apps/client/app.js && node --check apps/client/server.mjs && node --check apps/client/test/static.test.mjs && node --check apps/mcp/src/server.mjs && node --check apps/mcp/src/index.mjs && node --check apps/mcp/test/server.test.mjs && node --check apps/linx/src/session-adapter.mjs && node --check apps/linx/test/session-adapter.test.mjs && node --check apps/mcp/test/controllers.test.mjs && node --check apps/scheduler/src/scheduler.mjs && node --check apps/scheduler/test/scheduler.test.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/src/engine.mjs && node --check packages/domain/test/model.test.mjs && node --check packages/domain/test/engine.test.mjs",
+    "check": "node --check apps/server/src/index.mjs && node --check apps/server/src/api.mjs && node --check apps/server/test/api.test.mjs && node --check apps/server/src/realtime.mjs && node --check apps/server/test/realtime.test.mjs && node --check apps/client/app.js && node --check apps/client/server.mjs && node --check apps/client/test/static.test.mjs && node --check apps/mcp/src/server.mjs && node --check apps/mcp/src/index.mjs && node --check apps/mcp/test/server.test.mjs && node --check apps/scheduler/src/scheduler.mjs && node --check apps/scheduler/test/scheduler.test.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/src/engine.mjs && node --check packages/domain/test/model.test.mjs && node --check packages/domain/test/engine.test.mjs && node --check apps/linx/src/session-adapter.mjs && node --check apps/linx/test/session-adapter.test.mjs && node --check apps/mcp/test/controllers.test.mjs",
     "test:domain": "node packages/domain/test/model.test.mjs && node packages/domain/test/engine.test.mjs",
     "test:api": "node apps/server/test/api.test.mjs",
     "test:realtime": "node apps/server/test/realtime.test.mjs",
@@ -17,8 +17,10 @@
     "start": "node run.mjs",
     "test:integration": "node tests/integration.mjs",
     "test:linx": "node --test apps/linx/test/*.test.mjs",
-    "test:controllers": "node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs",
-    "linx": "node scripts/linx-client.mjs"
+    "linx": "node scripts/linx-client.mjs",
+    "test:lab": "node tests/linx-lab.test.mjs && node tests/linx-program-lab.test.mjs",
+    "dev:lab": "node scripts/linx-lab.mjs",
+    "test:controllers": "node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"
