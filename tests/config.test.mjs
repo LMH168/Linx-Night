@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {checkConfig} from '../scripts/check-config.mjs';
-const env={LINX_AGENT_ID:'test',LINX_MCP_ADMIN_URL:'http://127.0.0.1:9091',LINX_MCP_ADMIN_TOKEN:'admin',ADMIN_TOKEN:'admin',MCP_AUTH_TOKEN:'mcp'};
+const env={LINX_HOST_PROFILE:'host',LINX_HOST_AGENT_ID:'host-agent',LINX_SEATS:'P2,P3',LINX_AGENT_ID:'test',LINX_MCP_ADMIN_URL:'http://127.0.0.1:9091',LINX_MCP_ADMIN_TOKEN:'admin',ADMIN_TOKEN:'admin',MCP_AUTH_TOKEN:'mcp'};
 const fs={access:async()=>{}};
 assert.equal((await checkConfig({env,fs})).ok,true);
 for(const patch of [{LINX_PROFILES:'a,a'},{LINX_PROFILES:'a'},{LINX_SEATS:'P99'},{LINX_VOICE_PROFILE:'player-a'},{LINX_MCP_ADMIN_TOKEN:'mismatch'},{MCP_AUTH_TOKEN:'admin'}])assert.equal((await checkConfig({env:{...env,...patch},fs})).ok,false);

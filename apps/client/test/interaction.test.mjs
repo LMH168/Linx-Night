@@ -44,7 +44,7 @@ for(const [role,phase] of [['werewolf','NIGHT_WOLF'],['seer','NIGHT_SEER'],['wit
   run("state.room.phase='SPEECH';state.room.currentSeatId='P2';renderActions();");assert.equal(elements.get('skill').hidden,true);assert.equal(elements.get('speech').hidden,true);
 }
 run("state.room.currentSeatId='P1';renderActions();");assert.equal(elements.get('speech').hidden,false);
-run("state.privateState.role='hunter';state.privateState.alive=false;state.room.phase='HUNTER_RESPONSE';state.room.hunterResponse={seatId:'P1',status:'open',windowId:'window',expiresAt:new Date(Date.now()+30000).toISOString()};renderActions();");assert.equal(elements.get('hunterShot').hidden,false);assert.equal(elements.get('vote').hidden,true);
+run("state.privateState.role='hunter';state.privateState.alive=false;state.room.phase='RESOLUTION';state.privateState.hunterAction={seatId:'P1',status:'open',windowId:'window',expiresAt:new Date(Date.now()+30000).toISOString()};renderActions();");assert.equal(elements.get('hunterShot').hidden,false);assert.equal(elements.get('vote').hidden,true);
 run("state.room.phase='GAME_OVER';renderActions();");assert.equal(elements.get('actionCard').hidden,true);
 run("state.room.phase='LOBBY';renderPrivate();renderActions();");assert.equal(elements.get('privateCard').hidden,true);
 // Voice input only creates an editable draft; it never calls the game API.
@@ -89,8 +89,8 @@ const oldResult=recognitionInstance.onresult, oldEnd=recognitionInstance.onend;
 run('clearVoiceDraft();');oldResult({results:[[{transcript:'迟到结果'}]]});oldEnd();assert.equal(elements.get('speechText').value,'');
 run('startVoice();');const stale=recognitionInstance.onresult;
 run("state.room.phase='VOTE';renderActions();");stale({results:[[{transcript:'上一阶段'}]]});assert.equal(elements.get('speechText').value,'');assert.equal(recognitionInstance.aborted,true);
-run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,false);
-run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,false);
+run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,true);
+run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,true);
 console.log('Voice cancellation/phase guards and explicit control UI passed');
 
 vm.runInContext(await readFile(new URL('../action-draft.js',import.meta.url),'utf8'),context);

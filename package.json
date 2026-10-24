@@ -23,7 +23,7 @@
     "dev:lab": "node scripts/linx-lab.mjs",
     "check:config": "node scripts/check-config.mjs",
     "test:mixed": "node tests/mixed-e2e.test.mjs",
-    "test:controllers": "node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs",
+    "test:controllers": "node tests/host-controllers.test.mjs && node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs",
     "test:hunter": "node packages/domain/test/hunter.test.mjs && node tests/hunter-integration.test.mjs",
     "test:runtime": "node tests/hunter-lab.test.mjs && node tests/hunter-runtime.test.mjs && node tests/turn-runtime.test.mjs && node tests/runtime-lifecycle.test.mjs && node apps/server/test/linx-runtime-manager.test.mjs && node tests/mcp-discovery.test.mjs",
     "test:control": "node tests/player-control.test.mjs",

@@ -42,6 +42,6 @@ try {
   // Human P2 must never be relabelled Linx during the start preparation.
   const humans=createRoom({hostPlayerId:'h1'});addPlayer(humans,{playerId:'h1',displayName:'h1'});addPlayer(humans,{playerId:'h2',displayName:'h2'});rooms.set(humans.roomId,humans);
   assert.equal((await post(`/api/rooms/${humans.roomId}/start`,'h1')).status,202);
-  assert.equal(humans.seats[1].controlSource,'human');assert.deepEqual(humans.controllers.map(c=>c.seatId),['P3']);
+  assert.equal(humans.seats[1].controlSource,'human');assert.deepEqual(humans.controllers.map(c=>c.seatId),['P3','P4','P5','P6','P7','P8','P9']);
   console.log('Lifecycle cancellation during OTA/hello/bind, late start and host retry authorization passed');
 } finally {rooms.clear();api.closeAllConnections();await new Promise(r=>api.close(r));}

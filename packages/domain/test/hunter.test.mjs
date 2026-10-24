@@ -10,7 +10,7 @@ for (const cause of ['night', 'vote', 'poison']) {
   assert.equal(room.phase, 'HUNTER_RESPONSE');
   assert.equal(room.events.filter(e => e.type === 'game.hunter_response_opened').length, 1);
   assert.equal(publicState(room).version, room.version);
-  assert.equal(publicState(room).hunterResponse.targetSeatId, undefined);
+  assert.equal(publicState(room).hunterResponse, null);
   unchanged(room, () => hunterShot(room, 'P1', 'P2', 'bad', windowId));
   unchanged(room, () => hunterShot(room, 'P7', 'P7', 'bad', windowId));
   unchanged(room, () => hunterShot(room, 'P7', 'P2', 'bad'));

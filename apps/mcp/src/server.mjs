@@ -44,7 +44,7 @@ export function bindController(binding) {
   const room = rooms.get(binding.roomId); if (!room || room.gameId !== binding.gameId) throw new Error('game room is not preparing controllers');
   if (room.invalidated || room.phase === 'GAME_OVER') throw new Error('room is inactive');
   const controller = controllerFor(room, binding.seatId); const seat = room.seats.find(item => item.seatId === binding.seatId);
-  if (!controller || !seat || seat.playerType !== 'ai' || controller.controllerEpoch !== binding.controllerEpoch) throw new Error('controller reservation does not match');
+  if (!controller || (binding.seatId!=='HOST' && (!seat || seat.playerType !== 'ai')) || controller.controllerEpoch !== binding.controllerEpoch) throw new Error('controller reservation does not match');
   if ((controller.agentId && controller.agentId !== binding.agentId) || (controller.deviceId && controller.deviceId !== binding.deviceId)) throw new Error('expected controller identity mismatch');
   if (controller.status === CONTROLLER_STATES.RELEASED || (controller.sessionId && controller.sessionId !== binding.sessionId)) throw new Error('controller seat is already occupied');
   if (![CONTROLLER_STATES.PENDING, CONTROLLER_STATES.CONNECTED, CONTROLLER_STATES.BINDING].includes(controller.status)) throw new Error('controller is not accepting a binding');
@@ -52,8 +52,8 @@ export function bindController(binding) {
     if (existing.sessionId === binding.sessionId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('session is already bound to another seat');
     if (existing.deviceId === binding.deviceId && existing.agentId === binding.agentId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('device is already bound to another seat');
   }
-  const context = { roomId: binding.roomId, gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, role: 'player', seatId: binding.seatId, playerId: seat.playerId, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId, runId: binding.runId };
-  sessions.set(binding.sessionId, context); devices.set(`${binding.agentId}:${binding.deviceId}`, context); controllerBindings.set(binding.sessionId, context); updateController(room, binding.seatId, { gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, agentId: binding.agentId, deviceId: binding.deviceId, sessionId: binding.sessionId, runId: binding.runId, status: CONTROLLER_STATES.BINDING }); seat.linxControlled = true; seat.controlSource = 'linx'; return { ...context };
+  const context = { roomId: binding.roomId, gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, role: binding.seatId==='HOST' ? 'host' : 'player', seatId: binding.seatId, playerId: seat?.playerId, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId, runId: binding.runId };
+  sessions.set(binding.sessionId, context); devices.set(`${binding.agentId}:${binding.deviceId}`, context); controllerBindings.set(binding.sessionId, context); updateController(room, binding.seatId, { gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, agentId: binding.agentId, deviceId: binding.deviceId, sessionId: binding.sessionId, runId: binding.runId, status: CONTROLLER_STATES.BINDING }); if(seat){seat.linxControlled = true; seat.controlSource = 'linx';} return { ...context };
 }
 
 export function releaseController(binding) {
@@ -71,11 +71,12 @@ async function callTool(req, name, args, requiredToken, trace) {
   Object.assign(trace, { roomId: room.roomId, seatId: context.seatId, beforeVersion: room.version, eventIds: [] });
   const tool = toolMap.get(name);
   if (!tool) throw Object.assign(new Error('unknown tool'), { code: -32601 });
-  if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches'].includes(name)) throw Object.assign(new Error('host is read-only'), { code: -32002 });
+  if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches','get_host_announcements'].includes(name)) throw Object.assign(new Error('host is read-only'), { code: -32002 });
   const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, tool: name, ok: false };
   try {
     validateArguments(tool, args);
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
+    if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }
     if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
     let turn;

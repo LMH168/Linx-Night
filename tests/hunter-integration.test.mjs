@@ -29,7 +29,7 @@ try {
   const reader=stream.body.getReader(); await reader.read();
   assert.equal((await action({action:'shoot',target_seat_id:'P2',window_id:windowId,action_id:'api-shot'})).status,200);
   const chunk = new TextDecoder().decode((await reader.read()).value);
-  assert.match(chunk,/game.hunter_response_closed/); assert.match(chunk,/completed/);
+  assert.match(chunk,/game.hunter_shot/); assert.doesNotMatch(chunk,/windowId|expiresAt/);
   abort.abort(); await reader.cancel().catch(()=>{});
   const accepted=structuredClone(room);
   assert.equal((await action({action:'shoot',target_seat_id:'P3',window_id:windowId,action_id:'api-shot'})).status,400);

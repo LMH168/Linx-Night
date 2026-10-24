@@ -13,11 +13,10 @@ const post=(path,body={},id='host')=>fetch(base+path,{method:'POST',headers:{'co
 try{
  assert.equal((await post('/control',{mode:'rule_bot'},'stranger')).status,403);
  assert.equal((await post('/control',{mode:'linx'})).status,400);
- assert.equal((await post('/control',{mode:'rule_bot'})).status,200);
- assert.equal(seat.controlEpoch,1);const before=JSON.stringify(room);
- assert.equal((await post('/speeches',{text:'must not write'})).status,403);assert.equal(JSON.stringify(room),before);
- tickRoom(room);assert.equal(room.speeches.length,1);assert.equal(room.currentSeatId,'P2');
- assert.equal((await post('/control',{mode:'human'})).status,200);assert.equal(seat.controlEpoch,2);
+ assert.equal((await post('/control',{mode:'rule_bot'})).status,400);
+ assert.equal(seat.controlSource,'human');
+ assert.equal((await post('/speeches',{text:'真人仍可发言'})).status,200);
+ assert.equal(room.speeches.length,1);
  assert.equal((await post('/presence')).status,200);
  assert.throws(()=>setHumanControl(room,room.seats[1],'human'),/human seat/);
  assert.ok(!JSON.stringify(publicState(room)).includes('lastHeartbeat'));
