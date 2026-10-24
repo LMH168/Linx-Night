@@ -1,0 +1,35 @@
+{
+  "version": "0.1.0",
+  "roles": ["werewolf", "seer", "witch", "hunter", "villager"],
+  "camps": ["werewolf", "good"],
+  "phases": [
+    "LOBBY",
+    "ROLE_ASSIGNMENT",
+    "NIGHT_WOLF",
+    "NIGHT_SEER",
+    "NIGHT_WITCH",
+    "DAY_ANNOUNCEMENT",
+    "SPEECH",
+    "VOTE",
+    "RESOLUTION",
+    "GAME_OVER"
+  ],
+  "events": [
+    "room.updated",
+    "game.phase_changed",
+    "game.speech_submitted",
+    "game.action_submitted",
+    "game.player_eliminated",
+    "game.vote_resolved",
+    "game.finished"
+  ],
+  "errors": [
+    "BAD_REQUEST",
+    "UNAUTHORIZED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "INVALID_PHASE",
+    "INVALID_ACTION",
+    "DUPLICATE_REQUEST"
+  ]
+}
