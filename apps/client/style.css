@@ -8,3 +8,4 @@ button { padding: 10px 12px; border: 0; border-radius: 7px; background: #2563eb;
 .seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 16px; }
 .seat { padding: 12px; border-radius: 8px; background: #111827; border: 1px solid #374151; } .seat strong { display: block; } .seat small { color: #94a3b8; }
 .seat.ai { border-color: #7c3aed; } .seat.human { border-color: #059669; } .events { margin: 0; padding-left: 24px; color: #cbd5e1; }
+textarea, select { box-sizing: border-box; width: 100%; margin: 6px 0; padding: 9px; border: 1px solid #4b5563; border-radius: 7px; background: #111827; color: inherit; } .action-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto auto; gap: 8px; align-items: center; }

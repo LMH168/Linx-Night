@@ -27,6 +27,14 @@
         <h2>公开事件</h2>
         <ol id="events" class="events"></ol>
       </section>
+      <section class="card" id="privateCard" hidden>
+        <h2>我的身份</h2><p id="identity"></p><p id="skills" class="muted"></p>
+      </section>
+      <section class="card" id="actionCard" hidden>
+        <h2>当前操作</h2><p id="turnHint" class="muted"></p>
+        <textarea id="speechText" placeholder="输入你的发言" rows="3"></textarea>
+        <div class="action-row"><button id="speech" disabled>提交发言</button><select id="target"></select><select id="witchAction"><option value="skip">女巫跳过</option><option value="save">使用解药</option><option value="poison">使用毒药</option></select><button id="skill" disabled>提交技能</button><button id="vote" disabled>投票</button></div>
+      </section>
     </main>
     <script type="module" src="/app.js"></script>
   </body>
