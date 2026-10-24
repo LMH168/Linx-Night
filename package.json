@@ -27,7 +27,8 @@
     "test:hunter": "node packages/domain/test/hunter.test.mjs && node tests/hunter-integration.test.mjs",
     "test:runtime": "node tests/turn-runtime.test.mjs && node tests/runtime-lifecycle.test.mjs && node apps/server/test/linx-runtime-manager.test.mjs",
     "test:control": "node tests/player-control.test.mjs",
-    "test:voice": "node --test apps/linx/test/voice.test.mjs && node tests/voice-api.test.mjs && node tests/browser-voice.test.mjs"
+    "test:voice": "node --test apps/linx/test/voice.test.mjs && node tests/voice-api.test.mjs && node tests/browser-voice.test.mjs",
+    "test:delivery": "node tests/config.test.mjs && node tests/full-mixed.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"
