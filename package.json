@@ -6,10 +6,12 @@
   "scripts": {
     "dev:server": "node apps/server/src/index.mjs",
     "dev:client": "node apps/client/server.mjs",
+    "dev:mcp": "node apps/mcp/src/index.mjs",
     "check": "node --check apps/server/src/index.mjs && node --check apps/server/src/api.mjs && node --check apps/server/test/api.test.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/src/engine.mjs && node --check packages/domain/test/model.test.mjs && node --check packages/domain/test/engine.test.mjs",
     "test:domain": "node packages/domain/test/model.test.mjs && node packages/domain/test/engine.test.mjs",
     "test:api": "node apps/server/test/api.test.mjs",
     "test:realtime": "node apps/server/test/realtime.test.mjs",
     "test:client": "node apps/client/test/static.test.mjs"
+    ,"test:mcp": "node apps/mcp/test/server.test.mjs"
   }
 }
