@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Linx Night 房间</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <h1>Linx Night</h1>
+      <p class="muted">9 人狼人杀真人房间</p>
+      <section class="card controls">
+        <label>服务端地址 <input id="apiUrl" value="http://localhost:5000" /></label>
+        <label>昵称 <input id="displayName" placeholder="你的昵称" /></label>
+        <label>房间号 <input id="roomId" placeholder="创建后填写" /></label>
+        <button id="create">创建房间</button>
+        <button id="join">加入房间</button>
+        <button id="start" disabled>开始游戏</button>
+      </section>
+      <p id="message" class="message"></p>
+      <section class="card">
+        <div class="summary"><strong id="roomLabel">未进入房间</strong><span id="phase">LOBBY</span><span id="counts"></span></div>
+        <div id="seats" class="seats"></div>
+      </section>
+      <section class="card">
+        <h2>公开事件</h2>
+        <ol id="events" class="events"></ol>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -6,7 +6,7 @@ import { EventHub, eventStream } from './realtime.mjs';
 
 export const rooms = new Map();
 export const events = new EventHub();
-const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
+const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => { let data = ''; req.on('data', chunk => { data += chunk; if (data.length > 1_000_000) reject(new Error('request body too large')); }); req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Error('request body must be valid JSON')); } }); req.on('error', reject); });
 const currentPlayer = (req, room) => { const playerId = req.headers['x-player-id']; const seat = room.seats.find(item => item.playerId === playerId); if (!seat) throw Object.assign(new Error('player identity is unauthorized'), { status: 403 }); return seat; };
 const roomOrFail = roomId => { const room = rooms.get(roomId); if (!room) throw Object.assign(new Error('room not found'), { status: 404 }); return room; };
@@ -16,6 +16,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000) } = {}
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
+      if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,OPTIONS' }); return res.end(); }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'linx-night-server', version: '0.1.0' });
       if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRoom({ hostPlayerId: playerId }); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); rooms.set(room.roomId, room); return json(res, 201, { room_id: room.roomId, player_id: playerId, state: publicState(room) }); }
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
