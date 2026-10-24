@@ -20,6 +20,7 @@ const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'
 const descriptions = {werewolf:'与队友协商，在夜晚选择目标。',seer:'每晚查验一名玩家，寻找隐藏的狼人。',witch:'解药与毒药各一瓶，每晚只能选择一种。',hunter:'出局后可使用一次开枪技能。',villager:'倾听发言，用推理和投票帮助好人获胜。'};
 const show = (id, visible) => { $(id).hidden = !visible; };
 function render(room) {
+  linxVoice?.update(room);
   state.room = room;
   const lobby = room.phase === 'LOBBY';
   show('entryCard',lobby || room.phase==='GAME_OVER');
@@ -73,7 +74,7 @@ function renderActions() {
   show('controlCard',canControl); show('takeover',canControl && seat.controlSource==='human'); show('restoreControl',canControl && seat.controlSource==='rule_bot');
   $('#controlHint').textContent=seat?.controlSource==='rule_bot'?'当前由规则机器人托管，恢复后你可操作后续回合。':'断线只显示离线；需要自动行动时请主动托管。';
   const active=!!(room && seat?.controlSource!=='rule_bot' && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
-  if (state.voice.recognition && (!active || !mine.alive || room.phase!=='SPEECH' || room.currentSeatId!==mine.seatId || state.voice.context!==voiceContext())) stopVoice();
+  if ((state.voice.recognition || state.voice.linxRecording) && (!active || !mine.alive || room.phase!=='SPEECH' || room.currentSeatId!==mine.seatId || state.voice.context!==voiceContext())) stopVoice();
   show('actionCard',active); if(!active) return;
   const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
@@ -101,6 +102,7 @@ function renderActions() {
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
 function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.playerId].join(':'); }
 function stopVoice() {
+  linxVoice?.stop(); state.voice.linxRecording=false;
   const recognition=state.voice.recognition; state.voice.recognition=null; state.voice.listening=false;
   if(recognition){recognition.onstart=recognition.onresult=recognition.onerror=recognition.onend=null;try { (recognition.abort || recognition.stop)?.call(recognition); } catch {}}
   $('#voiceStart').disabled=false;
@@ -144,9 +146,14 @@ $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/
 $('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, window_id: state.room.hunterResponse.windowId, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#hunterSkip').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/hunter-response`, { method: 'POST', body: JSON.stringify({ action: 'skip', window_id: state.room.hunterResponse.windowId, action_id: `hunter_skip_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'announce_day', action_id: `announce_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
-window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); clearTimeout(state.reconnectTimer); state.source?.close(); });
+window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); linxVoice?.stopPlayback(); clearTimeout(state.reconnectTimer); state.source?.close(); });
 for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};
 setInterval(()=>{if(!state.unloading && state.roomId && state.playerId)call('/api/rooms/'+state.roomId+'/presence',{method:'POST'}).catch(()=>{});},10000);
+const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,applyDraft:text=>{ $('#speechText').value=text;state.voice.draft=true;renderActions(); }});
+$('#linxRecord').onclick=()=>{stopVoice();state.voice.context=voiceContext();state.voice.linxRecording=true;linxVoice?.record();};
+$('#linxRecordCancel').onclick=()=>{stopVoice();$('#linxVoiceStatus').textContent='已取消录音或转写。';};
+$('#linxRecordStop').onclick=()=>linxVoice?.end();
+$('#publicVoice').onclick=()=>linxVoice?.toggle();
 $('#voiceStart').onclick = startVoice;
 $('#voiceCancel').onclick = clearVoiceDraft;
 if (state.roomId) { refresh(); connectEvents(); }

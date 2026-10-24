@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
+const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{});return elements.get(id);};
+let resolveMic,stopped=0;const media=new Promise(r=>resolveMic=r);const context=vm.createContext({window:{MediaRecorder:class{}},navigator:{mediaDevices:{getUserMedia:()=>media}},document:{getElementById:element},setTimeout,clearTimeout,AbortController,URL});
+vm.runInContext(await readFile(new URL('../apps/client/linx-voice.js',import.meta.url),'utf8'),context);
+const state={roomId:'room',room:{version:4}},calls=[];const voice=context.window.createLinxVoice({state,call:async(...a)=>{calls.push(a);return{};},context:()=>'',applyDraft:()=>{},message:()=>{}});
+const work=voice.record();voice.stop();resolveMic({getTracks:()=>[{stop(){stopped++;}}]});await work;assert.equal(stopped,1);assert.equal(calls.length,0);
+voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});voice.toggle();voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});assert.equal(calls.length,0);voice.stopPlayback();
+console.log('Browser delayed microphone cancellation and historical playback exclusion passed');
+// Successful capture creates a WAV draft request only; cancellation discards delayed STT.
+let lastRecorder,resolveText;class Recorder{constructor(){lastRecorder=this;this.state='inactive';}start(){this.state='recording';}stop(){this.state='inactive';this.ondataavailable?.({data:new Blob(['audio'])});this.onstop?.();}}
+context.window.MediaRecorder=Recorder;context.MediaRecorder=Recorder;context.navigator.mediaDevices.getUserMedia=async()=>({getTracks:()=>[{stop(){}}]});context.Blob=Blob;context.btoa=value=>Buffer.from(value,'binary').toString('base64');context.AudioContext=class{async decodeAudioData(){return{duration:0.02};}async close(){}};context.OfflineAudioContext=class{createBufferSource(){return{connect(){},start(){}};}async startRendering(){return{getChannelData:()=>new Float32Array(320)};}};
+let draft='';const captured=[];const voice2=context.window.createLinxVoice({state,call:async(path,options)=>{captured.push({path,body:JSON.parse(options.body)});return new Promise(r=>resolveText=r);},context:()=>'',applyDraft:text=>{draft=text;},message:()=>{}});
+await voice2.record();voice2.end();for(let i=0;i<10 && !resolveText;i++)await new Promise(r=>setImmediate(r));assert.equal(captured.length,1);assert.match(captured[0].path,/transcribe$/);assert.equal(Buffer.from(captured[0].body.wav,'base64').toString('ascii',0,4),'RIFF');voice2.stop();resolveText({text:'迟到草稿'});await new Promise(r=>setImmediate(r));assert.equal(draft,'');
+console.log('Browser WAV conversion and cancellation during STT request passed');
