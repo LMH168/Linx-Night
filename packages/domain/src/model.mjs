@@ -1,0 +1,67 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+export const ROLES = Object.freeze({ WEREWOLF: 'werewolf', SEER: 'seer', WITCH: 'witch', HUNTER: 'hunter', VILLAGER: 'villager' });
+export const CAMPS = Object.freeze({ WEREWOLF: 'werewolf', GOOD: 'good' });
+export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
+export const PLAYER_TYPES = Object.freeze({ HUMAN: 'human', AI: 'ai' });
+export const CONNECTION_STATES = Object.freeze({ ONLINE: 'online', DISCONNECTED: 'disconnected', AI_CONTROLLED: 'ai_controlled' });
+
+const roleCamp = role => role === ROLES.WEREWOLF ? CAMPS.WEREWOLF : CAMPS.GOOD;
+const roleList = [ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.SEER, ROLES.WITCH, ROLES.HUNTER, ROLES.VILLAGER, ROLES.VILLAGER, ROLES.VILLAGER];
+
+function id(prefix) { return `${prefix}_${randomUUID()}`; }
+function requireText(value, name) { if (typeof value !== 'string' || value.trim() === '') throw new Error(`${name} must be a non-empty string`); }
+function clone(value) { return structuredClone(value); }
+
+export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } = {}) {
+  requireText(roomId, 'roomId'); requireText(hostPlayerId, 'hostPlayerId');
+  return {
+    roomId, hostPlayerId, phase: PHASES.LOBBY, version: 0, round: 0, currentSeatId: null,
+    seats: Array.from({ length: 9 }, (_, index) => ({ seatId: `P${index + 1}`, playerId: null, playerType: null, displayName: null, connectionState: null, role: null, camp: null, alive: true, skills: { antidoteAvailable: false, poisonAvailable: false, hunterShotAvailable: false }, seerResults: [] })),
+    events: [], speeches: [], actions: [], votes: [],
+  };
+}
+
+export function assignRoles(room) {
+  if (!room || !Array.isArray(room.seats) || room.seats.length !== 9) throw new Error('room must contain exactly 9 seats');
+  if (room.seats.some(seat => !seat.playerId)) throw new Error('all seats must be occupied before role assignment');
+  const roles = [...roleList];
+  for (let i = roles.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [roles[i], roles[j]] = [roles[j], roles[i]]; }
+  room.seats.forEach((seat, index) => { seat.role = roles[index]; seat.camp = roleCamp(roles[index]); seat.alive = true; seat.skills = { antidoteAvailable: roles[index] === ROLES.WITCH, poisonAvailable: roles[index] === ROLES.WITCH, hunterShotAvailable: roles[index] === ROLES.HUNTER }; });
+  room.phase = PHASES.ROLE_ASSIGNMENT; room.version += 1; return room;
+}
+
+export function addPlayer(room, { playerId = id('player'), displayName, playerType = PLAYER_TYPES.HUMAN, connectionState = CONNECTION_STATES.ONLINE } = {}) {
+  requireText(playerId, 'playerId'); requireText(displayName, 'displayName');
+  if (!Object.values(PLAYER_TYPES).includes(playerType)) throw new Error('invalid playerType');
+  if (room.phase !== PHASES.LOBBY) throw new Error('players cannot join after the room starts');
+  if (room.seats.some(seat => seat.playerId === playerId)) throw new Error('player already joined');
+  const seat = room.seats.find(item => !item.playerId); if (!seat) throw new Error('room is full');
+  Object.assign(seat, { playerId, displayName, playerType, connectionState }); room.version += 1; return clone(seat);
+}
+
+export function fillAiSeats(room, name = index => `AI ${index}`) {
+  room.seats.filter(seat => !seat.playerId).forEach((seat, index) => addPlayer(room, { playerId: id('ai'), displayName: name(index + 1), playerType: PLAYER_TYPES.AI }));
+  return room;
+}
+
+export function publicState(room) {
+  return { roomId: room.roomId, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, connectionState, alive }) => ({ seatId, displayName, playerType, connectionState, alive })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
+}
+
+export function privateState(room, playerId) {
+  requireText(playerId, 'playerId'); const seat = room.seats.find(item => item.playerId === playerId); if (!seat) throw new Error('player not found');
+  const teammates = seat.camp === CAMPS.WEREWOLF ? room.seats.filter(item => item.camp === CAMPS.WEREWOLF && item.playerId !== playerId && item.alive).map(item => item.seatId) : [];
+  return { roomId: room.roomId, seatId: seat.seatId, playerId: seat.playerId, role: seat.role, camp: seat.camp, alive: seat.alive, skills: clone(seat.skills), seerResults: clone(seat.seerResults), werewolfTeammates: teammates };
+}
+
+export function appendEvent(room, { eventId = id('evt'), type, data = {} } = {}) {
+  requireText(eventId, 'eventId'); requireText(type, 'type');
+  if (room.events.some(event => event.eventId === eventId)) throw new Error('duplicate event');
+  const event = { eventId, version: room.version + 1, type, roomId: room.roomId, data: clone(data) }; room.events.push(event); room.version = event.version; return clone(event);
+}
+
+export async function saveSnapshot(room, filePath) { await mkdir(dirname(filePath), { recursive: true }); await writeFile(filePath, `${JSON.stringify(room, null, 2)}\n`, 'utf8'); }
+export async function loadSnapshot(filePath) { return JSON.parse(await readFile(filePath, 'utf8')); }
