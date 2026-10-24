@@ -1364,3 +1364,17 @@ dialog::backdrop {
 .player.dead:disabled {
   opacity: 0.4;
 }
+
+.playback-panel {
+  text-align: center;
+  margin-top: 16px;
+}
+#playback-status {
+  color: var(--muted, #8f9c93);
+  font-size: 13px;
+  line-height: 1.6;
+}
+#audio-player audio {
+  width: min(100%, 420px);
+  margin: 8px auto;
+}

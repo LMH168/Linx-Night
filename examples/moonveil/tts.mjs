@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { randomBytes } from 'node:crypto';
 import { loadState, connectionFor } from './linx-config.mjs';
 import { exchange } from './linx.mjs';
@@ -95,6 +96,27 @@ export function audioFile(result) {
   if (params.format !== 'opus') throw Error('服务返回了不支持的音频格式');
   return { type: 'audio/ogg', data: oggOpus(result.packets, params) };
 }
+// Only retry connection discovery; never replay an in-flight synthesis request.
+export async function voiceConnection(
+  player,
+  { signal, connect = connectionFor, wait = delay } = {},
+) {
+  for (let attempt = 0; ; attempt++) {
+    signal?.throwIfAborted();
+    try {
+      const connection = await connect(player, { signal });
+      signal?.throwIfAborted();
+      return connection;
+    } catch (error) {
+      signal?.throwIfAborted();
+      const temporary =
+        /^OTA HTTP (502|503|504)$/.test(error.message) || error.name === 'TimeoutError';
+      if (!temporary) throw error;
+      if (attempt === 2) throw Error('灵矽语音连接暂时不可用，自动重试后仍失败');
+      await wait(600 * (attempt + 1), undefined, { signal });
+    }
+  }
+}
 export async function synthesize(seat, text, { signal } = {}) {
   if (
     !Number.isInteger(seat) ||
@@ -108,7 +130,7 @@ export async function synthesize(seat, text, { signal } = {}) {
   const state = await loadState(),
     player = state.players.find((p) => p.seat === seat);
   if (!player?.voiceId) throw Error('玩家尚未配置音色');
-  const c = await connectionFor(player);
+  const c = await voiceConnection(player, { signal });
   const result = await exchange(c, { seat, name: player.name }, '朗读当前玩家发言', {
     captureAudio: true,
     textResponse: text,

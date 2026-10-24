@@ -178,7 +178,7 @@ async function action(path, body = {}) {
     game = await api(path, { gameId: game?.id, ...body });
     selected = null;
     render();
-    speakLatest();
+    await speakLatest();
     if (game.phase === 'over') saveHistory();
   } catch (e) {
     toast(e.message);
@@ -256,16 +256,20 @@ $('#leave-btn').onclick = () => {
 $('#lobby-nav').onclick = () => {
   if (!$('#game').hidden) $('#leave-btn').click();
 };
-$('#sound-btn').onclick = () => {
-  sound = !sound;
+function setSound(enabled) {
+  sound = enabled;
   $('#sound-btn').textContent = sound ? '♬ 语音已开启' : '♬ 开启语音';
+  try {
+    sessionStorage.setItem('moonveil-sound', String(sound));
+  } catch {}
+}
+try {
+  setSound(sessionStorage.getItem('moonveil-sound') === 'true');
+} catch {}
+$('#sound-btn').onclick = () => {
+  setSound(!sound);
   if (sound) {
-    if (!window.speechSynthesis) {
-      sound = false;
-      $('#sound-btn').textContent = '♬ 开启语音';
-      toast('浏览器不支持语音播报，请阅读字幕');
-      return;
-    }
+    setPlaybackStatus('语音已开启。AI 发言将使用各自的灵矽音色。');
     say('欢迎来到月隐。请听从主持人的指引。');
   } else stopPlayback();
 };
@@ -273,6 +277,25 @@ let speechGeneration = 0,
   playingAudio = null,
   audioAbort = null,
   playbackDone = null;
+let playbackActive = false;
+function setPlaybackStatus(text) {
+  const status = $('#playback-status');
+  if (status) status.textContent = text;
+}
+function lockPlayback(active) {
+  playbackActive = active;
+  $$('#action-panel button').forEach((button) => {
+    if (active) {
+      if (!button.hasAttribute('data-playback-disabled'))
+        button.dataset.playbackDisabled = String(button.disabled);
+      button.disabled = true;
+    } else if (button.hasAttribute('data-playback-disabled')) {
+      button.disabled = button.dataset.playbackDisabled === 'true';
+      delete button.dataset.playbackDisabled;
+    }
+  });
+  if ($('#stop-audio-btn')) $('#stop-audio-btn').hidden = !active;
+}
 function stopPlayback() {
   speechGeneration++;
   audioAbort?.abort();
@@ -287,7 +310,12 @@ function stopPlayback() {
   playbackDone = null;
   window.speechSynthesis?.cancel();
   $('.wave')?.classList.remove('playing');
+  lockPlayback(false);
 }
+$('#stop-audio-btn').onclick = () => {
+  stopPlayback();
+  setPlaybackStatus('已停止语音，可以继续下一步或重听发言。');
+};
 function browserSpeak(text, generation) {
   return new Promise((resolve) => {
     if (generation !== speechGeneration || !window.speechSynthesis) return resolve();
@@ -304,36 +332,58 @@ function browserSpeak(text, generation) {
     window.speechSynthesis.speak(u);
   });
 }
+const voiceCache = new Map();
 async function playVoice(seat, text, generation) {
-  audioAbort = new AbortController();
-  const r = await fetch(voiceEndpoint + '/speak', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ seat, text }),
-    signal: audioAbort.signal,
-  });
-  if (!r.ok) {
-    const d = await r.json();
-    throw Error(d.error || '语音生成失败');
+  const cacheKey = JSON.stringify([seat, text]);
+  let blob = voiceCache.get(cacheKey);
+  setPlaybackStatus(`正在生成 ${seat} 号玩家的声音，请稍候；生成完成后会自动播放。`);
+  if (!blob) {
+    audioAbort = new AbortController();
+    const r = await fetch(voiceEndpoint + '/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seat, text }),
+      signal: AbortSignal.any([audioAbort.signal, AbortSignal.timeout(120000)]),
+    });
+    if (!r.ok) {
+      const d = await r.json();
+      throw Error(d.error || '语音生成失败');
+    }
+    blob = await r.blob();
+    if (generation !== speechGeneration) return;
+    voiceCache.set(cacheKey, blob);
+    if (voiceCache.size > 8) voiceCache.delete(voiceCache.keys().next().value);
   }
-  const blob = await r.blob();
   if (generation !== speechGeneration) return;
   const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.id = 'active-voice-audio';
+  audio.controls = true;
+  $('#audio-player').replaceChildren(audio);
+  playingAudio = audio;
   try {
     await new Promise((resolve, reject) => {
-      const audio = new Audio(url);
-      audio.id = 'active-voice-audio';
-      audio.hidden = true;
-      document.body.append(audio);
-      playingAudio = audio;
       playbackDone = resolve;
+      audio.onplaying = () => setPlaybackStatus(`正在播放 ${seat} 号玩家的声音。`);
+      audio.onpause = () => {
+        if (generation === speechGeneration && !audio.ended)
+          setPlaybackStatus('语音已暂停，点击播放器继续，或停止语音进入下一步。');
+      };
       audio.onended = resolve;
-      audio.onerror = () => reject(Error('当前浏览器无法播放该音频'));
-      audio.play().catch(() => reject(Error('请点击“重听发言”允许播放声音')));
+      audio.onerror = () => reject(Error('当前浏览器无法播放该音频，请重听或更换浏览器'));
+      audio.play().catch((error) => {
+        if (generation !== speechGeneration) return resolve();
+        if (error.name === 'NotAllowedError') {
+          setPlaybackStatus('浏览器拦截了自动播放，请点击下方播放器的播放按钮。');
+        } else reject(error);
+      });
     });
   } finally {
+    audio.onpause = audio.onplaying = audio.onended = audio.onerror = null;
+    audio.pause();
+    audio.remove();
+    audio.src = '';
     URL.revokeObjectURL(url);
-    document.querySelector(`audio[src="${url}"]`)?.remove();
     if (generation === speechGeneration) {
       playingAudio = null;
       playbackDone = null;
@@ -341,21 +391,34 @@ async function playVoice(seat, text, generation) {
   }
 }
 async function speakEntries(entries, { force = false } = {}) {
+  if (force) setSound(true);
   if (!sound && !force) return;
   stopPlayback();
   const generation = speechGeneration;
+  lockPlayback(true);
   $('.wave')?.classList.add('playing');
   try {
     for (const e of entries) {
       if (generation !== speechGeneration) break;
       const seat = e.kind === 'speech' ? Number(e.who.match(/^(\d+) 号/)?.[1]) : 0;
       if (mode === 'linx' && seat >= 2) await playVoice(seat, e.text, generation);
-      else await browserSpeak(e.text, generation);
+      else {
+        setPlaybackStatus(`正在播报${e.who}的发言。`);
+        await browserSpeak(e.text, generation);
+      }
     }
+    if (generation === speechGeneration) setPlaybackStatus('本段语音已播放完毕，可以继续下一位。');
   } catch (e) {
-    if (e.name !== 'AbortError' && generation === speechGeneration) toast(e.message);
+    if (generation === speechGeneration) {
+      const message = e.name === 'TimeoutError' ? '语音服务响应超时' : e.message;
+      setPlaybackStatus(`语音未播放：${message}。请点击重听发言重试。`);
+      toast(message);
+    }
   } finally {
-    if (generation === speechGeneration) $('.wave')?.classList.remove('playing');
+    if (generation === speechGeneration) {
+      $('.wave')?.classList.remove('playing');
+      lockPlayback(false);
+    }
   }
 }
 function say(text) {
@@ -365,7 +428,7 @@ function speakLatest() {
   if (!game) return;
   const entries = game.log.filter((l) => l.id > lastSpoken);
   lastSpoken = game.log.at(-1)?.id || 0;
-  if (entries.length) speakEntries(entries);
+  if (entries.length) return speakEntries(entries);
 }
 
 const voiceEndpoint = `${location.protocol}//${location.hostname}:4174`;
@@ -562,6 +625,7 @@ function render() {
   if (latestSpeech)
     html += `<button class="text-link" id="replay-btn">♬ 重听 ${escape(latestSpeech.who)} 的发言</button>`;
   $('#action-panel').innerHTML = html;
+  if (playbackActive) lockPlayback(true);
   if ($('#replay-btn'))
     $('#replay-btn').onclick = () => speakEntries([latestSpeech], { force: true });
   const bind = (s, fn) => {

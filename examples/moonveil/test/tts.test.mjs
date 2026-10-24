@@ -45,3 +45,69 @@ test('PCM responses become valid wave files, unknown formats fail', () => {
   assert.equal(result.data.readUInt32LE(24), 16000);
   assert.throws(() => audioFile({ audioParams: { format: 'unknown' }, packets: [] }));
 });
+
+test('voice discovery retries transient OTA failures but synthesizes only after connection', async () => {
+  const { voiceConnection } = await import('../tts.mjs');
+  let attempts = 0;
+  const waits = [];
+  const result = await voiceConnection(
+    {},
+    {
+      connect: async () => {
+        if (++attempts < 3) throw Error('OTA HTTP 504');
+        return { token: 'test' };
+      },
+      wait: async (ms) => waits.push(ms),
+    },
+  );
+  assert.equal(result.token, 'test');
+  assert.deepEqual(waits, [600, 1200]);
+  let permanentCalls = 0;
+  await assert.rejects(
+    voiceConnection(
+      {},
+      {
+        connect: async () => {
+          permanentCalls++;
+          throw Error('OTA HTTP 401');
+        },
+      },
+    ),
+    /401/,
+  );
+  assert.equal(permanentCalls, 1);
+});
+
+test('voice discovery has bounded retries and respects cancellation', async () => {
+  const { voiceConnection } = await import('../tts.mjs');
+  let calls = 0;
+  await assert.rejects(
+    voiceConnection(
+      {},
+      {
+        connect: async () => {
+          calls++;
+          throw Error('OTA HTTP 503');
+        },
+        wait: async () => {},
+      },
+    ),
+    /自动重试后仍失败/,
+  );
+  assert.equal(calls, 3);
+  const controller = new AbortController();
+  await assert.rejects(
+    voiceConnection(
+      {},
+      {
+        signal: controller.signal,
+        connect: async () => {
+          controller.abort();
+          throw Error('OTA HTTP 504');
+        },
+        wait: async () => assert.fail('Cancelled discovery must not retry'),
+      },
+    ),
+    { name: 'AbortError' },
+  );
+});

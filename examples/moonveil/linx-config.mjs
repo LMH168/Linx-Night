@@ -84,7 +84,7 @@ export function secureWsURL(raw) {
   u.protocol = 'wss:';
   return u.toString();
 }
-export async function ota(player, { fetchImpl = fetch } = {}) {
+export async function ota(player, { fetchImpl = fetch, signal } = {}) {
   const r = await fetchImpl('https://xrobo.qiniuapi.com/v1/ota/', {
     method: 'POST',
     headers: {
@@ -102,7 +102,9 @@ export async function ota(player, { fetchImpl = fetch } = {}) {
       mac_address: player.deviceId,
       board: { type: 'xiaoling-web-test', ssid: '', rssi: 0 },
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      : AbortSignal.timeout(15000),
     redirect: 'error',
   });
   if (!r.ok) throw Error(`OTA HTTP ${r.status}`);
@@ -111,8 +113,8 @@ export async function ota(player, { fetchImpl = fetch } = {}) {
   if (d.websocket?.url) d.websocket.url = secureWsURL(d.websocket.url);
   return d;
 }
-export async function connectionFor(player) {
-  const d = await ota(player);
+export async function connectionFor(player, options) {
+  const d = await ota(player, options);
   if (d.activation || !d.websocket?.token)
     throw Error(`${player.seat} 号设备尚未绑定，请运行 npm run linx:setup`);
   return {
