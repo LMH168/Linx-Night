@@ -48,7 +48,7 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  return { roomId: room.roomId, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, connectionState, alive }) => ({ seatId, displayName, playerType, connectionState, alive })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, connectionState, alive }) => ({ seatId, displayName, playerType, connectionState, alive })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
 }
 
 export function privateState(room, playerId) {
