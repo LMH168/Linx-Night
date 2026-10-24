@@ -16,7 +16,7 @@ export const toolMap = new Map(definitions.map(([name, description, properties])
   const required = Object.keys(properties).filter(key => name !== 'submit_witch_action' || key !== 'target_player_id');
   return [name, { name, description, inputSchema: {
     type: 'object', additionalProperties: false,
-    properties: { ...properties, ...((name.startsWith('submit_') || name === 'skip_hunter_response') ? { action_id: { ...text, description: '可选行动标识；重试复用同一值，不可跨座位复用。' } } : {}) }, required,
+    properties: { ...properties, ...((name.startsWith('submit_') || name === 'skip_hunter_response') ? { turn_id: { ...text, description: '自动调度房间必填：从自己的私密状态 currentTurn.turnId 获取。一次租约只允许一个行动。' }, action_id: { ...text, description: '可选行动标识；重试复用同一值，不可跨座位复用。' } } : {}) }, required,
     ...(name === 'submit_witch_action' ? { allOf: [{ if: { properties: { action: { const: 'poison' } }, required: ['action'] }, then: { required: ['target_player_id'] } }] } : {}),
   } }];
 }));

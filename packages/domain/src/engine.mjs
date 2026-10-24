@@ -21,6 +21,7 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new RuleError('werewolves cannot target themselves');
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
   if (submitted.some(a => a.seatId === seatId)) throw new RuleError('seat already submitted');
+  if (submitted.length && submitted[0].targetSeatId !== targetSeatId) throw new RuleError('werewolf targets must agree');
   const projected = [...submitted, { seatId, targetSeatId }];
   if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new RuleError('werewolf targets must agree');
   recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });

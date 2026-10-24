@@ -8,7 +8,7 @@ const room={roomId:'room_test',phase:'LOBBY',seats:[],speeches:[],events:[]};
 const storage=new Map();
 const context=vm.createContext({
  URLSearchParams,
- document:{getElementById:id=>elements.get(id) || null,createElement:()=>({})},
+ document:{getElementById:id=>elements.get(id) || null,createElement:()=>({replaceChildren(...children){this.children=children;}})},
  sessionStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
  window:{addEventListener(){}},
  setInterval(){},setTimeout(){},clearTimeout(){},
@@ -74,3 +74,10 @@ function entryTest(search, saved) {
 assert.equal(JSON.parse(entryTest('?api=http://localhost:5100&room=lab',{'linx-api':'http://localhost:5000','linx-room':'old','linx-player':'old-player'})).playerId,'');
 assert.equal(JSON.parse(entryTest('?api=http://localhost:5100&room=lab',{'linx-api':'http://localhost:5100','linx-room':'lab','linx-player':'observer'})).playerId,'observer');
 console.log('Lab entry isolation and same-link reload identity passed');
+
+run("state.room.phase='SPEECH';state.room.hostPlayerId=state.playerId;state.room.controllers=[{seatId:'P2',status:'failed',errorCode:'TURN_TIMEOUT'}];render(state.room);");
+assert.equal(elements.get('retryTurn').hidden,false);
+assert.match(elements.get('lobbyHint').textContent,/不会自动/);
+run("state.room.hostPlayerId='other-host';render(state.room);");
+assert.equal(elements.get('retryTurn').hidden,true);
+console.log('Host-only AI turn retry visibility passed');

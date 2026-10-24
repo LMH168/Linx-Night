@@ -6,9 +6,9 @@ import { CONTROLLER_STATES, controllerFor, updateController } from '../../../pac
  * injected so the room lifecycle is testable without a real platform account.
  */
 export class LinxSessionAdapter {
-  constructor({ clientFactory, connectionFor, bind, release, now = () => new Date().toISOString(), onChange = () => {} } = {}) {
+  constructor({ clientFactory, connectionFor, bind, release, now = () => new Date().toISOString(), onChange = () => {}, profiles = new Map() } = {}) {
     if (typeof clientFactory !== 'function' || typeof connectionFor !== 'function' || typeof bind !== 'function' || typeof release !== 'function') throw new Error('Linx session adapter dependencies are required');
-    this.clientFactory = clientFactory; this.connectionFor = connectionFor; this.bind = bind; this.release = release; this.now = now; this.onChange = onChange; this.clients = new Map(); this.profiles = new Map();
+    this.clientFactory = clientFactory; this.connectionFor = connectionFor; this.bind = bind; this.release = release; this.now = now; this.onChange = onChange; this.clients = new Map(); this.profiles = profiles; this.generations = new Map();
   }
   refreshRoomPhase(room) {
     const statuses = (room.controllers ?? []).map(controller => controller.status);
@@ -18,21 +18,34 @@ export class LinxSessionAdapter {
   async connect(room, seatId) {
     const controller = controllerFor(room, seatId); if (!controller) throw new Error('controller seat is not reserved');
     if (![CONTROLLER_STATES.PENDING, CONTROLLER_STATES.FAILED, CONTROLLER_STATES.RECONNECTING].includes(controller.status)) throw new Error('controller is already active');
-    const config = await this.connectionFor(controller);
-    if (!config.profileName || this.profiles.has(config.profileName)) throw new Error('Linx profile is already in use');
+    const generation = (this.generations.get(seatId) || 0) + 1;
+    this.generations.set(seatId, generation);
+    const active = () => this.generations.get(seatId) === generation && !room.invalidated && controllerFor(room, seatId) === controller;
+    const ensureActive = () => { if (!active()) throw new Error('CONNECTION_CANCELLED'); };
+    controller.status = CONTROLLER_STATES.CONNECTING;
+    let config;
+    try { config = await this.connectionFor(controller); } catch (error) { if (active()) updateController(room, seatId, {status: CONTROLLER_STATES.FAILED, errorCode: error.code || 'CONNECT_FAILED'}); throw error; }
+    ensureActive();
+    if (!config.profileName || this.profiles.has(config.profileName)) { updateController(room, seatId, {status:CONTROLLER_STATES.FAILED,errorCode:'PROFILE_IN_USE'}); throw new Error('Linx profile is already in use'); }
     const client = this.clientFactory(config.identity);
     const runId = randomUUID(); this.clients.set(seatId, { client, runId, epoch: controller.controllerEpoch });
-    this.profiles.set(config.profileName, seatId);
+    this.profiles.set(config.profileName, controller);
     updateController(room, seatId, { status: CONTROLLER_STATES.CONNECTING, profileName: config.profileName, agentId: config.agentId, runId, errorCode: null, lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId);
+    let binding;
     try {
-      await client.connect(config.connection);
+      await client.connect(config.connection); ensureActive();
       const sessionId = client.sessionId; if (!sessionId) throw new Error('Linx session did not return a session id');
       updateController(room, seatId, { status: CONTROLLER_STATES.CONNECTED, deviceId: config.identity.deviceId, sessionId, lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId);
       updateController(room, seatId, { status: CONTROLLER_STATES.BINDING }); this.refreshRoomPhase(room); this.onChange(room, seatId);
-      await this.bind({ roomId: room.roomId, gameId: room.gameId, seatId, controllerEpoch: controller.controllerEpoch, agentId: config.agentId, deviceId: config.identity.deviceId, sessionId, runId });
+      binding = { roomId: room.roomId, gameId: room.gameId, seatId, controllerEpoch: controller.controllerEpoch, agentId: config.agentId, deviceId: config.identity.deviceId, sessionId, runId };
+      await this.bind(binding);
+      ensureActive();
       updateController(room, seatId, { status: CONTROLLER_STATES.READY, boundAt: this.now(), lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId); return controllerFor(room, seatId);
     } catch (error) {
-      client.close?.(); this.clients.delete(seatId); this.profiles.delete(config.profileName); updateController(room, seatId, { status: CONTROLLER_STATES.FAILED, errorCode: error.code || error.message || 'CONNECT_FAILED', lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId); throw error;
+      client.close?.(); if (!active()) { if (binding) await this.release(binding).catch(() => {}); throw error; }
+      this.clients.delete(seatId); if (this.profiles.get(config.profileName) === controller) this.profiles.delete(config.profileName);
+      if (controller.sessionId) await this.release({sessionId: controller.sessionId}).catch(() => {});
+      updateController(room, seatId, { status: CONTROLLER_STATES.FAILED, errorCode: error.code || 'CONNECT_FAILED', lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId); throw error;
     }
   }
   async reconnect(room, seatId) {
@@ -42,7 +55,8 @@ export class LinxSessionAdapter {
     return this.connect(room, seatId);
   }
   async releaseSeat(room, seatId, { keepReservation = false } = {}) {
-    const entry = this.clients.get(seatId); if (entry) { entry.client.close?.(); this.clients.delete(seatId); for (const [profile, owner] of this.profiles) if (owner === seatId) this.profiles.delete(profile); }
+    this.generations.set(seatId, (this.generations.get(seatId) || 0) + 1);
+    const entry = this.clients.get(seatId); if (entry) { entry.client.close?.(); this.clients.delete(seatId); for (const [profile, owner] of this.profiles) if (owner === controllerFor(room, seatId)) this.profiles.delete(profile); }
     const controller = controllerFor(room, seatId); if (!controller) return;
     if (controller.sessionId) await this.release({ roomId: room.roomId, gameId: room.gameId, seatId, controllerEpoch: controller.controllerEpoch, agentId: controller.agentId, deviceId: controller.deviceId, sessionId: controller.sessionId, runId: controller.runId });
     updateController(room, seatId, { status: keepReservation ? CONTROLLER_STATES.RECONNECTING : CONTROLLER_STATES.RELEASED, sessionId: null, runId: null, lastSeenAt: this.now() }); this.refreshRoomPhase(room); this.onChange(room, seatId);
