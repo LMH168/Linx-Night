@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { rooms, publishNewEvents } from '../../server/src/api.mjs';
-import { privateState, publicState } from '../../../packages/domain/src/model.mjs';
+import { controllerFor, privateState, publicState, updateController, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
 import { RuleError, hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
@@ -9,6 +9,7 @@ import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
 export const sessions = new Map();
 export const auditLog = [];
 export const devices = new Map();
+export const controllerBindings = new Map();
 
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(body)); };
 const rpc = (id, result) => ({ jsonrpc: '2.0', id, result });
@@ -19,8 +20,13 @@ function authToken(req) { return req.headers.authorization?.startsWith('Bearer '
 function sessionContext(req, requiredToken) {
   if (requiredToken && authToken(req) !== requiredToken) throw Object.assign(new Error('MCP authentication failed'), { code: -32000 });
   const sessionId = req.headers['x-linx-session-id']; const deviceId = req.headers['x-linx-device-id']; const agentId = req.headers['x-linx-agent-id'];
-  const context = sessions.get(sessionId) || devices.get(`${agentId}:${deviceId}`); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
+  const context = sessionId ? sessions.get(sessionId) : devices.get(`${agentId}:${deviceId}`); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
   if ((context.deviceId && context.deviceId !== deviceId) || (context.agentId && context.agentId !== agentId)) throw Object.assign(new Error('Linx session metadata mismatch'), { code: -32003 });
+  if (context.controllerEpoch !== undefined) {
+    const room = rooms.get(context.roomId); const controller = room && controllerFor(room, context.seatId);
+    const headerMatches = (!req.headers['x-linx-room-id'] || req.headers['x-linx-room-id'] === context.roomId) && (!req.headers['x-linx-seat-id'] || req.headers['x-linx-seat-id'] === context.seatId) && (!req.headers['x-linx-game-id'] || req.headers['x-linx-game-id'] === context.gameId) && (!req.headers['x-linx-controller-epoch'] || Number(req.headers['x-linx-controller-epoch']) === context.controllerEpoch);
+    if (!room || !controller || controller.controllerEpoch !== context.controllerEpoch || controller.sessionId !== sessionId || controller.deviceId !== deviceId || controller.agentId !== agentId || controller.status !== CONTROLLER_STATES.READY || !headerMatches) throw Object.assign(new Error('Linx controller is no longer active'), { code: -32005 });
+  }
   return { ...context, sessionId, deviceId, agentId };
 }
 function roomFor(context) { const room = rooms.get(context.roomId); if (!room) throw Object.assign(new Error('game room not found'), { code: -32004 }); return room; }
@@ -28,7 +34,31 @@ function seatFor(room, context) { const seat = room.seats.find(item => item.seat
 function targetSeat(room, playerId) { const seat = room.seats.find(item => item.playerId === playerId || item.seatId === playerId); if (!seat) throw new ToolInputError('target player not found'); return seat.seatId; }
 function resultText(value) { return { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false }; }
 
-export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player', deviceId, agentId }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role, deviceId, agentId }); return sessionId; }
+export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player', deviceId, agentId, gameId, controllerEpoch }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role, deviceId, agentId, gameId, controllerEpoch }); return sessionId; }
+
+export function bindController(binding) {
+  const required = ['roomId', 'gameId', 'seatId', 'controllerEpoch', 'agentId', 'deviceId', 'sessionId'];
+  if (!binding || required.some(key => binding[key] === undefined || binding[key] === null || binding[key] === '')) throw new Error('controller binding fields are required');
+  const room = rooms.get(binding.roomId); if (!room || room.gameId !== binding.gameId) throw new Error('game room is not preparing controllers');
+  const controller = controllerFor(room, binding.seatId); const seat = room.seats.find(item => item.seatId === binding.seatId);
+  if (!controller || !seat || seat.playerType !== 'ai' || controller.controllerEpoch !== binding.controllerEpoch) throw new Error('controller reservation does not match');
+  if (controller.status === CONTROLLER_STATES.RELEASED || (controller.sessionId && controller.sessionId !== binding.sessionId)) throw new Error('controller seat is already occupied');
+  if (![CONTROLLER_STATES.PENDING, CONTROLLER_STATES.CONNECTED, CONTROLLER_STATES.BINDING].includes(controller.status)) throw new Error('controller is not accepting a binding');
+  for (const existing of controllerBindings.values()) {
+    if (existing.sessionId === binding.sessionId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('session is already bound to another seat');
+    if (existing.deviceId === binding.deviceId && existing.agentId === binding.agentId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('device is already bound to another seat');
+  }
+  const context = { roomId: binding.roomId, gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, role: 'player', seatId: binding.seatId, playerId: seat.playerId, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId, runId: binding.runId };
+  sessions.set(binding.sessionId, context); devices.set(`${binding.agentId}:${binding.deviceId}`, context); controllerBindings.set(binding.sessionId, context); updateController(room, binding.seatId, { gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, agentId: binding.agentId, deviceId: binding.deviceId, sessionId: binding.sessionId, runId: binding.runId, status: CONTROLLER_STATES.BINDING }); seat.linxControlled = true; seat.controlSource = 'linx'; return { ...context };
+}
+
+export function releaseController(binding) {
+  if (!binding?.sessionId) return false;
+  const context = controllerBindings.get(binding.sessionId) || sessions.get(binding.sessionId); if (!context) return false;
+  controllerBindings.delete(binding.sessionId); sessions.delete(binding.sessionId); if (context.agentId && context.deviceId) devices.delete(`${context.agentId}:${context.deviceId}`);
+  const room = rooms.get(context.roomId); const seat = room?.seats.find(item => item.seatId === context.seatId); if (room) { const controller = controllerFor(room, context.seatId); if (controller) updateController(room, context.seatId, { status: CONTROLLER_STATES.RELEASED, sessionId: null, runId: null, lastSeenAt: new Date().toISOString() }); } if (seat) { seat.linxControlled = false; if (seat.playerType === 'ai') seat.controlSource = 'rule_bot'; }
+  return true;
+}
 
 async function callTool(req, name, args, requiredToken, trace) {
   const context = sessionContext(req, requiredToken);
@@ -102,6 +132,10 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       if (url.pathname === '/admin/bindings' && req.method === 'POST') {
         if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
         const binding = await bodyOf(req);
+        if (binding.gameId && binding.controllerEpoch !== undefined) {
+          const result = bindController(binding);
+          return json(res, 201, { registered: true, binding: { roomId: result.roomId, gameId: result.gameId, seatId: result.seatId, controllerEpoch: result.controllerEpoch, sessionId: result.sessionId } });
+        }
         const room = rooms.get(binding.roomId);
         if (!room || !['host','player'].includes(binding.role)) throw new Error('invalid room or role');
         const seat = room.seats.find(s => s.seatId === binding.seatId && s.playerId);
@@ -112,6 +146,10 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         else throw new Error('sessionId or deviceId + agentId required');
         if (seat && binding.role === 'player') seat.linxControlled = true;
         return json(res, 201, {registered:true});
+      }
+      if (url.pathname === '/admin/controllers/release' && req.method === 'POST') {
+        if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
+        const binding = await bodyOf(req); return json(res, 200, { released: releaseController(binding) });
       }
       if (requiredToken && authToken(req) !== requiredToken) return reply(401, rpcError(null,-32000,'MCP authentication failed'));
       const streamable = url.pathname === '/mcp' && req.method === 'POST';

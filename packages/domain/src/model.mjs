@@ -7,6 +7,7 @@ export const CAMPS = Object.freeze({ WEREWOLF: 'werewolf', GOOD: 'good' });
 export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
 export const PLAYER_TYPES = Object.freeze({ HUMAN: 'human', AI: 'ai' });
 export const CONNECTION_STATES = Object.freeze({ ONLINE: 'online', DISCONNECTED: 'disconnected', AI_CONTROLLED: 'ai_controlled' });
+export const CONTROLLER_STATES = Object.freeze({ PENDING: 'pending', CONNECTING: 'connecting', CONNECTED: 'connected', BINDING: 'binding', READY: 'ready', FAILED: 'failed', RECONNECTING: 'reconnecting', RELEASED: 'released' });
 
 const roleCamp = role => role === ROLES.WEREWOLF ? CAMPS.WEREWOLF : CAMPS.GOOD;
 const roleList = [ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.SEER, ROLES.WITCH, ROLES.HUNTER, ROLES.VILLAGER, ROLES.VILLAGER, ROLES.VILLAGER];
@@ -19,9 +20,37 @@ export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } 
   requireText(roomId, 'roomId'); requireText(hostPlayerId, 'hostPlayerId');
   return {
     roomId, hostPlayerId, phase: PHASES.LOBBY, version: 0, round: 0, currentSeatId: null,
-    seats: Array.from({ length: 9 }, (_, index) => ({ seatId: `P${index + 1}`, playerId: null, playerType: null, displayName: null, connectionState: null, role: null, camp: null, alive: true, skills: { antidoteAvailable: false, poisonAvailable: false, hunterShotAvailable: false }, seerResults: [] })),
+    gameId: null, controllerEpoch: 0, controllerPhase: 'idle', controllers: [], invalidated: false,
+    seats: Array.from({ length: 9 }, (_, index) => ({ seatId: `P${index + 1}`, playerId: null, playerType: null, controlSource: null, linxControlled: false, displayName: null, connectionState: null, role: null, camp: null, alive: true, skills: { antidoteAvailable: false, poisonAvailable: false, hunterShotAvailable: false }, seerResults: [] })),
     events: [], speeches: [], actions: [], votes: [],
   };
+}
+
+export function beginControllerPreparation(room, { gameId = id('game'), aiSeatIds = room.seats.filter(seat => seat.playerType === PLAYER_TYPES.AI).map(seat => seat.seatId) } = {}) {
+  if (room.phase !== PHASES.LOBBY) throw new Error('room is not in lobby');
+  room.gameId = gameId; room.controllerEpoch += 1; room.controllerPhase = 'connecting'; room.invalidated = false;
+  room.controllers = aiSeatIds.map(seatId => ({ seatId, gameId, controllerEpoch: room.controllerEpoch, profileName: null, agentId: null, deviceId: null, sessionId: null, runId: null, status: CONTROLLER_STATES.PENDING, retryCount: 0, boundAt: null, lastSeenAt: null, errorCode: null }));
+  room.version += 1; return { gameId, controllerEpoch: room.controllerEpoch, controllers: clone(room.controllers) };
+}
+
+export function controllerFor(room, seatId) { return room.controllers?.find(controller => controller.seatId === seatId) ?? null; }
+
+export function updateController(room, seatId, patch = {}) {
+  const controller = controllerFor(room, seatId); if (!controller) throw new Error('controller seat is not reserved');
+  const allowed = ['gameId', 'controllerEpoch', 'profileName', 'agentId', 'deviceId', 'sessionId', 'runId', 'status', 'retryCount', 'boundAt', 'lastSeenAt', 'errorCode'];
+  for (const key of Object.keys(patch)) if (!allowed.includes(key)) throw new Error(`invalid controller field: ${key}`);
+  Object.assign(controller, patch); room.version += 1; return clone(controller);
+}
+
+export function releaseControllerReservation(room, seatId) {
+  const controller = controllerFor(room, seatId); if (!controller) return false;
+  controller.status = CONTROLLER_STATES.RELEASED; controller.sessionId = null; controller.runId = null; controller.lastSeenAt = new Date().toISOString();
+  room.version += 1; return true;
+}
+
+export function invalidateRoomControllers(room) {
+  for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.RELEASED; controller.sessionId = null; controller.runId = null; }
+  room.controllerPhase = 'invalidated'; room.invalidated = true; room.version += 1; return room;
 }
 
 export function assignRoles(room) {
@@ -40,7 +69,7 @@ export function addPlayer(room, { playerId = id('player'), displayName, playerTy
   if (room.phase !== PHASES.LOBBY) throw new Error('players cannot join after the room starts');
   if (room.seats.some(seat => seat.playerId === playerId)) throw new Error('player already joined');
   const seat = room.seats.find(item => !item.playerId); if (!seat) throw new Error('room is full');
-  Object.assign(seat, { playerId, displayName, playerType, connectionState }); room.version += 1; return clone(seat);
+  Object.assign(seat, { playerId, displayName, playerType, controlSource: playerType === PLAYER_TYPES.HUMAN ? 'human' : 'rule_bot', linxControlled: false, connectionState }); room.version += 1; return clone(seat);
 }
 
 export function fillAiSeats(room, name = index => `AI ${index}`) {
@@ -49,7 +78,7 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, connectionState, alive }) => ({ seatId, displayName, playerType, connectionState, alive })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
 }
 
 export function privateState(room, playerId) {

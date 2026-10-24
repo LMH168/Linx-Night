@@ -15,7 +15,7 @@ export function defaultTurn(room, seat) {
   else return false;
   return true;
 }
-export function tickRoom(room, controlled = seat => seat.playerType === 'ai' && !seat.linxControlled) {
+export function tickRoom(room, controlled = seat => seat.playerType === 'ai' && seat.controlSource !== 'linx' && !seat.linxControlled) {
   skipAbsentRoles(room);
   if (room.phase === 'DAY_ANNOUNCEMENT') {announceDay(room); return;}
   for (const seat of room.seats.filter(s => s.alive && controlled(s))) if (defaultTurn(room,seat)) break;
