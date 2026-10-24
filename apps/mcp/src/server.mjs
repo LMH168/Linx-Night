@@ -84,6 +84,14 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         return json(res, 201, {registered:true});
       }
       if (requiredToken && authToken(req) !== requiredToken) return json(res, 401, rpcError(null,-32000,'MCP authentication failed'));
+      const streamable = url.pathname === '/mcp' && req.method === 'POST';
+      const versions = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
+      const protocolVersion = req.headers['mcp-protocol-version'];
+      if (protocolVersion && !versions.includes(protocolVersion)) return json(res,400,rpcError(null,-32600,'unsupported MCP protocol version'));
+      // Stateless HTTP replies need no server-initiated stream or transport session.
+      if (url.pathname === '/mcp' && (req.method === 'DELETE' || (req.method === 'GET' && protocolVersion))) {
+        res.writeHead(405, {allow:'POST'}); return res.end();
+      }
       if (url.pathname === '/mcp' && req.method === 'GET') {
         const id = randomUUID();
         res.writeHead(200, {'content-type':'text/event-stream', 'cache-control':'no-cache', connection:'keep-alive'});
@@ -93,8 +101,8 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         res.on('close', () => {clearInterval(timer); streams.delete(id);});
         return;
       }
-      if (url.pathname !== '/mcp/message' || req.method !== 'POST') return json(res,404,{error:'not found'});
-      const streamId = url.searchParams.get('sessionId');
+      if (!streamable && (url.pathname !== '/mcp/message' || req.method !== 'POST')) return json(res,404,{error:'not found'});
+      const streamId = streamable ? null : url.searchParams.get('sessionId');
       const stream = streams.get(streamId);
       if (streamId && !stream) return json(res,404,{error:'SSE session expired'});
       if (stream) {
@@ -109,7 +117,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       let response;
       try {
         const {id,method,params={}} = message;
-        if (method === 'initialize') response = rpc(id,{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.2.0'}});
+        if (method === 'initialize') response = rpc(id,{protocolVersion:streamable ? (versions.includes(params.protocolVersion) ? params.protocolVersion : '2025-03-26') : '2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.3.0'}});
         else if (method === 'ping') response = rpc(id,{});
         else if (method === 'tools/list') response = rpc(id,{tools:[...toolMap.values()]});
         else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments || {},requiredToken));

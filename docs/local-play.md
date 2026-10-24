@@ -1,3 +1,5 @@
+> 当前灵矽控制台请选择 **Streamable HTTP**，MCP URL 使用 `https://隧道域名/mcp`。服务现支持 POST /mcp 的无状态 JSON 响应，以及旧 SSE 通道。认证模式 Normal，Header 名称 Authorization，值为 Bearer 加一个空格及 MCP_AUTH_TOKEN；删除空白 Header 行。初始化和工具发现无需绑定设备，游戏工具仍必须登记身份。
+
 # 本机开局与 Linx 接入
 
 ## 启动
@@ -21,7 +23,7 @@ node run.mjs
 参考官方文档 https://linx.qiniu.com/docs/xrobot/mcp/software-mcp 。平台在设备 WebSocket 会话中自动携带 X-Linx-Device-Id、X-Linx-Agent-Id、X-Linx-Session-Id，不必让模型生成这些字段。
 
 1. 运行 `cloudflared tunnel --url http://127.0.0.1:9091`，保持进程运行。
-2. 在 Linx 的 MCP 服务管理中添加 SSE URL：`https://隧道域名/mcp`。
+2. 在 Linx 的 MCP 服务管理中选择 Streamable HTTP，添加 MCP URL：`https://隧道域名/mcp`。
 3. 若控制台支持认证请求头，设置 `Authorization: Bearer <MCP_AUTH_TOKEN>`。官方页面未说明认证字段具体位置；若当前界面不支持自定义头，不要假定可以填写或撤掉生产认证，需要确认平台认证能力。先用本机集成测试验证协议。
 4. 创建主持人 Agent，采用 apps/mcp/prompts/host.md；创建玩家 Agent 模板，采用 apps/mcp/prompts/player.md；分别绑定上述 MCP 服务。
 5. 在平台设备测试或设备 WebSocket 会话中获得实际 Device ID 和 Agent ID。先创建网页房间并开始游戏，记录要分配给 Linx 的 AI 座位，例如 P2。
