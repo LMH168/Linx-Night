@@ -1,3 +1,5 @@
+> 当前自动运行请优先阅读 [开始游戏](./start-here.md)、[自动回合](./automatic-turns.md) 和 [网页语音](./web-voice.md)。以下手动绑定/控制台拨打说明是早期联调记录，不是当前日常开局流程。
+
 > 当前灵矽控制台请选择 **Streamable HTTP**，MCP URL 使用 `https://隧道域名/mcp`。服务现支持 POST /mcp 的无状态 JSON 响应，以及旧 SSE 通道。认证模式 Normal，Header 名称 Authorization，值为 Bearer 加一个空格及 MCP_AUTH_TOKEN；删除空白 Header 行。初始化和工具发现无需绑定设备，游戏工具仍必须登记身份。
 
 # 本机开局与 Linx 接入
