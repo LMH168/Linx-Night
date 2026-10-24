@@ -5,6 +5,7 @@ import { privateState, publicState } from '../../../packages/domain/src/model.mj
 import { hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 export const sessions = new Map();
+export const auditLog = [];
 const tools = [
   ['get_public_game_state', '获取当前房间公开状态', {}],
   ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
@@ -23,9 +24,12 @@ const rpc = (id, result) => ({ jsonrpc: '2.0', id, result });
 const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
 const bodyOf = req => new Promise((resolve, reject) => { let value = ''; req.on('data', chunk => { value += chunk; }); req.on('end', () => { try { resolve(JSON.parse(value)); } catch { reject(new Error('invalid JSON')); } }); req.on('error', reject); });
 
-function sessionContext(req) {
+function authToken(req) { return req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : req.headers['x-mcp-auth-token']; }
+function sessionContext(req, requiredToken) {
+  if (requiredToken && authToken(req) !== requiredToken) throw Object.assign(new Error('MCP authentication failed'), { code: -32000 });
   const sessionId = req.headers['x-linx-session-id']; const deviceId = req.headers['x-linx-device-id']; const agentId = req.headers['x-linx-agent-id'];
   const context = sessions.get(sessionId); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
+  if ((context.deviceId && context.deviceId !== deviceId) || (context.agentId && context.agentId !== agentId)) throw Object.assign(new Error('Linx session metadata mismatch'), { code: -32003 });
   return { ...context, sessionId, deviceId, agentId };
 }
 function roomFor(context) { const room = rooms.get(context.roomId); if (!room) throw Object.assign(new Error('game room not found'), { code: -32004 }); return room; }
@@ -33,33 +37,36 @@ function seatFor(room, context) { const seat = room.seats.find(item => item.seat
 function targetSeat(room, playerId) { const seat = room.seats.find(item => item.playerId === playerId || item.seatId === playerId); if (!seat) throw Object.assign(new Error('target player not found'), { code: -32004 }); return seat.seatId; }
 function resultText(value) { return { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false }; }
 
-export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player' }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role }); return sessionId; }
+export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player', deviceId, agentId }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role, deviceId, agentId }); return sessionId; }
 
-async function callTool(req, name, args) {
-  const context = sessionContext(req); const room = roomFor(context); const seat = seatFor(room, context);
-  if (name === 'get_public_game_state') return resultText(publicState(room));
-  if (name === 'get_my_private_state') return resultText(privateState(room, seat.playerId));
-  if (name === 'get_recent_speeches') return resultText({ speeches: room.speeches.slice(-10), version: room.version });
+async function callTool(req, name, args, requiredToken) {
+  const context = sessionContext(req, requiredToken); const room = roomFor(context); const seat = seatFor(room, context);
+  const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, roomId: context.roomId, seatId: context.seatId, tool: name, ok: false };
+  try {
+    if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
+    if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
+    if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
   if (context.role === 'host' && name !== 'submit_speech') throw Object.assign(new Error('host cannot submit player action'), { code: -32002 });
   const action = { roomId: context.roomId, seatId: seat.seatId, playerId: seat.playerId, ...args };
   const actionId = args.action_id || `mcp_${randomUUID()}`;
-  if (name === 'submit_speech') { submitSpeech(room, seat.seatId, args.text, actionId); return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_speech') { submitSpeech(room, seat.seatId, args.text, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
   const targetSeatId = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
-  if (name === 'submit_wolf_target') { wolfTarget(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_seer_check') { const result = seerCheck(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, result, version: room.version }); }
-  if (name === 'submit_witch_action') { witchAction(room, seat.seatId, args.action, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_vote') { submitVote(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_wolf_target') { wolfTarget(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_seer_check') { const result = seerCheck(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, result, version: room.version }); }
+  if (name === 'submit_witch_action') { witchAction(room, seat.seatId, args.action, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_vote') { submitVote(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
   throw Object.assign(new Error('unknown tool'), { code: -32601 });
+  } finally { auditLog.push(audit); if (auditLog.length > 1000) auditLog.shift(); }
 }
 
-export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091) } = {}) {
+export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), authToken: requiredToken = process.env.MCP_AUTH_TOKEN || '' } = {}) {
   const server = createServer(async (req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-linx-session-id,x-linx-device-id,x-linx-agent-id' }); return res.end(); }
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, service: 'linx-night-mcp' });
     if (req.method === 'GET' && req.url === '/mcp') { res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' }); res.write(': connected\n\n'); return; }
     if (req.method !== 'POST' || req.url !== '/mcp/message') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
-    try { const message = await bodyOf(req); const { id, method, params = {} } = message; if (method === 'initialize') return json(res, 200, rpc(id, { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'linx-night-game', version: '0.1.0' } })); if (method === 'tools/list') return json(res, 200, rpc(id, { tools: [...toolMap.values()] })); if (method === 'tools/call') return json(res, 200, rpc(id, await callTool(req, params.name, params.arguments || {}))); return json(res, 200, rpcError(id, -32601, `未知方法: ${method}`)); } catch (error) { return json(res, 200, rpcError(null, error.code || -32603, error.message)); }
+    try { const message = await bodyOf(req); const { id, method, params = {} } = message; if (requiredToken && authToken(req) !== requiredToken) return json(res, 200, rpcError(id, -32000, 'MCP authentication failed')); if (method === 'initialize') return json(res, 200, rpc(id, { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'linx-night-game', version: '0.1.0' } })); if (method === 'tools/list') return json(res, 200, rpc(id, { tools: [...toolMap.values()] })); if (method === 'tools/call') return json(res, 200, rpc(id, await callTool(req, params.name, params.arguments || {}, requiredToken))); return json(res, 200, rpcError(id, -32601, `未知方法: ${method}`)); } catch (error) { return json(res, 200, rpcError(null, error.code || -32603, error.message)); }
   });
   return { server, port };
 }
