@@ -18,7 +18,11 @@ const rpc = (id, result) => ({ jsonrpc: '2.0', id, result });
 const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
 const bodyOf = req => new Promise((resolve, reject) => { let value = ''; req.on('data', chunk => { value += chunk; }); req.on('end', () => { try { resolve(JSON.parse(value)); } catch { reject(new Error('invalid JSON')); } }); req.on('error', reject); });
 
-function authToken(req) { return req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : req.headers['x-mcp-auth-token']; }
+function authToken(req) {
+  const authorization = req.headers.authorization;
+  if (authorization) return authorization.startsWith('Bearer ') ? authorization.slice(7) : authorization;
+  return req.headers['x-mcp-auth-token'];
+}
 function sessionContext(req, requiredToken) {
   if (requiredToken && authToken(req) !== requiredToken) throw Object.assign(new Error('MCP authentication failed'), { code: -32000 });
   const sessionId = req.headers['x-linx-session-id']; const deviceId = req.headers['x-linx-device-id']; const agentId = req.headers['x-linx-agent-id'];
