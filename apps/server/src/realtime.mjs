@@ -14,9 +14,10 @@ export class TimeoutScheduler extends EventEmitter {
   cancelAll() { for (const key of this.#jobs.keys()) this.cancel(key); }
 }
 
-export function eventStream(res, hub, roomId, { version = 0 } = {}) {
-  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' });
+export function eventStream(res, hub, roomId, { version = 0, history = [] } = {}) {
+  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive', 'access-control-allow-origin': '*' });
   const unsubscribe = hub.subscribe(roomId, event => { if (event.version > version) res.write(`id: ${event.eventId}\ndata: ${JSON.stringify(event)}\n\n`); });
+  for (const event of history.filter(e => e.version > version)) res.write(`id: ${event.eventId}\ndata: ${JSON.stringify(event)}\n\n`);
   res.write(': connected\n\n');
   res.on('close', unsubscribe); return unsubscribe;
 }

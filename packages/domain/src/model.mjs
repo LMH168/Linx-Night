@@ -25,6 +25,7 @@ export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } 
 }
 
 export function assignRoles(room) {
+  if (room?.phase !== PHASES.LOBBY) throw new Error('room already started');
   if (!room || !Array.isArray(room.seats) || room.seats.length !== 9) throw new Error('room must contain exactly 9 seats');
   if (room.seats.some(seat => !seat.playerId)) throw new Error('all seats must be occupied before role assignment');
   const roles = [...roleList];
@@ -54,7 +55,7 @@ export function publicState(room) {
 export function privateState(room, playerId) {
   requireText(playerId, 'playerId'); const seat = room.seats.find(item => item.playerId === playerId); if (!seat) throw new Error('player not found');
   const teammates = seat.camp === CAMPS.WEREWOLF ? room.seats.filter(item => item.camp === CAMPS.WEREWOLF && item.playerId !== playerId && item.alive).map(item => item.seatId) : [];
-  return { roomId: room.roomId, seatId: seat.seatId, playerId: seat.playerId, role: seat.role, camp: seat.camp, alive: seat.alive, skills: clone(seat.skills), seerResults: clone(seat.seerResults), werewolfTeammates: teammates };
+  return { roomId: room.roomId, seatId: seat.seatId, playerId: seat.playerId, role: seat.role, camp: seat.camp, alive: seat.alive, skills: clone(seat.skills), seerResults: clone(seat.seerResults), nightVictim: seat.role === ROLES.WITCH ? room.pendingNight?.wolfTarget ?? null : null, werewolfTeammates: teammates };
 }
 
 export function appendEvent(room, { eventId = id('evt'), type, data = {} } = {}) {

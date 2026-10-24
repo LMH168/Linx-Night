@@ -1,11 +1,12 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { rooms } from '../../server/src/api.mjs';
+import { rooms, publishNewEvents } from '../../server/src/api.mjs';
 import { privateState, publicState } from '../../../packages/domain/src/model.mjs';
 import { hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 export const sessions = new Map();
 export const auditLog = [];
+export const devices = new Map();
 const tools = [
   ['get_public_game_state', '获取当前房间公开状态', {}],
   ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
@@ -28,7 +29,7 @@ function authToken(req) { return req.headers.authorization?.startsWith('Bearer '
 function sessionContext(req, requiredToken) {
   if (requiredToken && authToken(req) !== requiredToken) throw Object.assign(new Error('MCP authentication failed'), { code: -32000 });
   const sessionId = req.headers['x-linx-session-id']; const deviceId = req.headers['x-linx-device-id']; const agentId = req.headers['x-linx-agent-id'];
-  const context = sessions.get(sessionId); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
+  const context = sessions.get(sessionId) || devices.get(`${agentId}:${deviceId}`); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
   if ((context.deviceId && context.deviceId !== deviceId) || (context.agentId && context.agentId !== agentId)) throw Object.assign(new Error('Linx session metadata mismatch'), { code: -32003 });
   return { ...context, sessionId, deviceId, agentId };
 }
@@ -40,10 +41,11 @@ function resultText(value) { return { content: [{ type: 'text', text: JSON.strin
 export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player', deviceId, agentId }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role, deviceId, agentId }); return sessionId; }
 
 async function callTool(req, name, args, requiredToken) {
-  const context = sessionContext(req, requiredToken); const room = roomFor(context); const seat = seatFor(room, context);
+  const context = sessionContext(req, requiredToken); const room = roomFor(context); const seat = context.role === 'host' ? null : seatFor(room, context);
   const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, roomId: context.roomId, seatId: context.seatId, tool: name, ok: false };
   try {
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
+    if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches'].includes(name)) throw Object.assign(new Error('host is read-only'), {code: -32002});
     if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
   if (context.role === 'host' && name !== 'submit_speech') throw Object.assign(new Error('host cannot submit player action'), { code: -32002 });
@@ -57,16 +59,65 @@ async function callTool(req, name, args, requiredToken) {
   if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
   if (name === 'submit_vote') { submitVote(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
   throw Object.assign(new Error('unknown tool'), { code: -32601 });
-  } finally { auditLog.push(audit); if (auditLog.length > 1000) auditLog.shift(); }
+  } finally { publishNewEvents(room); auditLog.push(audit); if (auditLog.length > 1000) auditLog.shift(); }
 }
 
-export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), authToken: requiredToken = process.env.MCP_AUTH_TOKEN || '' } = {}) {
+export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), authToken: requiredToken = process.env.MCP_AUTH_TOKEN || '', adminToken = process.env.ADMIN_TOKEN || '' } = {}) {
+  const streams = new Map();
   const server = createServer(async (req, res) => {
-    if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-linx-session-id,x-linx-device-id,x-linx-agent-id' }); return res.end(); }
-    if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, service: 'linx-night-mcp' });
-    if (req.method === 'GET' && req.url === '/mcp') { res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' }); res.write(': connected\n\n'); return; }
-    if (req.method !== 'POST' || req.url !== '/mcp/message') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
-    try { const message = await bodyOf(req); const { id, method, params = {} } = message; if (requiredToken && authToken(req) !== requiredToken) return json(res, 200, rpcError(id, -32000, 'MCP authentication failed')); if (method === 'initialize') return json(res, 200, rpc(id, { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'linx-night-game', version: '0.1.0' } })); if (method === 'tools/list') return json(res, 200, rpc(id, { tools: [...toolMap.values()] })); if (method === 'tools/call') return json(res, 200, rpc(id, await callTool(req, params.name, params.arguments || {}, requiredToken))); return json(res, 200, rpcError(id, -32601, `未知方法: ${method}`)); } catch (error) { return json(res, 200, rpcError(null, error.code || -32603, error.message)); }
+    const url = new URL(req.url, 'http://localhost');
+    let message;
+    try {
+      if (url.pathname === '/health') return json(res, 200, {ok:true, service:'linx-night-mcp'});
+      if (url.pathname === '/admin/bindings' && req.method === 'POST') {
+        if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
+        const binding = await bodyOf(req);
+        const room = rooms.get(binding.roomId);
+        if (!room || !['host','player'].includes(binding.role)) throw new Error('invalid room or role');
+        const seat = room.seats.find(s => s.seatId === binding.seatId && s.playerId);
+        if (binding.role === 'player' && !seat) throw new Error('occupied seat required');
+        const context = {roomId:room.roomId, role:binding.role, seatId:seat?.seatId, playerId:seat?.playerId, deviceId:binding.deviceId, agentId:binding.agentId};
+        if (binding.sessionId) sessions.set(binding.sessionId, context);
+        else if (binding.deviceId && binding.agentId) devices.set(`${binding.agentId}:${binding.deviceId}`, context);
+        else throw new Error('sessionId or deviceId + agentId required');
+        if (seat && binding.role === 'player') seat.linxControlled = true;
+        return json(res, 201, {registered:true});
+      }
+      if (requiredToken && authToken(req) !== requiredToken) return json(res, 401, rpcError(null,-32000,'MCP authentication failed'));
+      if (url.pathname === '/mcp' && req.method === 'GET') {
+        const id = randomUUID();
+        res.writeHead(200, {'content-type':'text/event-stream', 'cache-control':'no-cache', connection:'keep-alive'});
+        streams.set(id, {res, headers:{...req.headers}});
+        res.write(`event: endpoint\ndata: /mcp/message?sessionId=${id}\n\n`);
+        const timer = setInterval(() => res.write(': heartbeat\n\n'),15000);
+        res.on('close', () => {clearInterval(timer); streams.delete(id);});
+        return;
+      }
+      if (url.pathname !== '/mcp/message' || req.method !== 'POST') return json(res,404,{error:'not found'});
+      const streamId = url.searchParams.get('sessionId');
+      const stream = streams.get(streamId);
+      if (streamId && !stream) return json(res,404,{error:'SSE session expired'});
+      if (stream) {
+        for (const key of ['x-linx-session-id','x-linx-device-id','x-linx-agent-id']) {
+          if (req.headers[key] && stream.headers[key] && req.headers[key] !== stream.headers[key]) return json(res,403,{error:'connection identity mismatch'});
+          req.headers[key] ??= stream.headers[key];
+        }
+      }
+      message = await bodyOf(req);
+      if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') throw new Error('invalid JSON-RPC request');
+      if (message.id === undefined) { res.writeHead(202); return res.end(); }
+      let response;
+      try {
+        const {id,method,params={}} = message;
+        if (method === 'initialize') response = rpc(id,{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.2.0'}});
+        else if (method === 'ping') response = rpc(id,{});
+        else if (method === 'tools/list') response = rpc(id,{tools:[...toolMap.values()]});
+        else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments || {},requiredToken));
+        else response = rpcError(id,-32601,'unknown method');
+      } catch(error) {response = rpcError(message.id,error.code || -32603,error.message);}
+      if (stream) {stream.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`); res.writeHead(202); return res.end();}
+      return json(res,200,response);
+    } catch(error) {return json(res,400,rpcError(message?.id ?? null,error.code || -32600,error.message));}
   });
-  return { server, port };
+  return {server,port};
 }
