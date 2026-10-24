@@ -58,7 +58,7 @@ try {
   assert.equal(privateState(room,room.seats[2].playerId).wolfProposal,null);
   assert.doesNotMatch(JSON.stringify(publicState(room)),/wolfProposal|targetSeatId|sessionId|deviceId/);
   for (const [phase,role,name] of [['NIGHT_WOLF','werewolf','submit_wolf_target'],['NIGHT_SEER','seer','submit_seer_check'],['NIGHT_WITCH','witch','submit_witch_action'],['VOTE','villager','submit_vote'],['HUNTER_RESPONSE','hunter','submit_hunter_shot'],['HUNTER_RESPONSE','hunter','skip_hunter_response']]) {
-    setup(phase); mode='success';toolName=name; room.seats[1].role=role;room.pendingNight={wolfTarget:'P9'};
+    setup(phase); mode='success';toolName=name; room.hostPlaybackBlocked=phase.startsWith('NIGHT_'); room.seats[1].role=role;room.pendingNight={wolfTarget:'P9'};
     room.seats[1].skills={hunterShotAvailable:true};
     if(role==='hunter'){room.seats[1].alive=false;room.hunterResponse={windowId:'window',seatId:'P2',status:'open',phaseBefore:'DAY_ANNOUNCEMENT',expiresAt:new Date(Date.now()+30000).toISOString()};}
     const work=runtime.tick(room);

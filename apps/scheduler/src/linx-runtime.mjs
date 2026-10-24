@@ -21,11 +21,14 @@ export class LinxTurnRuntime {
     if (this.running.has(room.roomId)) return this.running.get(room.roomId);
     if (!room.requireActionLease || room.preparing || room.invalidated || room.phase === 'LOBBY') return Promise.resolve();
     if (room.phase === 'GAME_OVER') {
+      // Game-over cleanup still waits for the host task to settle.
       if(room.hostPlaybackBlocked)return Promise.resolve();
       if (room.controllers.some(c => c.status !== 'released')) return this.track(room, () => this.manager.release(room));
       return Promise.resolve();
     }
-    const seat = room.seats.find(s => ['human', 'linx'].includes(s.controlSource) && actionAvailable(room, s) && (s.controlSource === 'human' || room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status))));
+    // Host playback gates public day turns only; private night turns are independent.
+    // This runtime drives Linx seats only; human seats act from the web client.
+    const seat = room.seats.find(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
     if (!seat) return Promise.resolve();
     return this.track(room, () => this.play(room, seat));
   }

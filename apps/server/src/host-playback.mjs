@@ -5,12 +5,13 @@ export class HostPlayback {
  constructor({manager,publish=()=>{},speak=speakPublic}={}){this.manager=manager;this.publish=publish;this.speak=speak;this.running=new Map();this.audio=new Map();this.aborts=new Map();}
  sync(room){
   if(!room.hostPlaybackEnabled||room.invalidated||room.phase==='LOBBY')return;
-  room.hostTasks??=[];room.hostEventCursor??=0;
+  room.hostTasks??=[];room.hostEventCursor??=0;room.hostNarratedEventIds??=new Set();
   for(const e of room.events.filter(e=>e.version>room.hostEventCursor)){
+   if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
    if(!['game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>t.status!=='played').length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
-   room.hostEventCursor=e.version;room.hostTasks.push({id:randomUUID(),eventId:e.eventId,text,status:'pending',errorCode:null});
+   room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);room.hostTasks.push({id:randomUUID(),eventId:e.eventId,text,status:'pending',errorCode:null});
   }
   while(room.hostTasks.length>80&&room.hostTasks[0].status==='played'){const old=room.hostTasks.shift();this.audio.delete(old.id);}
   const task=room.hostTasks.find(t=>t.status!=='played');room.hostPlaybackBlocked=Boolean(task)||Boolean(room.hostPlaybackError);
