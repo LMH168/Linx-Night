@@ -22,7 +22,7 @@ try {
   const notified=await send({jsonrpc:'2.0',method:'notifications/initialized'},negotiated);
   assert.equal(notified.status,202);assert.equal(await notified.text(),'');
   const list=await (await send({jsonrpc:'2.0',id:2,method:'tools/list'},negotiated)).json();
-  assert.equal(list.result.tools.length,9);
+  assert.equal(list.result.tools.length,10);
   const call={jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'get_my_private_state'}};
   const denied=await (await send(call,negotiated)).json();assert.equal(denied.error.code,-32001);assert.equal(denied.id,3);
   const own=await (await send(call,{...negotiated,'x-linx-session-id':session})).json();

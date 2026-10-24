@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createMcpServer, registerSession, sessions } from '../src/server.mjs';
 import { rooms, events } from '../../server/src/api.mjs';
 import { createRoom, addPlayer } from '../../../packages/domain/src/model.mjs';
-import { submitVote } from '../../../packages/domain/src/engine.mjs';
+import { announceDay, submitVote } from '../../../packages/domain/src/engine.mjs';
 
 const { server } = createMcpServer({ authToken: 'test', adminToken: 'admin' });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -78,8 +78,8 @@ try {
     assert.equal(room.phase, 'DAY_ANNOUNCEMENT');
   }
   setup('NIGHT_WITCH', 7); room.pendingNight = null; await reject('submit_witch_action', { action: 'save' });
-  setup('SPEECH', 8); await reject('submit_hunter_shot', { target_player_id: 'P3' }); room.seats[7].alive = false;
-  assert.equal((await call('submit_hunter_shot', { target_player_id: 'P3' })).result.isError, false);
+  setup('SPEECH', 8); await reject('submit_hunter_shot', { target_player_id: 'P3' }); room.phase = 'DAY_ANNOUNCEMENT'; room.pendingNight = {wolfTarget:'P8'}; announceDay(room);
+  assert.equal((await call('submit_hunter_shot', { target_player_id: 'P3', window_id: room.hunterResponse.windowId })).result.isError, false);
   await reject('submit_hunter_shot', { target_player_id: 'P4' });
   setup('GAME_OVER');
   for (const name of ['submit_speech', 'submit_vote', 'submit_wolf_target', 'submit_seer_check', 'submit_witch_action', 'submit_hunter_shot']) {

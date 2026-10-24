@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createApiServer, rooms } from '../apps/server/src/api.mjs';
 import { createMcpServer } from '../apps/mcp/src/server.mjs';
+import { expireHunterResponse } from '../packages/domain/src/engine.mjs';
 import { tickRoom } from '../apps/scheduler/src/local.mjs';
 const api = createApiServer().server;
 const mcp = createMcpServer({authToken:'test',adminToken:'admin'}).server;
@@ -17,11 +18,11 @@ try {
     const room = rooms.get(created.room_id);
     assert.equal(room.seats.filter(s => s.playerType === 'human').length,humans);
     // Simulated humans use deterministic legal actions; this is not a live Linx test.
-    for(let step=0; step<500 && room.phase !== 'GAME_OVER'; step++) tickRoom(room,()=>true);
+    for(let step=0; step<500 && room.phase !== 'GAME_OVER'; step++) { if (room.phase === 'HUNTER_RESPONSE') expireHunterResponse(room, Date.parse(room.hunterResponse.expiresAt)); else tickRoom(room,()=>true); }
     assert.equal(room.phase,'GAME_OVER',`${humans} humans game should finish`);
   }
   const created = await (await post(`${base}/api/rooms`,{display_name:'MCP tester'})).json();
-  const binding = {roomId:created.room_id,seatId:'P1',role:'player',deviceId:'d',agentId:'a'};
+  const binding = {roomId:created.room_id,seatId:'P1',role:'player',deviceId:'d',agentId:'a',sessionId:'real-session'};
   assert.equal((await post(`${remote}/admin/bindings`,binding)).status,403);
   assert.equal((await post(`${remote}/admin/bindings`,binding,{authorization:'Bearer admin'})).status,201);
   assert.equal((await fetch(`${remote}/mcp`)).status,401);

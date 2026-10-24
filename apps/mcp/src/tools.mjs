@@ -8,14 +8,15 @@ const definitions = [
   ['submit_wolf_target', '提交狼人目标', { target_player_id: target }],
   ['submit_seer_check', '提交预言家查验目标', { target_player_id: target }],
   ['submit_witch_action', '提交女巫行动；poison 必须提供目标，save/skip 不需要目标', { action: { type: 'string', enum: ['save', 'poison', 'skip'] }, target_player_id: target }],
-  ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: target }],
+  ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: target, window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
+  ['skip_hunter_response', '猎人放弃本次开枪；必须提供当前响应窗口 ID', { window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
   ['submit_vote', '提交投票目标', { target_player_id: target }],
 ];
 export const toolMap = new Map(definitions.map(([name, description, properties]) => {
   const required = Object.keys(properties).filter(key => name !== 'submit_witch_action' || key !== 'target_player_id');
   return [name, { name, description, inputSchema: {
     type: 'object', additionalProperties: false,
-    properties: { ...properties, ...(name.startsWith('submit_') ? { action_id: { ...text, description: '可选行动标识；重试复用同一值，不可跨座位复用。' } } : {}) }, required,
+    properties: { ...properties, ...((name.startsWith('submit_') || name === 'skip_hunter_response') ? { action_id: { ...text, description: '可选行动标识；重试复用同一值，不可跨座位复用。' } } : {}) }, required,
     ...(name === 'submit_witch_action' ? { allOf: [{ if: { properties: { action: { const: 'poison' } }, required: ['action'] }, then: { required: ['target_player_id'] } }] } : {}),
   } }];
 }));
