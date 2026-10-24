@@ -14,7 +14,7 @@ $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
 async function call(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.playerId) headers['x-player-id'] = state.playerId; const response = await fetch(`${api()}${path}`, { ...options, headers }); const body = await response.json(); if (!response.ok) throw new Error(body.error?.message || '请求失败'); return body; }
-function save() { stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
+function save() { hostPlayer?.stop(); stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
 const roles = {werewolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',villager:'平民'};
 const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'狼人行动',NIGHT_SEER:'预言家行动',NIGHT_WITCH:'女巫行动',DAY_ANNOUNCEMENT:'天亮了',HUNTER_RESPONSE:'猎人响应',SPEECH:'依次发言',VOTE:'放逐投票',RESOLUTION:'结算中',GAME_OVER:'本局结束'};
 const descriptions = {werewolf:'与队友协商，在夜晚选择目标。',seer:'每晚查验一名玩家，寻找隐藏的狼人。',witch:'解药与毒药各一瓶，每晚只能选择一种。',hunter:'出局后可使用一次开枪技能。',villager:'倾听发言，用推理和投票帮助好人获胜。'};
@@ -78,10 +78,10 @@ function renderActions() {
   if ((state.voice.recognition || state.voice.linxRecording) && (!active || state.voice.context!==voiceContext())) stopVoice();
   show('linxVoiceTools',false);show('confirmDraft',false);
   show('actionCard',active); if(!active) return;
-  const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
-  const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
+  const speech=mine.alive && !room.hostPlaybackBlocked && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
+  const skill=!room.hostPlaybackBlocked && mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
   const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && Boolean(mine.hunterAction);
-  const vote=mine.alive && room.phase==='VOTE';
+  const vote=!room.hostPlaybackBlocked && mine.alive && room.phase==='VOTE';
   const voiceAllowed=speech||skill||hunter||vote;
   show('linxVoiceTools',voiceAllowed);show('actionDraftField',voiceAllowed&&!speech);show('confirmDraft',voiceAllowed&&!speech&&!!state.actionDraft);
   $('#actionDraftHint').textContent=state.actionDraft?'待确认：'+state.actionDraft.label:'识别不会自动行动；请检查动作和目标。';
@@ -174,3 +174,5 @@ for (const id of ['confirmDraft','takeover','restoreControl','create','join','st
   const handler=$(id).onclick;
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }
+
+const hostPlayer=window.createHostPlayer?.({call,state,message,refresh});

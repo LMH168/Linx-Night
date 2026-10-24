@@ -20,6 +20,7 @@ export class LinxTurnRuntime {
     if (this.running.has(room.roomId)) return this.running.get(room.roomId);
     if (!room.requireActionLease || room.preparing || room.invalidated || room.phase === 'LOBBY') return Promise.resolve();
     if (room.phase === 'GAME_OVER') {
+      if(room.hostPlaybackBlocked)return Promise.resolve();
       if (room.controllers.some(c => c.status !== 'released')) return this.track(room, () => this.manager.release(room));
       return Promise.resolve();
     }
