@@ -97,7 +97,7 @@ export function addPlayer(room, { playerId = id('player'), displayName, playerTy
   if (room.phase !== PHASES.LOBBY) throw new Error('players cannot join after the room starts');
   if (room.seats.some(seat => seat.playerId === playerId)) throw new Error('player already joined');
   const seat = room.seats.find(item => !item.playerId); if (!seat) throw new Error('room is full');
-  Object.assign(seat, { playerId, displayName, playerType, controlSource: playerType === PLAYER_TYPES.HUMAN ? 'human' : 'rule_bot', linxControlled: false, connectionState }); room.version += 1; return clone(seat);
+  Object.assign(seat, { playerId, displayName, playerType, controlSource: playerType === PLAYER_TYPES.HUMAN ? 'human' : 'rule_bot', linxControlled: false, connectionState, lastHeartbeat: Date.now(), controlEpoch: 0 }); room.version += 1; return clone(seat);
 }
 
 export function fillAiSeats(room, name = index => `AI ${index}`) {
@@ -122,6 +122,7 @@ export function publicEventData(type, data = {}) {
     'game.vote_resolved': ['leaders'],
     'game.player_eliminated': ['seatId', 'cause'],
     'game.action_submitted': ['actionId'],
+    'player.control_changed': ['seatId','connectionState','controlSource'],
     'game.turn_created': ['turnId', 'seatId', 'phase', 'controlSource'],
     'game.turn_completed': ['turnId', 'seatId', 'phase'],
     'game.turn_expired': ['turnId', 'seatId', 'phase', 'reason'],

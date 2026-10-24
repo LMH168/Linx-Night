@@ -81,3 +81,14 @@ assert.match(elements.get('lobbyHint').textContent,/不会自动/);
 run("state.room.hostPlayerId='other-host';render(state.room);");
 assert.equal(elements.get('retryTurn').hidden,true);
 console.log('Host-only AI turn retry visibility passed');
+
+// Old recognition callbacks must not overwrite a cancelled or newer draft.
+context.SpeechRecognition=class {constructor(){recognitionInstance=this;}start(){}abort(){this.aborted=true;}};
+run("state.room.phase='SPEECH';state.room.currentSeatId='P1';state.privateState.alive=true;state.room.seats[0].playerType='human';state.room.seats[0].controlSource='human';startVoice();");
+const oldResult=recognitionInstance.onresult, oldEnd=recognitionInstance.onend;
+run('clearVoiceDraft();');oldResult({results:[[{transcript:'迟到结果'}]]});oldEnd();assert.equal(elements.get('speechText').value,'');
+run('startVoice();');const stale=recognitionInstance.onresult;
+run("state.room.phase='VOTE';renderActions();");stale({results:[[{transcript:'上一阶段'}]]});assert.equal(elements.get('speechText').value,'');assert.equal(recognitionInstance.aborted,true);
+run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,false);
+run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,false);
+console.log('Voice cancellation/phase guards and explicit control UI passed');

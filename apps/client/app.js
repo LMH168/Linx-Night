@@ -14,7 +14,7 @@ $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
 async function call(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.playerId) headers['x-player-id'] = state.playerId; const response = await fetch(`${api()}${path}`, { ...options, headers }); const body = await response.json(); if (!response.ok) throw new Error(body.error?.message || '请求失败'); return body; }
-function save() { state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
+function save() { stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
 const roles = {werewolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',villager:'平民'};
 const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'狼人行动',NIGHT_SEER:'预言家行动',NIGHT_WITCH:'女巫行动',DAY_ANNOUNCEMENT:'天亮了',HUNTER_RESPONSE:'猎人响应',SPEECH:'依次发言',VOTE:'放逐投票',RESOLUTION:'结算中',GAME_OVER:'本局结束'};
 const descriptions = {werewolf:'与队友协商，在夜晚选择目标。',seer:'每晚查验一名玩家，寻找隐藏的狼人。',witch:'解药与毒药各一瓶，每晚只能选择一种。',hunter:'出局后可使用一次开枪技能。',villager:'倾听发言，用推理和投票帮助好人获胜。'};
@@ -34,7 +34,7 @@ function render(room) {
     const number = document.createElement('span'); number.className='seat-number'; number.textContent=seat.seatId;
     const copy = document.createElement('div'); copy.className='seat-copy';
     const name = document.createElement('strong'); name.textContent=seat.displayName || '等待入座';
-    const status = document.createElement('small'); status.textContent=!seat.playerType?'空位':`${seat.playerType==='human'?'真人':'机器人'} · ${lobby?'已入座':seat.alive?'存活':'已出局'}${state.privateState?.seatId===seat.seatId?' · 你':''}`;
+    const status = document.createElement('small'); status.textContent=!seat.playerType?'空位':`${seat.controlSource==='linx'?'灵矽 AI':seat.controlSource==='rule_bot'?(seat.playerType==='human'?'真人 · 规则托管':'规则机器人'):'真人'}${seat.connectionState==='disconnected'?' · 离线':''} · ${lobby?'已入座':seat.alive?'存活':'已出局'}${state.privateState?.seatId===seat.seatId?' · 你':''}`;
     copy.replaceChildren(name,status); el.replaceChildren(number,copy); return el;
   }));
   const host = room.hostPlayerId === state.playerId;
@@ -68,7 +68,12 @@ function renderPrivate() {
 function renderActions() {
   const room=state.room, mine=state.privateState;
   for(const id of ['speechField','speech','voiceStart','voiceCancel','targetField','witchField','skill','hunterShot','hunterSkip','vote','announce']) show(id,false);
-  const active=!!(room && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
+  const seat=room?.seats.find(s=>s.seatId===mine?.seatId);
+  const canControl=seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
+  show('controlCard',canControl); show('takeover',canControl && seat.controlSource==='human'); show('restoreControl',canControl && seat.controlSource==='rule_bot');
+  $('#controlHint').textContent=seat?.controlSource==='rule_bot'?'当前由规则机器人托管，恢复后你可操作后续回合。':'断线只显示离线；需要自动行动时请主动托管。';
+  const active=!!(room && seat?.controlSource!=='rule_bot' && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
+  if (state.voice.recognition && (!active || !mine.alive || room.phase!=='SPEECH' || room.currentSeatId!==mine.seatId || state.voice.context!==voiceContext())) stopVoice();
   show('actionCard',active); if(!active) return;
   const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
@@ -94,19 +99,26 @@ function renderActions() {
   $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(room.hunterResponse.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
-function stopVoice() { state.voice.recognition?.stop?.(); state.voice.recognition = null; state.voice.listening = false; }
+function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.playerId].join(':'); }
+function stopVoice() {
+  const recognition=state.voice.recognition; state.voice.recognition=null; state.voice.listening=false;
+  if(recognition){recognition.onstart=recognition.onresult=recognition.onerror=recognition.onend=null;try { (recognition.abort || recognition.stop)?.call(recognition); } catch {}}
+  $('#voiceStart').disabled=false;
+}
 function startVoice() {
-  const Recognition = speechRecognitionConstructor();
-  if (!Recognition) { $('#voiceStatus').textContent = '当前浏览器不支持语音识别，请直接输入文字。'; return; }
+  const Recognition=speechRecognitionConstructor();
+  if(!Recognition){$('#voiceStatus').textContent='当前浏览器不支持语音识别，请直接输入文字。';return;}
+  if(state.room?.phase!=='SPEECH' || state.room.currentSeatId!==state.privateState?.seatId) return;
   stopVoice();
-  const recognition = new Recognition(); state.voice.recognition = recognition; state.voice.listening = true;
-  recognition.lang = 'zh-CN'; recognition.continuous = false; recognition.interimResults = true;
-  const base = $('#speechText').value.trim();
-  recognition.onstart = () => { $('#voiceStatus').textContent = '正在聆听……结束后请检查并确认文字。'; $('#voiceStart').disabled = true; };
-  recognition.onresult = event => { const transcript = [...event.results].map(result => result[0].transcript).join('').trim(); if (!transcript) return; $('#speechText').value = [base, transcript].filter(Boolean).join(base ? ' ' : ''); state.voice.draft = true; $('#voiceCancel').hidden = false; };
-  recognition.onerror = event => { $('#voiceStatus').textContent = event.error === 'not-allowed' ? '麦克风权限被拒绝，请改用文字输入。' : '语音识别失败，请改用文字输入。'; };
-  recognition.onend = () => { state.voice.listening = false; state.voice.recognition = null; $('#voiceStart').disabled = false; if ($('#voiceStatus').textContent === '正在聆听……结束后请检查并确认文字。') $('#voiceStatus').textContent = '已生成可编辑草稿，请确认后提交。'; renderActions(); };
-  try { recognition.start(); } catch { $('#voiceStatus').textContent = '无法启动麦克风，请改用文字输入。'; stopVoice(); }
+  const recognition=new Recognition(), context=voiceContext(); state.voice.recognition=recognition; state.voice.context=context; state.voice.listening=true;
+  const valid=()=>state.voice.recognition===recognition && context===voiceContext() && !state.unloading;
+  recognition.lang='zh-CN';recognition.continuous=false;recognition.interimResults=true;
+  const base=$('#speechText').value.trim();
+  recognition.onstart=()=>{if(!valid())return;$('#voiceStatus').textContent='正在聆听……结束后请检查并确认文字。';$('#voiceStart').disabled=true;};
+  recognition.onresult=event=>{if(!valid())return;const transcript=[...event.results].map(result=>result[0].transcript).join('').trim();if(!transcript)return;$('#speechText').value=[base,transcript].filter(Boolean).join(base?' ':'');state.voice.draft=true;$('#voiceCancel').hidden=false;};
+  recognition.onerror=event=>{if(!valid())return;$('#voiceStatus').textContent=event.error==='not-allowed'?'麦克风权限被拒绝，请改用文字输入。':'语音识别失败，请改用文字输入。';};
+  recognition.onend=()=>{if(!valid())return;state.voice.recognition=null;state.voice.listening=false;$('#voiceStart').disabled=false;if(state.voice.draft)$('#voiceStatus').textContent='已生成可编辑草稿，请确认后提交。';renderActions();};
+  try{recognition.start();}catch{stopVoice();$('#voiceStatus').textContent='无法启动麦克风，请改用文字输入。';}
 }
 function clearVoiceDraft() { stopVoice(); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; renderActions(); }
 async function loadPrivate() {
@@ -126,13 +138,15 @@ $('#start').onclick = async () => { try { save(); const body = await call(`/api/
 $('#retryTurn').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry-turn`,{method:'POST'}); render(body.state); } catch(error){message(error.message);} };
 $('#retryControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry`,{method:'POST'}); render(body.state); message('已取消失败准备，可以重新点击开始游戏。'); } catch(error){message(error.message);} };
 $('#cancelControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/cancel`,{method:'POST'}); render(body.state); message('已取消本次准备或对局。已分配身份的对局请创建新房间。'); } catch(error){message(error.message);} };
-$('#speech').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; await refresh(); } catch (error) { message(error.message); } };
+$('#speech').onclick = async () => { stopVoice(); try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; await refresh(); } catch (error) { message(error.message); } };
 $('#skill').onclick = async () => { try { const role = state.privateState.role; const type = role === 'werewolf' ? 'wolf_target' : role === 'seer' ? 'seer_check' : 'witch_action'; const body = { type, target_seat_id: $('#target').value, action_id: `skill_${Date.now()}` }; if (type === 'witch_action') body.action = $('#witchAction').value; await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify(body) }); await refresh(); } catch (error) { message(error.message); } };
 $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/votes`, { method: 'POST', body: JSON.stringify({ target_seat_id: $('#target').value, action_id: `vote_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, window_id: state.room.hunterResponse.windowId, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#hunterSkip').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/hunter-response`, { method: 'POST', body: JSON.stringify({ action: 'skip', window_id: state.room.hunterResponse.windowId, action_id: `hunter_skip_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'announce_day', action_id: `announce_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
-window.addEventListener('beforeunload', () => { state.unloading = true; clearTimeout(state.reconnectTimer); state.source?.close(); });
+window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); clearTimeout(state.reconnectTimer); state.source?.close(); });
+for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};
+setInterval(()=>{if(!state.unloading && state.roomId && state.playerId)call('/api/rooms/'+state.roomId+'/presence',{method:'POST'}).catch(()=>{});},10000);
 $('#voiceStart').onclick = startVoice;
 $('#voiceCancel').onclick = clearVoiceDraft;
 if (state.roomId) { refresh(); connectEvents(); }
@@ -140,7 +154,7 @@ if (state.roomId) { refresh(); connectEvents(); }
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
 
 $('#witchAction').onchange=renderActions;
-for (const id of ['create','join','start','retryControllers','retryTurn','cancelControllers','speech','skill','vote','hunterShot','hunterSkip','announce']) {
+for (const id of ['takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','speech','skill','vote','hunterShot','hunterSkip','announce']) {
   const handler=$(id).onclick;
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }
