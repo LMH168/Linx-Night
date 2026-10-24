@@ -92,3 +92,9 @@ run("state.room.phase='VOTE';renderActions();");stale({results:[[{transcript:'�
 run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,false);
 run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,false);
 console.log('Voice cancellation/phase guards and explicit control UI passed');
+
+vm.runInContext(await readFile(new URL('../action-draft.js',import.meta.url),'utf8'),context);
+run("state.room.phase='VOTE';state.privateState.alive=true;state.room.seats[0].controlSource='human';state.room.seats.push({seatId:'P3',alive:true});");
+elements.get('actionDraftText').value='投给三号玩家';const beforeDraft=requests.length;await elements.get('parseAction').onclick();assert.equal(requests.length,beforeDraft);assert.equal(elements.get('confirmDraft').hidden,false);assert.match(elements.get('actionDraftHint').textContent,/P3/);
+run("state.room.phase='NIGHT_WOLF';renderActions();");assert.equal(elements.get('confirmDraft').hidden,true);assert.equal(run('state.actionDraft'),null);
+console.log('Action draft requires confirmation and expires on phase change');
