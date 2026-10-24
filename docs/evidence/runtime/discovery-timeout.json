@@ -1,0 +1,80 @@
+{
+  "startedAt": "2026-10-24T13:56:57.264Z",
+  "source": "real-platform-start-probe",
+  "samples": [
+    {
+      "at": "2026-10-24T13:57:02.362Z",
+      "phase": "LOBBY",
+      "controllerPhase": "binding",
+      "controllers": [
+        {
+          "seatId": "P2",
+          "status": "binding",
+          "errorCode": null
+        },
+        {
+          "seatId": "P3",
+          "status": "binding",
+          "errorCode": null
+        }
+      ],
+      "speeches": 0
+    },
+    {
+      "at": "2026-10-24T13:57:07.377Z",
+      "phase": "LOBBY",
+      "controllerPhase": "binding",
+      "controllers": [
+        {
+          "seatId": "P2",
+          "status": "binding",
+          "errorCode": null
+        },
+        {
+          "seatId": "P3",
+          "status": "binding",
+          "errorCode": null
+        }
+      ],
+      "speeches": 0
+    },
+    {
+      "at": "2026-10-24T13:57:12.386Z",
+      "phase": "LOBBY",
+      "controllerPhase": "binding",
+      "controllers": [
+        {
+          "seatId": "P2",
+          "status": "binding",
+          "errorCode": null
+        },
+        {
+          "seatId": "P3",
+          "status": "binding",
+          "errorCode": null
+        }
+      ],
+      "speeches": 0
+    },
+    {
+      "at": "2026-10-24T13:57:17.405Z",
+      "phase": "LOBBY",
+      "controllerPhase": "failed",
+      "controllers": [
+        {
+          "seatId": "P2",
+          "status": "failed",
+          "errorCode": "MCP_DISCOVERY_TIMEOUT"
+        },
+        {
+          "seatId": "P3",
+          "status": "failed",
+          "errorCode": "MCP_DISCOVERY_TIMEOUT"
+        }
+      ],
+      "speeches": 0
+    }
+  ],
+  "cancelled": true,
+  "finishedAt": "2026-10-24T13:57:17.413Z"
+}
