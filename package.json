@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev:server": "node apps/server/src/index.mjs",
-    "check": "node --check apps/server/src/index.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/test/model.test.mjs",
-    "test:domain": "node packages/domain/test/model.test.mjs"
+    "check": "node --check apps/server/src/index.mjs && node --check apps/server/src/api.mjs && node --check apps/server/test/api.test.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/src/engine.mjs && node --check packages/domain/test/model.test.mjs && node --check packages/domain/test/engine.test.mjs",
+    "test:domain": "node packages/domain/test/model.test.mjs && node packages/domain/test/engine.test.mjs",
+    "test:api": "node apps/server/test/api.test.mjs"
   }
 }
