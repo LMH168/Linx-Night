@@ -1,0 +1,25 @@
+{
+  "name": "moonveil-linx-werewolf",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env start.mjs",
+    "test": "node --test test/*.test.mjs",
+    "linx:setup": "node --env-file-if-exists=.env scripts/setup-linx.mjs",
+    "linx:asr": "node --env-file-if-exists=.env scripts/setup-asr.mjs",
+    "linx:voices": "node --env-file-if-exists=.env scripts/setup-voices.mjs",
+    "linx:init": "npm run linx:setup && npm run linx:asr && npm run linx:voices",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm test",
+    "package": "node scripts/package.mjs"
+  },
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  },
+  "description": "基于灵矽 AI 的网页语音狼人杀：独立智能体、独立音色与语音输入。"
+}

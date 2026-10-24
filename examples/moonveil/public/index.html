@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101719" />
+    <title>月隐 · 听见谎言，找到真相</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <aside class="rail">
+      <a href="/" class="brand" aria-label="月隐首页"
+        ><svg viewBox="0 0 40 40">
+          <path d="M30 7A16 16 0 1 0 34 30 14 14 0 0 1 30 7Z" />
+          <path d="m10 30 4-15 6 6 6-6 4 15-10 6Z" /></svg></a
+      ><span class="vertical">M O O N V E I L</span>
+      <div class="rail-bottom">☾<span>EST. 2026</span></div>
+    </aside>
+    <div class="shell">
+      <header>
+        <div class="wordmark">月 隐 <span>AI 语音狼人杀</span></div>
+        <nav>
+          <button class="nav active" id="lobby-nav">游戏大厅</button
+          ><button class="nav" id="rules-nav">玩法指南</button
+          ><button class="nav" id="history-nav">对局回顾</button>
+        </nav>
+        <button class="connection" id="settings-nav">
+          <i></i><span id="mode-label">本地体验模式</span><span class="gear">⚙</span>
+        </button>
+      </header>
+      <main id="lobby">
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow"><span></span> THE NIGHT HAS A THOUSAND VOICES</div>
+            <h1>天黑，请闭眼。<br />听见<span>另一面。</span></h1>
+            <p>
+              一句试探，一次心跳，一场关于信任的博弈。<br />与性格各异的 AI
+              玩家同桌，让声音带你走进迷雾。
+            </p>
+            <div class="hero-tags">
+              <span>◉ 语音沉浸体验</span><span>✧ AI 随时陪玩</span><span>♧ 一个人也能开局</span>
+            </div>
+          </div>
+          <div class="moon-scene" aria-hidden="true">
+            <div class="orbit o1"></div>
+            <div class="orbit o2"></div>
+            <div class="moon"></div>
+            <svg class="forest" viewBox="0 0 700 400" preserveAspectRatio="xMidYMax slice">
+              <defs>
+                <linearGradient id="mist" x2="0" y2="1">
+                  <stop stop-color="#27413a" />
+                  <stop offset="1" stop-color="#101a19" />
+                </linearGradient>
+                <g id="tree">
+                  <path d="m0 0-30 70h15l-28 49h23l-34 60h43v65h22v-65h43l-34-60h23L15 70h15Z" />
+                </g>
+              </defs>
+              <path
+                d="M0 270 100 200 180 235 300 190 400 240 490 200 700 270V400H0Z"
+                fill="#24382e"
+              />
+              <g fill="url(#mist)">
+                <use href="#tree" transform="translate(65 70) scale(1.3)" />
+                <use href="#tree" transform="translate(160 145)" />
+                <use href="#tree" transform="translate(540 140)" />
+                <use href="#tree" transform="translate(650 20) scale(1.6)" />
+              </g>
+              <g fill="#0d1916">
+                <use href="#tree" transform="translate(15 145) scale(1.5)" />
+                <use href="#tree" transform="translate(110 240)" />
+                <use href="#tree" transform="translate(585 210)" />
+                <use href="#tree" transform="translate(710 150) scale(1.5)" />
+              </g>
+              <path d="m308 360 2-41 15-20-1-24 19 12 10 22 15 9 10 42Z" fill="#101b17" />
+              <path d="m325 299 12-14 6-19 5 25-7 20" fill="#101b17" />
+              <path d="m311 326-30 19 25-2" fill="#101b17" /></svg
+            ><span class="scene-caption">月色之下，没人只有一种身份。</span>
+          </div>
+        </section>
+        <section class="section-heading">
+          <div>
+            <span class="eyebrow">CHOOSE YOUR NIGHT</span>
+            <h2>今晚，入哪一局？</h2>
+          </div>
+          <span class="subtle">无需等待，AI 玩家已就位 <i class="dot"></i></span>
+        </section>
+        <section class="mode-grid">
+          <button class="mode-card selected" data-size="9">
+            <span class="card-top"
+              ><span class="card-icon">☾</span><span class="pill">推荐体验</span></span
+            >
+            <h3>迷雾村庄 <span>9 人标准局</span></h3>
+            <p>经典预女猎，谎言与逻辑的正面交锋。</p>
+            <div class="role-pips">
+              <span class="red">狼 × 3</span><span class="purple">神 × 3</span
+              ><span class="green">民 × 3</span>
+            </div>
+            <div class="card-foot">
+              <span>◷ 约 15–25 分钟</span><span class="select-mark">✓</span>
+            </div></button
+          ><button class="mode-card" data-size="6">
+            <span class="card-top"
+              ><span class="card-icon gold">✧</span><span class="pill neutral">轻松上手</span></span
+            >
+            <h3>林间初遇 <span>6 人入门局</span></h3>
+            <p>更少的座位，同样精彩的心理博弈。</p>
+            <div class="role-pips">
+              <span class="red">狼 × 2</span><span class="purple">神 × 2</span
+              ><span class="green">民 × 2</span>
+            </div>
+            <div class="card-foot">
+              <span>◷ 约 8–15 分钟</span><span class="select-mark">↗</span>
+            </div>
+          </button>
+          <div class="guide-card">
+            <span class="eyebrow">YOUR FIRST NIGHT</span>
+            <h3>第一次来到村庄？</h3>
+            <p>不用记住所有术语。<br />跟着主持人的声音，<br />从第一夜开始学会推理。</p>
+            <button class="text-link" id="learn-btn">翻开新手手册 <span>↗</span></button>
+            <div class="guide-art" aria-hidden="true">✦</div>
+          </div>
+        </section>
+        <section class="launch-bar">
+          <div class="launch-options">
+            <div class="avatar small">你</div>
+            <label
+              >你的练习身份<select id="role-select">
+                <option value="seer">预言家 · 看穿迷雾</option>
+                <option value="villager">村民 · 以逻辑为武器</option>
+                <option value="wolf">狼人 · 隐藏你的锋芒</option>
+                <option value="witch">女巫 · 掌握生死</option>
+                <option value="hunter">猎人 · 最后一击</option>
+              </select></label
+            ><span class="launch-note"
+              >1 位真人 + <b id="ai-count">8</b> 位模拟玩家<br /><small
+                >支持语音播报与文字发言</small
+              ></span
+            >
+          </div>
+          <button class="primary" id="start-btn">进入村庄 <span>→</span></button>
+        </section>
+        <footer>
+          <span>✧ 灵矽 AI 接入方案 · 当前为本地模拟体验</span
+          ><span>戴上耳机，听清每一句未说完的话。</span>
+        </footer>
+      </main>
+      <main id="game" hidden>
+        <div class="game-heading">
+          <div>
+            <div class="eyebrow">THE VILLAGE · <span id="room-code"></span></div>
+            <h2 id="game-title">迷雾村庄</h2>
+          </div>
+          <div class="game-tools">
+            <button class="secondary" id="sound-btn">♬ 开启语音</button
+            ><button class="secondary" id="leave-btn">返回大厅</button>
+          </div>
+        </div>
+        <div class="game-layout">
+          <section class="table-panel">
+            <div class="phase-strip">
+              <span id="round">第 1 夜</span>
+              <div id="steps"><span>夜晚行动</span><span>白天发言</span><span>放逐投票</span></div>
+              <span id="alive-count"></span>
+            </div>
+            <div id="players" class="players"></div>
+            <div class="table-center">
+              <div class="mini-moon">☾</div>
+              <span class="eyebrow" id="stage-label">NIGHTFALL</span>
+              <h2 id="stage-title">天黑，请闭眼</h2>
+              <p id="stage-description"></p>
+              <div class="wave" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+                ><i></i>
+              </div>
+            </div>
+            <div class="action-panel" id="action-panel"></div>
+            <div class="playback-panel">
+              <p id="playback-status" role="status" aria-live="polite">
+                开启语音后，AI 发言将使用各自的音色。
+              </p>
+              <div id="audio-player"></div>
+              <button class="secondary" id="stop-audio-btn" hidden>停止语音 / 跳过本段</button>
+            </div>
+          </section>
+          <aside class="game-sidebar">
+            <div class="identity">
+              <span class="eyebrow">YOUR SECRET</span>
+              <div class="identity-title">
+                <span id="role-icon">✧</span>
+                <div>
+                  <h3 id="my-role"></h3>
+                  <span id="my-camp"></span>
+                </div>
+                <span class="lock">仅你可见</span>
+              </div>
+              <p id="role-tip"></p>
+            </div>
+            <div class="record-panel">
+              <div class="tabs">
+                <button class="active" data-tab="log">发言记录</button
+                ><button data-tab="notes">私人笔记</button>
+              </div>
+              <div id="log" class="log" aria-live="polite"></div>
+              <div id="notes" hidden>
+                <div id="private-results"></div>
+                <textarea
+                  id="notepad"
+                  placeholder="记下你的怀疑、金水和推理…仅保留在当前页面。"
+                  aria-label="私人推理笔记"
+                ></textarea>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+    <dialog id="modal">
+      <div class="modal-heading">
+        <span class="eyebrow">MOONVEIL</span
+        ><button id="close-modal" aria-label="关闭弹窗">×</button>
+      </div>
+      <div id="modal-content"></div>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
