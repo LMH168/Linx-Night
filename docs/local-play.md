@@ -74,3 +74,8 @@ node --env-file="$env:LOCALAPPDATA\LinxNight-local.env" scripts/bind.mjs 房间�
 ```powershell
 node --env-file="$env:LOCALAPPDATA\LinxNight-local.env" run.mjs
 ```
+# 浏览器语音输入
+
+在轮到真人发言时，页面提供“语音转文字”按钮。它使用浏览器原生 `SpeechRecognition`（部分浏览器名称为 `webkitSpeechRecognition`）生成可编辑草稿；识别结果不会自动调用游戏接口，必须检查文字后点击“确认并提交发言”。
+
+语音识别依赖浏览器麦克风权限和安全上下文。`http://localhost` 通常可用于本机开发，公网访问应使用 HTTPS。浏览器不支持、拒绝麦克风权限或识别失败时，直接在发言文本框输入即可继续游戏。当前入口只支持真人发言，夜间技能、投票和猎人行动仍使用页面的目标选择与确认按钮。

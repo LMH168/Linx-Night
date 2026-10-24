@@ -47,6 +47,20 @@ run("state.room.currentSeatId='P1';renderActions();");assert.equal(elements.get(
 run("state.privateState.role='hunter';state.privateState.alive=false;renderActions();");assert.equal(elements.get('hunterShot').hidden,false);assert.equal(elements.get('vote').hidden,true);
 run("state.room.phase='GAME_OVER';renderActions();");assert.equal(elements.get('actionCard').hidden,true);
 run("state.room.phase='LOBBY';renderPrivate();renderActions();");assert.equal(elements.get('privateCard').hidden,true);
+// Voice input only creates an editable draft; it never calls the game API.
+let recognitionInstance;
+context.SpeechRecognition=class {
+  constructor(){ recognitionInstance=this; }
+  start(){ this.onstart?.(); this.onresult?.({results:[[{transcript:'语音草稿'}]]}); this.onend?.(); }
+  stop(){ this.onend?.(); }
+};
+run("state.privateState=fixture;state.privateState.role='villager';state.privateState.alive=true;state.room.phase='SPEECH';state.room.currentSeatId='P1';renderActions();startVoice();");
+assert.equal(elements.get('speechText').value,'语音草稿');
+assert.equal(JSON.parse(run("JSON.stringify(state.voice)")).draft,true);
+assert.match(elements.get('voiceStatus').textContent,/可编辑草稿/);
+run("clearVoiceDraft();");
+assert.equal(elements.get('speechText').value,'');
+assert.equal(JSON.parse(run("JSON.stringify(state.voice)")).draft,false);
 console.log('Lobby, role-specific skills, speech turn, eliminated hunter and game-over visibility passed');
 
 // A link to another instance must not reuse player identity; refreshing the same link must.
