@@ -181,8 +181,11 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       const protocolVersion = req.headers['mcp-protocol-version'];
       if (protocolVersion && !versions.includes(protocolVersion)) return reply(400,rpcError(null,-32600,'unsupported MCP protocol version'));
       // Stateless HTTP replies need no server-initiated stream or transport session.
-      if (url.pathname === '/mcp' && (req.method === 'DELETE' || (req.method === 'GET' && protocolVersion))) {
+      if (url.pathname === '/mcp' && req.method === 'DELETE') {
         res.writeHead(405, {allow:'POST'}); return res.end();
+      }
+      if (url.pathname === '/mcp' && req.method === 'GET' && protocolVersion && !String(req.headers.accept || '').includes('text/event-stream')) {
+        res.writeHead(405, {allow:'POST, GET'}); return res.end();
       }
       if (url.pathname === '/mcp' && req.method === 'GET') {
         const id = randomUUID();

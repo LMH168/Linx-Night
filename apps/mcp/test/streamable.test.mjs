@@ -28,7 +28,7 @@ try {
   const own=await (await send(call,{...negotiated,'x-linx-session-id':session})).json();
   assert.equal(JSON.parse(own.result.content[0].text).seatId,'P1');
   assert.equal((await send(call,{'mcp-protocol-version':'invalid'})).status,400);
-  assert.equal((await fetch(url,{headers:{...headers,...negotiated}})).status,405);
+  const stream=await fetch(url,{headers:{...headers,...negotiated}}); assert.equal(stream.status,200); assert.match(stream.headers.get('content-type'),/text\/event-stream/); stream.body?.cancel();
   assert.equal((await fetch(url,{method:'DELETE',headers})).status,405);
   console.log('Streamable HTTP negotiation, notification, discovery, authorization and tool call passed');
 } finally {sessions.delete(session);rooms.delete(room.roomId);server.closeAllConnections();await new Promise(r=>server.close(r));}
