@@ -20,7 +20,7 @@ function authToken(req) { return req.headers.authorization?.startsWith('Bearer '
 function sessionContext(req, requiredToken) {
   if (requiredToken && authToken(req) !== requiredToken) throw Object.assign(new Error('MCP authentication failed'), { code: -32000 });
   const sessionId = req.headers['x-linx-session-id']; const deviceId = req.headers['x-linx-device-id']; const agentId = req.headers['x-linx-agent-id'];
-  const context = sessions.get(sessionId) || devices.get(`${agentId}:${deviceId}`); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
+  const context = sessionId ? sessions.get(sessionId) : devices.get(`${agentId}:${deviceId}`); if (!context) throw Object.assign(new Error('unknown Linx session'), { code: -32001 });
   if ((context.deviceId && context.deviceId !== deviceId) || (context.agentId && context.agentId !== agentId)) throw Object.assign(new Error('Linx session metadata mismatch'), { code: -32003 });
   if (context.controllerEpoch !== undefined) {
     const room = rooms.get(context.roomId); const controller = room && controllerFor(room, context.seatId);
@@ -48,7 +48,7 @@ export function bindController(binding) {
     if (existing.sessionId === binding.sessionId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('session is already bound to another seat');
     if (existing.deviceId === binding.deviceId && existing.agentId === binding.agentId && (existing.seatId !== binding.seatId || existing.roomId !== binding.roomId)) throw new Error('device is already bound to another seat');
   }
-  const context = { roomId: binding.roomId, gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, role: 'player', seatId: binding.seatId, playerId: seat.playerId, deviceId: binding.deviceId, agentId: binding.agentId, runId: binding.runId };
+  const context = { roomId: binding.roomId, gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, role: 'player', seatId: binding.seatId, playerId: seat.playerId, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId, runId: binding.runId };
   sessions.set(binding.sessionId, context); devices.set(`${binding.agentId}:${binding.deviceId}`, context); controllerBindings.set(binding.sessionId, context); updateController(room, binding.seatId, { gameId: binding.gameId, controllerEpoch: binding.controllerEpoch, agentId: binding.agentId, deviceId: binding.deviceId, sessionId: binding.sessionId, runId: binding.runId, status: CONTROLLER_STATES.BINDING }); seat.linxControlled = true; seat.controlSource = 'linx'; return { ...context };
 }
 

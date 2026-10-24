@@ -7,6 +7,7 @@ const room = createRoom({ roomId: 'controller-room', hostPlayerId: 'human' }); a
 const first = room.controllers[0]; const binding = { roomId: room.roomId, gameId: room.gameId, seatId: first.seatId, controllerEpoch: first.controllerEpoch, agentId: 'agent', deviceId: 'device-a', sessionId: 'session-a', runId: 'run-a' };
 try {
   const context = bindController(binding); assert.equal(context.seatId, first.seatId); assert.equal(room.seats[1].linxControlled, true); assert.equal(room.seats[1].controlSource, 'linx');
+  assert.equal(context.sessionId, binding.sessionId);
   assert.throws(() => bindController({ ...binding, sessionId: 'session-b', seatId: room.controllers[1].seatId }), /device is already bound/);
   assert.throws(() => bindController({ ...binding, controllerEpoch: first.controllerEpoch + 1 }), /reservation does not match/);
   updateController(room, first.seatId, { status: CONTROLLER_STATES.READY, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId });
