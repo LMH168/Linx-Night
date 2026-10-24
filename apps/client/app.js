@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id.replace(/^#/, ''));
 // Test links prefill only public connection fields, never a player identity.
 const entryQuery = new URLSearchParams(globalThis.location?.search || '');
-const state = { api: sessionStorage.getItem('linx-api') || 'http://localhost:5000', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, voice: { recognition: null, listening: false, draft: false }, unloading: false };
+const state = { api: sessionStorage.getItem('linx-api') || 'http://127.0.0.1:5100', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, voice: { recognition: null, listening: false, draft: false }, unloading: false };
 const entryApi = entryQuery.get('api') || state.api;
 const entryRoom = entryQuery.get('room') || state.roomId;
 if (entryApi !== state.api || entryRoom !== state.roomId) {
@@ -70,7 +70,7 @@ function renderActions() {
   const room=state.room, mine=state.privateState;
   for(const id of ['speechField','speech','voiceStart','voiceCancel','targetField','witchField','skill','hunterShot','hunterSkip','vote','announce']) show(id,false);
   const seat=room?.seats.find(s=>s.seatId===mine?.seatId);
-  const canControl=false && seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
+  const canControl=seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
   show('controlCard',canControl); show('takeover',canControl && seat.controlSource==='human'); show('restoreControl',canControl && seat.controlSource==='rule_bot');
   $('#controlHint').textContent=seat?.controlSource==='rule_bot'?'当前由规则机器人托管，恢复后你可操作后续回合。':'断线只显示离线；需要自动行动时请主动托管。';
   if(state.actionDraft && state.actionDraft.context!==voiceContext()){state.actionDraft=null;$('#actionDraftText').value='';}

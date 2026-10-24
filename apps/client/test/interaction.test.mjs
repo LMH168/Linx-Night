@@ -20,7 +20,7 @@ vm.runInContext(await readFile(new URL('../app.js',import.meta.url),'utf8'),cont
 assert.equal(typeof elements.get('create').onclick,'function');
 elements.get('displayName').value='测试玩家';
 await elements.get('create').onclick();
-assert.equal(requests[0].url,'http://localhost:5000/api/rooms');
+assert.equal(requests[0].url,'http://127.0.0.1:5100/api/rooms');
 assert.equal(requests[0].options.method,'POST');
 assert.equal(JSON.parse(requests[0].options.body).display_name,'测试玩家');
 assert.equal(elements.get('roomId').value,'room_test');
@@ -89,8 +89,8 @@ const oldResult=recognitionInstance.onresult, oldEnd=recognitionInstance.onend;
 run('clearVoiceDraft();');oldResult({results:[[{transcript:'迟到结果'}]]});oldEnd();assert.equal(elements.get('speechText').value,'');
 run('startVoice();');const stale=recognitionInstance.onresult;
 run("state.room.phase='VOTE';renderActions();");stale({results:[[{transcript:'上一阶段'}]]});assert.equal(elements.get('speechText').value,'');assert.equal(recognitionInstance.aborted,true);
-run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,true);
-run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,true);
+run("state.room.phase='SPEECH';state.room.seats[0].controlSource='rule_bot';renderActions();");assert.equal(elements.get('actionCard').hidden,true);assert.equal(elements.get('restoreControl').hidden,false);
+run("state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('takeover').hidden,false);
 console.log('Voice cancellation/phase guards and explicit control UI passed');
 
 vm.runInContext(await readFile(new URL('../action-draft.js',import.meta.url),'utf8'),context);

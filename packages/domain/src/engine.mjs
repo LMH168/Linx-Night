@@ -41,6 +41,13 @@ export function seerCheck(room, seatId, targetSeatId, actionId) {
   transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return result;
 }
 
+export function skipSeerAction(room, seatId, actionId) {
+  if (room.phase !== PHASES.NIGHT_SEER) throw new RuleError('seer action is not allowed now');
+  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new RuleError('actor is not the living seer');
+  recordAction(room, { actionId, turnId: room.round, actionType: 'seer_skip', seatId });
+  transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return room;
+}
+
 export function witchAction(room, seatId, action, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WITCH) throw new RuleError('witch action is not allowed now');
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.WITCH) throw new RuleError('actor is not the living witch');
