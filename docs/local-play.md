@@ -2,6 +2,18 @@
 
 # 本机开局与 Linx 接入
 
+## 工具调用失败排查
+
+灵矽自带时间工具成功不代表游戏 MCP 已连通。服务保留最近 100 条 MCP 请求诊断，仅管理员可读，不记录令牌、工具参数或游戏回复。诊断在重启后清空，不能追溯启用前的请求。
+
+```powershell
+node --env-file="$env:LOCALAPPDATA\LinxNight-local.env" scripts/diagnose-mcp.mjs
+```
+
+在灵矽重新调用一次 `get_public_game_state`，再运行命令。没有新记录时检查控制台 URL、MCP 关联和工具调用是否真正发出；HTTP 401 检查认证 Header；`unknown Linx session` 表示需登记会话与房间座位。诊断中的身份头仅作为管理员核对线索，不能将未知请求自动绑定为房主或玩家。已绑定的等待大厅允许查询状态；开局并不会自动登记会话。
+
+`sessionId` 可用于管理员 `POST /admin/bindings`，请求体为 `{roomId, seatId, role: "player", sessionId}`；需要已有房间及占用座位。重新拨打可能产生新 Session，需重新登记；设备与 Agent 身份稳定时可使用下方 bind 脚本。查询诊断不会自动创建房间、授权或绑定。
+
 ## 启动
 
 使用 Node.js 22 或以上。在项目目录运行 `node run.mjs`，统一启动 API 5000、网页 5010、MCP 9091。不要再分别启动 API 和 MCP：它们必须在同一进程共享房间。重启会清空房间和绑定。

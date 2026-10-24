@@ -64,10 +64,31 @@ async function callTool(req, name, args, requiredToken) {
 
 export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), authToken: requiredToken = process.env.MCP_AUTH_TOKEN || '', adminToken = process.env.ADMIN_TOKEN || '' } = {}) {
   const streams = new Map();
+  const diagnostics = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     let message;
+    let failure;
+    const recordFailure = body => {
+      if (body.error) {
+        const known = ['MCP authentication failed', 'unknown Linx session', 'Linx session metadata mismatch', 'game room not found', 'session seat mismatch', 'invalid JSON', 'unsupported MCP protocol version'];
+        failure = { code: body.error.code, reason: known.includes(body.error.message) ? body.error.message : 'request failed' };
+      }
+    };
+    const reply = (status, body) => { recordFailure(body); return json(res, status, body); };
+    res.on('finish', () => {
+      if (!['/mcp', '/mcp/message'].includes(url.pathname)) return;
+      const authenticated = !requiredToken || authToken(req) === requiredToken;
+      const identity = authenticated ? Object.fromEntries(['session', 'device', 'agent'].map(key => [key + 'Id', req.headers[`x-linx-${key}-id`]?.slice(0, 256)])) : {};
+      diagnostics.push({ at: new Date().toISOString(), path: url.pathname, httpMethod: req.method, method: typeof message?.method === 'string' ? message.method.slice(0, 128) : undefined, tool: typeof message?.params?.name === 'string' ? message.params.name.slice(0, 128) : undefined, status: res.statusCode, authenticated, ...identity, failure });
+      if (diagnostics.length > 100) diagnostics.shift();
+    });
     try {
+      if (url.pathname === '/admin/diagnostics' && req.method === 'GET') {
+        if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
+        res.setHeader('cache-control', 'no-store');
+        return json(res, 200, { requests: diagnostics });
+      }
       if (url.pathname === '/health') return json(res, 200, {ok:true, service:'linx-night-mcp'});
       if (url.pathname === '/admin/bindings' && req.method === 'POST') {
         if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
@@ -83,11 +104,11 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         if (seat && binding.role === 'player') seat.linxControlled = true;
         return json(res, 201, {registered:true});
       }
-      if (requiredToken && authToken(req) !== requiredToken) return json(res, 401, rpcError(null,-32000,'MCP authentication failed'));
+      if (requiredToken && authToken(req) !== requiredToken) return reply(401, rpcError(null,-32000,'MCP authentication failed'));
       const streamable = url.pathname === '/mcp' && req.method === 'POST';
       const versions = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
       const protocolVersion = req.headers['mcp-protocol-version'];
-      if (protocolVersion && !versions.includes(protocolVersion)) return json(res,400,rpcError(null,-32600,'unsupported MCP protocol version'));
+      if (protocolVersion && !versions.includes(protocolVersion)) return reply(400,rpcError(null,-32600,'unsupported MCP protocol version'));
       // Stateless HTTP replies need no server-initiated stream or transport session.
       if (url.pathname === '/mcp' && (req.method === 'DELETE' || (req.method === 'GET' && protocolVersion))) {
         res.writeHead(405, {allow:'POST'}); return res.end();
@@ -101,13 +122,13 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         res.on('close', () => {clearInterval(timer); streams.delete(id);});
         return;
       }
-      if (!streamable && (url.pathname !== '/mcp/message' || req.method !== 'POST')) return json(res,404,{error:'not found'});
+      if (!streamable && (url.pathname !== '/mcp/message' || req.method !== 'POST')) return reply(404,{error:'not found'});
       const streamId = streamable ? null : url.searchParams.get('sessionId');
       const stream = streams.get(streamId);
-      if (streamId && !stream) return json(res,404,{error:'SSE session expired'});
+      if (streamId && !stream) return reply(404,{error:'SSE session expired'});
       if (stream) {
         for (const key of ['x-linx-session-id','x-linx-device-id','x-linx-agent-id']) {
-          if (req.headers[key] && stream.headers[key] && req.headers[key] !== stream.headers[key]) return json(res,403,{error:'connection identity mismatch'});
+          if (req.headers[key] && stream.headers[key] && req.headers[key] !== stream.headers[key]) return reply(403,{error:'connection identity mismatch'});
           req.headers[key] ??= stream.headers[key];
         }
       }
@@ -123,9 +144,9 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments || {},requiredToken));
         else response = rpcError(id,-32601,'unknown method');
       } catch(error) {response = rpcError(message.id,error.code || -32603,error.message);}
-      if (stream) {stream.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`); res.writeHead(202); return res.end();}
-      return json(res,200,response);
-    } catch(error) {return json(res,400,rpcError(message?.id ?? null,error.code || -32600,error.message));}
+      if (stream) {recordFailure(response); stream.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`); res.writeHead(202); return res.end();}
+      return reply(200,response);
+    } catch(error) {return reply(400,rpcError(message?.id ?? null,error.code || -32600,error.message));}
   });
   return {server,port};
 }
