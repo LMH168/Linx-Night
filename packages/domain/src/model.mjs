@@ -105,7 +105,37 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active').map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active').map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
+}
+
+// Events cross a public API/SSE boundary. Keep this allowlist beside the
+// projection so accidental diagnostic, model, audio, or role fields cannot
+// become public when a new internal event is added.
+export function publicEventData(type, data = {}) {
+  const fields = {
+    'game.phase_changed': ['phase', 'seatId', 'winner'],
+    'game.speech_submitted': ['speechId', 'seatId'],
+    'game.vote_submitted': ['voteId', 'seatId'],
+    'game.vote_resolved': ['leaders'],
+    'game.player_eliminated': ['seatId', 'cause'],
+    'game.action_submitted': ['actionId'],
+    'game.turn_created': ['turnId', 'seatId', 'phase', 'controlSource'],
+    'game.turn_completed': ['turnId', 'seatId', 'phase'],
+    'game.turn_expired': ['turnId', 'seatId', 'phase', 'reason'],
+    'host.speech_opened': ['phase', 'seatId'],
+    'host.vote_opened': ['phase', 'seatId'],
+    'host.phase_announced': ['phase', 'seatId'],
+    'host.deaths_announced': ['seatId', 'cause'],
+    'host.game_finished': ['winner'],
+    'controller.created': ['gameId', 'controllerEpoch', 'seatIds'],
+    'controller.connected': ['seatId', 'status'],
+    'controller.bound': ['seatId', 'status'],
+    'controller.failed': ['seatId', 'errorCode'],
+    'controller.released': ['seatId'],
+    'game.ready': ['gameId', 'controllerEpoch'],
+  }[type];
+  if (!fields) return {};
+  return Object.fromEntries(fields.filter(field => Object.prototype.hasOwnProperty.call(data, field)).map(field => [field, clone(data[field])]));
 }
 
 export function privateState(room, playerId) {

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import { publicEventData } from '../../../packages/domain/src/model.mjs';
 
 export class EventHub {
   #rooms = new Map();
@@ -16,8 +17,10 @@ export class TimeoutScheduler extends EventEmitter {
 
 export function eventStream(res, hub, roomId, { version = 0, history = [] } = {}) {
   res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive', 'access-control-allow-origin': '*' });
-  const unsubscribe = hub.subscribe(roomId, event => { if (event.version > version) res.write(`id: ${event.eventId}\ndata: ${JSON.stringify(event)}\n\n`); });
-  for (const event of history.filter(e => e.version > version)) res.write(`id: ${event.eventId}\ndata: ${JSON.stringify(event)}\n\n`);
+  const safe = event => ({ eventId: event.eventId, version: event.version, type: event.type, roomId: event.roomId, data: publicEventData(event.type, event.data) });
+  const write = event => res.write(`id: ${event.eventId}\ndata: ${JSON.stringify(safe(event))}\n\n`);
+  const unsubscribe = hub.subscribe(roomId, event => { if (event.version > version) write(event); });
+  for (const event of history.filter(e => e.version > version)) write(event);
   res.write(': connected\n\n');
   res.on('close', unsubscribe); return unsubscribe;
 }

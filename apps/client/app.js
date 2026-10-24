@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id.replace(/^#/, ''));
 // Test links prefill only public connection fields, never a player identity.
 const entryQuery = new URLSearchParams(globalThis.location?.search || '');
-const state = { api: sessionStorage.getItem('linx-api') || 'http://localhost:5000', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, unloading: false };
+const state = { api: sessionStorage.getItem('linx-api') || 'http://localhost:5000', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, voice: { recognition: null, listening: false, draft: false }, unloading: false };
 const entryApi = entryQuery.get('api') || state.api;
 const entryRoom = entryQuery.get('room') || state.roomId;
 if (entryApi !== state.api || entryRoom !== state.roomId) {
@@ -66,7 +66,7 @@ function renderPrivate() {
 }
 function renderActions() {
   const room=state.room, mine=state.privateState;
-  for(const id of ['speechField','speech','targetField','witchField','skill','hunterShot','vote','announce']) show(id,false);
+  for(const id of ['speechField','speech','voiceStart','voiceCancel','targetField','witchField','skill','hunterShot','vote','announce']) show(id,false);
   const active=!!(room && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
   show('actionCard',active); if(!active) return;
   const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
@@ -74,7 +74,7 @@ function renderActions() {
   const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable;
   const vote=mine.alive && room.phase==='VOTE';
   const announce=room.phase==='DAY_ANNOUNCEMENT' && state.playerId===room.hostPlayerId;
-  show('speechField',speech); show('speech',speech); show('witchField',skill && mine.role==='witch');
+  show('speechField',speech); show('speech',speech); show('voiceStart',speech); show('voiceCancel',speech && state.voice.draft); show('witchField',skill && mine.role==='witch');
   if(skill && mine.role==='witch') {
     for(const opt of $('#witchAction').options) opt.disabled=(opt.value==='save' && (!mine.skills.antidoteAvailable || !mine.nightVictim)) || (opt.value==='poison' && !mine.skills.poisonAvailable);
     if($('#witchAction').selectedOptions[0]?.disabled) $('#witchAction').value='skip';
@@ -92,6 +92,22 @@ function renderActions() {
   $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
   $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?'选择一名存活玩家作为开枪目标。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
 }
+function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
+function stopVoice() { state.voice.recognition?.stop?.(); state.voice.recognition = null; state.voice.listening = false; }
+function startVoice() {
+  const Recognition = speechRecognitionConstructor();
+  if (!Recognition) { $('#voiceStatus').textContent = '当前浏览器不支持语音识别，请直接输入文字。'; return; }
+  stopVoice();
+  const recognition = new Recognition(); state.voice.recognition = recognition; state.voice.listening = true;
+  recognition.lang = 'zh-CN'; recognition.continuous = false; recognition.interimResults = true;
+  const base = $('#speechText').value.trim();
+  recognition.onstart = () => { $('#voiceStatus').textContent = '正在聆听……结束后请检查并确认文字。'; $('#voiceStart').disabled = true; };
+  recognition.onresult = event => { const transcript = [...event.results].map(result => result[0].transcript).join('').trim(); if (!transcript) return; $('#speechText').value = [base, transcript].filter(Boolean).join(base ? ' ' : ''); state.voice.draft = true; $('#voiceCancel').hidden = false; };
+  recognition.onerror = event => { $('#voiceStatus').textContent = event.error === 'not-allowed' ? '麦克风权限被拒绝，请改用文字输入。' : '语音识别失败，请改用文字输入。'; };
+  recognition.onend = () => { state.voice.listening = false; state.voice.recognition = null; $('#voiceStart').disabled = false; if ($('#voiceStatus').textContent === '正在聆听……结束后请检查并确认文字。') $('#voiceStatus').textContent = '已生成可编辑草稿，请确认后提交。'; renderActions(); };
+  try { recognition.start(); } catch { $('#voiceStatus').textContent = '无法启动麦克风，请改用文字输入。'; stopVoice(); }
+}
+function clearVoiceDraft() { stopVoice(); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; renderActions(); }
 async function loadPrivate() {
   if(!state.room || state.room.phase==='LOBBY'){state.privateState=null;renderPrivate();renderActions();return;}
   const roomId=state.roomId;
@@ -108,12 +124,14 @@ $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(
 $('#start').onclick = async () => { try { save(); const body = await call(`/api/rooms/${state.roomId}/start`, { method: 'POST' }); render(body.state); message('已开始准备 AI 玩家连接，等待全部会话就绪。'); refresh(); } catch (error) { message(error.message); } };
 $('#retryControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry`,{method:'POST'}); render(body.state); message('已取消失败准备，可以重新点击开始游戏。'); } catch(error){message(error.message);} };
 $('#cancelControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/cancel`,{method:'POST'}); render(body.state); message('已取消 AI 连接准备。'); } catch(error){message(error.message);} };
-$('#speech').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; await refresh(); } catch (error) { message(error.message); } };
+$('#speech').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; await refresh(); } catch (error) { message(error.message); } };
 $('#skill').onclick = async () => { try { const role = state.privateState.role; const type = role === 'werewolf' ? 'wolf_target' : role === 'seer' ? 'seer_check' : 'witch_action'; const body = { type, target_seat_id: $('#target').value, action_id: `skill_${Date.now()}` }; if (type === 'witch_action') body.action = $('#witchAction').value; await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify(body) }); await refresh(); } catch (error) { message(error.message); } };
 $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/votes`, { method: 'POST', body: JSON.stringify({ target_seat_id: $('#target').value, action_id: `vote_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'announce_day', action_id: `announce_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 window.addEventListener('beforeunload', () => { state.unloading = true; clearTimeout(state.reconnectTimer); state.source?.close(); });
+$('#voiceStart').onclick = startVoice;
+$('#voiceCancel').onclick = clearVoiceDraft;
 if (state.roomId) { refresh(); connectEvents(); }
 
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
