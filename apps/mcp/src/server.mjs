@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { rooms, publishNewEvents } from '../../server/src/api.mjs';
 import { controllerFor, privateState, publicState, updateController, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
-import { RuleError, hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { RuleError, seerCheck, skipHunterResponse, submitHunterResponse, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
 
@@ -82,7 +82,8 @@ async function callTool(req, name, args, requiredToken, trace) {
     else if (name === 'submit_wolf_target') wolfTarget(room, seat.seatId, target, actionId);
     else if (name === 'submit_seer_check') result = seerCheck(room, seat.seatId, target, actionId);
     else if (name === 'submit_witch_action') witchAction(room, seat.seatId, args.action, target, actionId);
-    else if (name === 'submit_hunter_shot') hunterShot(room, seat.seatId, target, actionId);
+    else if (name === 'submit_hunter_shot') submitHunterResponse(room, seat.seatId, target, actionId, args.window_id);
+    else if (name === 'skip_hunter_response') skipHunterResponse(room, seat.seatId, actionId, args.window_id);
     else if (name === 'submit_vote') submitVote(room, seat.seatId, target, actionId);
     trace.eventIds = room.events.filter(e => e.version > trace.beforeVersion).map(e => e.eventId);
     audit.ok = true;

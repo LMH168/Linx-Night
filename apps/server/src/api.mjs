@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { addPlayer, appendEvent, assignRoles, beginControllerPreparation, createRoom, fillAiSeats, invalidateRoomControllers, privateState, publicState, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
-import { announceDay, hunterShot, seerCheck, startGame, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { announceDay, expireHunterResponse, seerCheck, skipHunterResponse, startGame, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 import { EventHub, eventStream } from './realtime.mjs';
 import { createHostCoordinator } from './host-coordinator.mjs';
 
@@ -34,13 +34,20 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'GET' && parts[3] === 'state') return json(res, 200, { state: publicState(room) });
       if (req.method === 'GET' && parts[3] === 'private-state') return json(res, 200, { private_state: privateState(room, currentPlayer(req, room).playerId) });
       if (req.method === 'GET' && parts[3] === 'speeches') return json(res, 200, { speeches: room.speeches, version: room.version });
+      if (req.method === 'GET' && parts[3] === 'hunter-response') return json(res, 200, { hunter_response: publicState(room).hunterResponse });
       if (req.method === 'GET' && parts[3] === 'events') return eventStream(res, events, room.roomId, { version: Number(url.searchParams.get('after') || 0), history: room.events });
       if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
-      if (req.method === 'POST' && parts[3] === 'actions') { const body = await readBody(req); const actor = currentPlayer(req, room); const id = actionId(req, body); if (body.type === 'wolf_target') wolfTarget(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'seer_check') seerCheck(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'witch_action') witchAction(room, actor.seatId, body.action, body.target_seat_id, id); else if (body.type === 'hunter_shot') hunterShot(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'announce_day') { if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can announce day'), { status: 403 }); announceDay(room); } else throw new Error('invalid action type'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'hunter-response') { const body = await readBody(req); const actor = currentPlayer(req, room); const id = actionId(req, body); if (body.action === 'skip') skipHunterResponse(room, actor.seatId, id, body.window_id); else if (body.action === 'shoot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else throw new Error('invalid hunter action'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'actions') { const body = await readBody(req); const actor = currentPlayer(req, room); const id = actionId(req, body); if (body.type === 'wolf_target') wolfTarget(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'seer_check') seerCheck(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'witch_action') witchAction(room, actor.seatId, body.action, body.target_seat_id, id); else if (body.type === 'hunter_shot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else if (body.type === 'announce_day') { if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can announce day'), { status: 403 }); announceDay(room); } else throw new Error('invalid action type'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'votes') { const body = await readBody(req); const actor = currentPlayer(req, room); submitVote(room, actor.seatId, body.target_seat_id, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
     } catch (error) { return json(res, error.status || 400, { error: { code: error.status === 403 ? 'FORBIDDEN' : 'INVALID_ACTION', message: error.message } }); }
   });
+  let hunterTimer;
+  server.on('listening', () => { hunterTimer = setInterval(() => {
+    for (const room of rooms.values()) if (expireHunterResponse(room)) publishNewEvents(room);
+  }, 250); hunterTimer.unref(); });
+  server.on('close', () => clearInterval(hunterTimer));
   return { server, port };
 }
 

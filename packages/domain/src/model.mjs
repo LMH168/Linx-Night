@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 
 export const ROLES = Object.freeze({ WEREWOLF: 'werewolf', SEER: 'seer', WITCH: 'witch', HUNTER: 'hunter', VILLAGER: 'villager' });
 export const CAMPS = Object.freeze({ WEREWOLF: 'werewolf', GOOD: 'good' });
-export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
+export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', HUNTER_RESPONSE: 'HUNTER_RESPONSE', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
 export const PLAYER_TYPES = Object.freeze({ HUMAN: 'human', AI: 'ai' });
 export const CONNECTION_STATES = Object.freeze({ ONLINE: 'online', DISCONNECTED: 'disconnected', AI_CONTROLLED: 'ai_controlled' });
 export const CONTROLLER_STATES = Object.freeze({ PENDING: 'pending', CONNECTING: 'connecting', CONNECTED: 'connected', BINDING: 'binding', READY: 'ready', FAILED: 'failed', RECONNECTING: 'reconnecting', RELEASED: 'released' });
@@ -20,7 +20,7 @@ export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } 
   requireText(roomId, 'roomId'); requireText(hostPlayerId, 'hostPlayerId');
   return {
     roomId, hostPlayerId, phase: PHASES.LOBBY, version: 0, round: 0, currentSeatId: null,
-    gameId: null, controllerEpoch: 0, controllerPhase: 'idle', controllers: [], invalidated: false,
+    gameId: null, controllerEpoch: 0, controllerPhase: 'idle', controllers: [], invalidated: false, hunterResponse: null,
     seats: Array.from({ length: 9 }, (_, index) => ({ seatId: `P${index + 1}`, playerId: null, playerType: null, controlSource: null, linxControlled: false, displayName: null, connectionState: null, role: null, camp: null, alive: true, skills: { antidoteAvailable: false, poisonAvailable: false, hunterShotAvailable: false }, seerResults: [] })),
     events: [], speeches: [], actions: [], votes: [], turns: [],
   };
@@ -105,7 +105,8 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active').map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
+  const hunterResponse = room.hunterResponse ? { windowId: room.hunterResponse.windowId, seatId: room.hunterResponse.seatId, phaseBefore: room.hunterResponse.phaseBefore, cause: room.hunterResponse.cause, status: room.hunterResponse.status, createdAt: room.hunterResponse.createdAt, expiresAt: room.hunterResponse.expiresAt, ...(room.hunterResponse.status !== 'open' ? { targetSeatId: room.hunterResponse.targetSeatId ?? null } : {}) } : null;
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active').map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
 }
 
 // Events cross a public API/SSE boundary. Keep this allowlist beside the
@@ -122,6 +123,8 @@ export function publicEventData(type, data = {}) {
     'game.turn_created': ['turnId', 'seatId', 'phase', 'controlSource'],
     'game.turn_completed': ['turnId', 'seatId', 'phase'],
     'game.turn_expired': ['turnId', 'seatId', 'phase', 'reason'],
+    'game.hunter_response_opened': ['windowId', 'seatId', 'cause', 'expiresAt'],
+    'game.hunter_response_closed': ['windowId', 'seatId', 'status', 'targetSeatId'],
     'host.speech_opened': ['phase', 'seatId'],
     'host.vote_opened': ['phase', 'seatId'],
     'host.phase_announced': ['phase', 'seatId'],

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES } from './model.mjs';
 
 export class RuleError extends Error {}
@@ -59,6 +60,7 @@ export function announceDay(room) {
   if (night.witch?.action === 'poison') deaths.add(night.witch.targetSeatId);
   room.pendingNight = null;
   for (const seatId of deaths) eliminate(room, seatId, 'night');
+  if (room.hunterResponse?.status === 'open') return room;
   const winner = checkWinner(room); if (winner) return winner;
   transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null }); return room;
 }
@@ -79,23 +81,71 @@ export function submitVote(room, seatId, targetSeatId, voteId) {
   if (room.votes.filter(vote => vote.round === room.round).length === aliveSeats(room).length) resolveVotes(room); return room;
 }
 
-export function hunterShot(room, seatId, targetSeatId, actionId) {
-  if (room.phase === PHASES.GAME_OVER) throw new RuleError('game is over');
+export { submitHunterResponse as hunterShot };
+
+function openHunterResponse(room, hunter, cause) {
+  if (room.hunterResponse?.status === 'open') return room.hunterResponse;
+  const phaseBefore = room.phase;
+  const now = Date.now();
+  room.hunterResponse = { windowId: `hunter_${randomUUID()}`, seatId: hunter.seatId, phaseBefore, cause, status: 'open', createdAt: new Date(now).toISOString(), expiresAt: new Date(now + 30000).toISOString(), targetSeatId: null };
+  transition(room, PHASES.HUNTER_RESPONSE, { seatId: hunter.seatId });
+  appendEvent(room, { type: 'game.hunter_response_opened', data: { windowId: room.hunterResponse.windowId, seatId: hunter.seatId, cause, expiresAt: room.hunterResponse.expiresAt } });
+  return room.hunterResponse;
+}
+
+function continueAfterHunter(room) {
+  const response = room.hunterResponse; if (!response) return room;
+  const before = response.phaseBefore;
+  const winner = checkWinner(room); if (winner) return room;
+  if (before === PHASES.DAY_ANNOUNCEMENT) transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
+  else if (before === PHASES.VOTE) { room.round += 1; transition(room, PHASES.NIGHT_WOLF); }
+  return room;
+}
+
+function requireHunterResponse(room, seatId, actionId, windowId, now) {
+  const response = room.hunterResponse;
+  if (room.phase !== PHASES.HUNTER_RESPONSE || !response || response.status !== 'open') throw new RuleError('hunter response is not open');
+  if (windowId !== response.windowId) throw new RuleError('hunter response window mismatch');
+  if (now >= Date.parse(response.expiresAt)) throw new RuleError('hunter response has expired');
+  if (typeof actionId !== 'string' || !actionId.trim()) throw new RuleError('action id is required');
   if (commandKey(room, actionId)) throw new RuleError('duplicate action');
-  const hunter = seatOf(room, seatId); if (!hunter || hunter.role !== ROLES.HUNTER || hunter.alive || !hunter.skills.hunterShotAvailable) throw new RuleError('hunter shot is unavailable');
-  requireAlive(room, targetSeatId); hunter.skills.hunterShotAvailable = false; recordAction(room, { actionId, turnId: room.round, actionType: 'hunter_shot', seatId, targetSeatId }); eliminate(room, targetSeatId, 'hunter'); checkWinner(room); return room;
+  const hunter = seatOf(room, seatId); if (!hunter || hunter.seatId !== response.seatId || hunter.role !== ROLES.HUNTER || hunter.alive || !hunter.skills.hunterShotAvailable) throw new RuleError('hunter shot is unavailable');
+  return { response, hunter };
+}
+
+export function submitHunterResponse(room, seatId, targetSeatId, actionId, windowId, now = Date.now()) {
+  const { response, hunter } = requireHunterResponse(room, seatId, actionId, windowId, now);
+  requireAlive(room, targetSeatId); hunter.skills.hunterShotAvailable = false; recordAction(room, { actionId, turnId: room.round, actionType: 'hunter_shot', seatId, targetSeatId }); response.status = 'completed'; response.targetSeatId = targetSeatId; room.version += 1; appendEvent(room, { type: 'game.hunter_response_closed', data: { windowId: response.windowId, seatId, status: response.status, targetSeatId } }); eliminate(room, targetSeatId, 'hunter'); return continueAfterHunter(room);
+}
+
+export function skipHunterResponse(room, seatId, actionId, windowId, now = Date.now()) {
+  const { response, hunter } = requireHunterResponse(room, seatId, actionId, windowId, now);
+  recordAction(room, { actionId, turnId: room.round, actionType: 'hunter_response_skip', seatId });
+  hunter.skills.hunterShotAvailable = false; response.status = 'skipped';
+  appendEvent(room, { type: 'game.hunter_response_closed', data: { windowId: response.windowId, seatId, status: response.status } });
+  return continueAfterHunter(room);
+}
+
+export function expireHunterResponse(room, now = Date.now()) {
+  const response = room.hunterResponse; if (room.phase !== PHASES.HUNTER_RESPONSE || !response || response.status !== 'open') return false;
+  if (now < Date.parse(response.expiresAt)) return false;
+  seatOf(room, response.seatId).skills.hunterShotAvailable = false;
+  response.status = 'expired';
+  appendEvent(room, { type: 'game.hunter_response_closed', data: { windowId: response.windowId, seatId: response.seatId, status: response.status } });
+  continueAfterHunter(room); return true;
 }
 
 function resolveVotes(room) {
   const votes = room.votes.filter(vote => vote.round === room.round); const counts = new Map(); for (const vote of votes) counts.set(vote.targetSeatId, (counts.get(vote.targetSeatId) ?? 0) + 1);
   const max = Math.max(...counts.values()); const leaders = [...counts].filter(([, count]) => count === max).map(([seatId]) => seatId); appendEvent(room, { type: 'game.vote_resolved', data: { leaders } });
   if (leaders.length === 1) eliminate(room, leaders[0], 'vote');
+  if (room.hunterResponse?.status === 'open') return room;
   const winner = checkWinner(room); if (winner) return winner; room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
 }
 
-function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); }
+function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }
 
-export function checkWinner(room) { const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
+export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
 
 export function skipAbsentRoles(room) {
   if (room.phase === PHASES.NIGHT_SEER && !aliveSeats(room).some(s => s.role === ROLES.SEER)) transition(room, PHASES.NIGHT_WITCH);

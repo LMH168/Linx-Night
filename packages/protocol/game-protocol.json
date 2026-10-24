@@ -1,7 +1,16 @@
 {
   "version": "0.1.0",
-  "roles": ["werewolf", "seer", "witch", "hunter", "villager"],
-  "camps": ["werewolf", "good"],
+  "roles": [
+    "werewolf",
+    "seer",
+    "witch",
+    "hunter",
+    "villager"
+  ],
+  "camps": [
+    "werewolf",
+    "good"
+  ],
   "phases": [
     "LOBBY",
     "ROLE_ASSIGNMENT",
@@ -9,6 +18,7 @@
     "NIGHT_SEER",
     "NIGHT_WITCH",
     "DAY_ANNOUNCEMENT",
+    "HUNTER_RESPONSE",
     "SPEECH",
     "VOTE",
     "RESOLUTION",
@@ -21,7 +31,9 @@
     "game.action_submitted",
     "game.player_eliminated",
     "game.vote_resolved",
-    "game.finished"
+    "game.finished",
+    "game.hunter_response_opened",
+    "game.hunter_response_closed"
   ],
   "errors": [
     "BAD_REQUEST",
