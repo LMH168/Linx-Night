@@ -1,0 +1,87 @@
+# Linx-Night 部署基线
+
+## 服务和端口
+
+在 Ubuntu 服务器上分别启动：
+
+```bash
+PORT=5000 node apps/server/src/index.mjs
+CLIENT_PORT=5010 node apps/client/server.mjs
+MCP_PORT=9091 MCP_AUTH_TOKEN='生成的随机长令牌' node apps/mcp/src/index.mjs
+```
+
+建议使用 systemd、supervisord 或容器管理进程，并把日志输出到集中日志系统。不要把 Token 写进 Git 仓库。
+
+复制 `.env.example` 为服务器上的环境文件，至少设置：
+
+```text
+PORT=5000
+CLIENT_PORT=5010
+MCP_PORT=9091
+MCP_AUTH_TOKEN=随机生成的长令牌
+```
+
+## HTTPS 反向代理
+
+灵矽云端 MCP 必须访问公网 HTTPS。下面的 Nginx 示例把 `/mcp` 和 `/mcp/message` 转发到本机 9091 端口；证书由 Certbot 或服务器已有证书提供。
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name mcp.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/mcp.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:9091;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-MCP-Auth-Token $http_x_mcp_auth_token;
+        proxy_buffering off;
+        proxy_read_timeout 1h;
+    }
+}
+```
+
+如果没有域名，开发阶段可以用 Cloudflare Tunnel 或 ngrok 提供临时 HTTPS 地址；正式联调应使用固定域名和稳定证书。
+
+## 服务器端口映射示例
+
+当前服务器使用 PortForward 网关时，外部入口可按以下方式映射：
+
+```text
+客户端 5010 → 网关公网端口
+服务端 5000 → 网关公网端口
+MCP 9091 → 网关公网端口
+```
+
+例如用户提供的网关映射是 `5010 -> 10497`、`5000 -> 10498`、`9091 -> 10499`。反向代理部署后，优先只暴露 443；调试时才直接暴露 5000/5010/9091。
+
+## 健康检查
+
+```bash
+curl http://127.0.0.1:5000/health
+curl http://127.0.0.1:9091/health
+curl -N https://mcp.example.com/mcp
+```
+
+MCP JSON-RPC 请求必须携带：
+
+```text
+Authorization: Bearer <MCP_AUTH_TOKEN>
+X-Linx-Session-Id: <已登记 Session>
+X-Linx-Device-Id: <绑定设备>
+X-Linx-Agent-Id: <绑定 Agent>
+```
+
+## Linx 接入前检查
+
+1. 记录实际 HTTPS MCP 地址。
+2. 生成并安全保存 `MCP_AUTH_TOKEN`。
+3. 为每个 Linx Session 登记 `room_id`、`seat_id`、`player_id`、`device_id` 和 `agent_id`。
+4. 用 `initialize`、`tools/list` 和一次只读工具调用验证 MCP。
+5. 确认日志中没有输出 Token、身份角色或其他座位私密信息。
