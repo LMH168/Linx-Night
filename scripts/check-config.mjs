@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { access, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { parseWav } from '../apps/linx/src/wav.mjs';
+import { parseTriggerWav } from '../apps/linx/src/wav.mjs';
 import { profilePath } from '../apps/linx/src/profile.mjs';
 
 export async function checkConfig({ env = process.env, fs = { access, readFile } } = {}) {
@@ -15,7 +15,10 @@ export async function checkConfig({ env = process.env, fs = { access, readFile }
   if(env.ADMIN_TOKEN && env.ADMIN_TOKEN===env.MCP_AUTH_TOKEN)missing.push('ADMIN_TOKEN: must differ from MCP_AUTH_TOKEN');
   if(env.LINX_VOICE_PROFILE){if(profiles.includes(env.LINX_VOICE_PROFILE))missing.push('LINX_VOICE_PROFILE: must be independent');else{try{await fs.access(`${profilePath(env.LINX_VOICE_PROFILE)}/identity.json`);}catch{missing.push('LINX_VOICE_PROFILE: missing identity');}}}
   for (const profile of profiles) { try { await fs.access(`${profilePath(profile)}/identity.json`); } catch { missing.push(`profile:${profile}`); } }
-  try { const wav=env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav'); await fs.access(wav); if(fs.readFile)parseWav(await fs.readFile(wav)); } catch { missing.push('LINX_TURN_WAV: run scripts/linx-audio.ps1'); }
+  for (const [key, file] of [['LINX_TURN_WAV','turn.wav'],['LINX_HUNTER_WAV','hunter.wav']]) {
+    try { const wav=env[key] || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', file); await fs.access(wav); if(fs.readFile)parseTriggerWav(await fs.readFile(wav)); }
+    catch { missing.push(`${key}: run scripts/linx-audio.ps1 (maximum 5 seconds)`); }
+  }
   return { ok: missing.length === 0, missing, profiles };
 }
 

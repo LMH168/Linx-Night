@@ -1,3 +1,4 @@
+import { turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -137,7 +138,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       if (url.pathname === '/admin/diagnostics' && req.method === 'GET') {
         if (!adminToken || authToken(req) !== adminToken) return json(res, 403, {error:'administrator token required'});
         res.setHeader('cache-control', 'no-store');
-        return json(res, 200, { requests: diagnostics });
+        return json(res, 200, { requests: diagnostics, timeline: turnDiagnostics() });
       }
       if (url.pathname === '/health') return json(res, 200, {ok:true, service:'linx-night-mcp'});
       if (url.pathname === '/admin/bindings' && req.method === 'POST') {

@@ -31,3 +31,11 @@
 ## MCP 就绪门槛
 
 WSS hello 不代表游戏 MCP 可用。自动绑定前最多等待 15 秒，在受保护诊断中核对已认证且成功的 initialize/tools/list 请求，Session、Device、Agent 必须与新连接一致。没有匹配记录则显示 MCP_DISCOVERY_TIMEOUT，留在准备失败，不分配角色。检查测试 Agent 的 MCP URL、认证、独立保存关联，以及隧道是否仍运行；修复后由房主重试。旧 Session 或陌生设备的发现请求不能满足门槛。
+
+## #77 短音频迁移与诊断
+
+重新运行 `scripts/linx-audio.ps1` 生成 `turn.wav` 与 `hunter.wav`，两者均须不超过 5 秒。自定义路径分别使用 `LINX_TURN_WAV`、`LINX_HUNTER_WAV`。旧的约 25 秒通用音频将被拒绝。同步更新玩家 Agent 人设为仓库 `apps/mcp/prompts/player.md` 的规则，短音频只负责通知，不承载整套协议说明。
+
+房间事件发布后唤醒串行调度，2 秒轮询继续兜底。猎人窗口仍为死亡后 30 秒，连接耗时计入窗口；窗口自然结束不作为下一阶段可重试故障。自身私密状态新增 `hunterAction`，包含窗口、期限、合法目标及开枪/放弃能力。
+
+管理员 `/admin/diagnostics` 新增最多 100 条 `timeline`：领域事件、调度选中、连接就绪、租约、输入开始/结束、STT 到达和结果。与原有 MCP `requests` 关联分析，及时导出；不包含转写正文、原始音频和 Token。时间仅表示本机观测，不推断平台内部耗时。模拟回归不代表真实猎人通过。
