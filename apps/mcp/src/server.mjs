@@ -165,6 +165,13 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         const binding = await bodyOf(req); return json(res, 200, { released: releaseController(binding) });
       }
       if (requiredToken && authToken(req) !== requiredToken) return reply(401, rpcError(null,-32000,'MCP authentication failed'));
+      // Linx's console probes this legacy discovery endpoint before using
+      // Streamable HTTP. Keep it read-only and protected by the same token as
+      // /mcp so it cannot expose the tool contract publicly.
+      if (url.pathname === '/v1/schema' && req.method === 'GET') {
+        const tools = [...toolMap.values()];
+        return json(res, 200, { tools, data: { tools } });
+      }
       const streamable = url.pathname === '/mcp' && req.method === 'POST';
       const versions = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
       const protocolVersion = req.headers['mcp-protocol-version'];
