@@ -6,9 +6,12 @@ import { profilePath } from '../apps/linx/src/profile.mjs';
 
 export async function checkConfig({ env = process.env, fs = { access, readFile } } = {}) {
   const missing = [];
-  for (const key of ['LINX_AGENT_ID', 'LINX_MCP_ADMIN_URL', 'LINX_MCP_ADMIN_TOKEN', 'MCP_AUTH_TOKEN', 'ADMIN_TOKEN']) if (!env[key]?.trim()) missing.push(key);
+  for (const key of ['LINX_HOST_PROFILE','LINX_HOST_AGENT_ID','LINX_AGENT_ID', 'LINX_MCP_ADMIN_URL', 'LINX_MCP_ADMIN_TOKEN', 'MCP_AUTH_TOKEN', 'ADMIN_TOKEN']) if (!env[key]?.trim()) missing.push(key);
   const profiles = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(name => name.trim()).filter(Boolean);
-  const seats=String(env.LINX_SEATS || 'P2,P3').split(',').map(s=>s.trim()).filter(Boolean);
+  if(env.LINX_HOST_PROFILE && (profiles.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE))missing.push('LINX_HOST_PROFILE: must be independent');
+  if(env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)missing.push('LINX_HOST_AGENT_ID: must be independent');
+  if(env.LINX_HOST_PROFILE)try{await fs.access(`${profilePath(env.LINX_HOST_PROFILE)}/identity.json`);}catch{missing.push('LINX_HOST_PROFILE: missing identity');}
+  const seats=String(env.LINX_SEATS || 'P2,P3,P4,P5,P6,P7,P8,P9').split(',').map(s=>s.trim()).filter(Boolean);
   if(new Set(profiles).size!==profiles.length || profiles.length<seats.length) missing.push('LINX_PROFILES: count or duplicates');
   if(seats.some(s=>!/^P[1-9]$/.test(s)) || new Set(seats).size!==seats.length)missing.push('LINX_SEATS: invalid');
   if(env.LINX_MCP_ADMIN_TOKEN!==env.ADMIN_TOKEN)missing.push('LINX_MCP_ADMIN_TOKEN: must match ADMIN_TOKEN');

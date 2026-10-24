@@ -27,10 +27,10 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   let audio, hunterAudio;
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
-      const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, names[i]]));
+      const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, c.seatId==='HOST' ? env.LINX_HOST_PROFILE : names[i]]));
       adapters.set(room.roomId, new LinxSessionAdapter({ profiles, clientFactory, onChange,
         connectionFor: async controller => {
-          const agentId = required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
+          const agentId = required(controller.seatId==='HOST' ? env.LINX_HOST_AGENT_ID : env.LINX_AGENT_ID, controller.seatId==='HOST' ? 'LINX_HOST_AGENT_ID' : 'LINX_AGENT_ID');
           const profileName = required(profileBySeat.get(controller.seatId), `LINX profile（${controller.seatId}）`);
           const identity = await readIdentity(profileName);
           const connection = await ota(identity, { fetchImpl });
@@ -47,9 +47,16 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     return adapters.get(room.roomId);
   };
   return {
+    requireHost: true,
     async prepare(room) {
       if (!room.controllers.length) { room.controllerPhase = 'ready'; return room; }
-      const assigned = names.slice(0, room.controllers.length);
+      const count=room.controllers.filter(c=>c.seatId!=='HOST').length;
+      const assigned = names.slice(0,count);
+      if(room.controllers.some(c=>c.seatId==='HOST')) {
+        required(env.LINX_HOST_PROFILE,'LINX_HOST_PROFILE');required(env.LINX_HOST_AGENT_ID,'LINX_HOST_AGENT_ID');
+        if(names.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE||env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)throw new Error('主持身份与 Agent 必须独立');
+        assigned.push(env.LINX_HOST_PROFILE);
+      }
       if (assigned.length !== room.controllers.length || new Set(assigned).size !== assigned.length || assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       const gameId = room.gameId;
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
@@ -59,7 +66,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       for (const name of assigned) reservations.set(name, room.roomId);
       const adapter = adapterFor(room);
-      await Promise.all(room.controllers.map(c => adapter.connect(room, c.seatId)));
+      const results=await Promise.allSettled(room.controllers.map(c => adapter.connect(room, c.seatId)));
+      const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
       if (room.invalidated || adapters.get(room.roomId) !== adapter) throw new Error('PREPARATION_CANCELLED');
       room.controllerPhase = 'ready'; return room;
     },
@@ -69,6 +77,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const client = adapter.clients.get(seat.seatId)?.client;
       if (!client || client.state === 'closed') await adapter.reconnect(room, seat.seatId);
     },
+    clientFor(room, seatId) { return adapters.get(room.roomId)?.clients.get(seatId)?.client; },
     async sendTurn(room, seat) {
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');

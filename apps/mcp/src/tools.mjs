@@ -1,6 +1,7 @@
 const text = { type: 'string', minLength: 1 };
 const target = { ...text, description: '目标座位 P1～P9，或服务端返回的 playerId；必须是当前合法目标。' };
 const definitions = [
+  ['get_host_announcements', '仅主持人读取公开播报任务', {}],
   ['get_public_game_state', '获取当前房间公开状态', {}],
   ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
   ['get_recent_speeches', '获取最近公开发言', {}],

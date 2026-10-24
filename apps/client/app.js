@@ -48,7 +48,7 @@ function render(room) {
   show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER');
   const winner=[...room.events].reverse().find(e=>e.data?.winner)?.data.winner;
   $('#resultTitle').textContent=winner==='good'?'好人阵营获胜':winner==='werewolf'?'狼人阵营获胜':'对局已结束';
-  const lines=[...room.speeches.map(s=>`${s.seatId}：${s.text}`),...room.events.flatMap(e=>e.type==='game.player_eliminated'?[`${e.data.seatId} 已出局`]:e.type==='game.vote_resolved'?[`投票结果：${e.data.leaders.join('、')}`]:e.type==='game.hunter_response_closed'?[e.data.status==='completed'?`${e.data.seatId} 开枪带走 ${e.data.targetSeatId}`:e.data.status==='expired'?`${e.data.seatId} 响应超时，放弃开枪`:`${e.data.seatId} 放弃开枪`]:e.data?.winner?[e.data.winner==='good'?'好人阵营获胜':'狼人阵营获胜']:[])];
+  const lines=[...room.speeches.map(s=>`${s.seatId}：${s.text}`),...room.events.flatMap(e=>e.type==='game.player_eliminated'?[`${e.data.seatId} 已出局`]:e.type==='game.vote_resolved'?[`投票结果：${e.data.leaders.join('、')}`]:e.type==='game.hunter_shot'?[`${e.data.seatId} 开枪带走 ${e.data.targetSeatId}`]:e.data?.winner?[e.data.winner==='good'?'好人阵营获胜':'狼人阵营获胜']:[])];
   $('#events').replaceChildren(...lines.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
   show('emptyEvents',lines.length===0);
   renderPrivate(); renderActions();
@@ -70,7 +70,7 @@ function renderActions() {
   const room=state.room, mine=state.privateState;
   for(const id of ['speechField','speech','voiceStart','voiceCancel','targetField','witchField','skill','hunterShot','hunterSkip','vote','announce']) show(id,false);
   const seat=room?.seats.find(s=>s.seatId===mine?.seatId);
-  const canControl=seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
+  const canControl=false && seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
   show('controlCard',canControl); show('takeover',canControl && seat.controlSource==='human'); show('restoreControl',canControl && seat.controlSource==='rule_bot');
   $('#controlHint').textContent=seat?.controlSource==='rule_bot'?'当前由规则机器人托管，恢复后你可操作后续回合。':'断线只显示离线；需要自动行动时请主动托管。';
   if(state.actionDraft && state.actionDraft.context!==voiceContext()){state.actionDraft=null;$('#actionDraftText').value='';}
@@ -80,7 +80,7 @@ function renderActions() {
   show('actionCard',active); if(!active) return;
   const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
-  const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && room.phase==='HUNTER_RESPONSE' && room.hunterResponse?.seatId===mine.seatId && room.hunterResponse.status==='open';
+  const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && Boolean(mine.hunterAction);
   const vote=mine.alive && room.phase==='VOTE';
   const voiceAllowed=speech||skill||hunter||vote;
   show('linxVoiceTools',voiceAllowed);show('actionDraftField',voiceAllowed&&!speech);show('confirmDraft',voiceAllowed&&!speech&&!!state.actionDraft);
@@ -102,10 +102,10 @@ function renderActions() {
   for(const id of ['speech','skill','hunterShot','hunterSkip','vote','announce']) $(id).disabled=state.busy || (needsTarget && ['skill','hunterShot','vote'].includes(id) && !$('#target').value);
   $('#skill').textContent={werewolf:'确认袭击目标',seer:'查验身份',witch:'确认用药选择'}[mine.role] || '确认行动';
   $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
-  $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(room.hunterResponse.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
+  $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
-function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.room?.hunterResponse?.windowId,state.room?.seats.find(s=>s.seatId===state.privateState?.seatId)?.controlSource,state.playerId].join(':'); }
+function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.privateState?.hunterAction?.windowId,state.room?.seats.find(s=>s.seatId===state.privateState?.seatId)?.controlSource,state.playerId].join(':'); }
 function stopVoice() {
   linxVoice?.stop(); state.voice.linxRecording=false;
   const recognition=state.voice.recognition; state.voice.recognition=null; state.voice.listening=false;
@@ -148,8 +148,8 @@ $('#cancelControllers').onclick = async () => { try { const body=await call(`/ap
 $('#speech').onclick = async () => { stopVoice(); try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; await refresh(); } catch (error) { message(error.message); } };
 $('#skill').onclick = async () => { try { const role = state.privateState.role; const type = role === 'werewolf' ? 'wolf_target' : role === 'seer' ? 'seer_check' : 'witch_action'; const body = { type, target_seat_id: $('#target').value, action_id: `skill_${Date.now()}` }; if (type === 'witch_action') body.action = $('#witchAction').value; await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify(body) }); await refresh(); } catch (error) { message(error.message); } };
 $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/votes`, { method: 'POST', body: JSON.stringify({ target_seat_id: $('#target').value, action_id: `vote_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
-$('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, window_id: state.room.hunterResponse.windowId, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
-$('#hunterSkip').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/hunter-response`, { method: 'POST', body: JSON.stringify({ action: 'skip', window_id: state.room.hunterResponse.windowId, action_id: `hunter_skip_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
+$('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, window_id: state.privateState.hunterAction.windowId, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
+$('#hunterSkip').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/hunter-response`, { method: 'POST', body: JSON.stringify({ action: 'skip', window_id: state.privateState.hunterAction.windowId, action_id: `hunter_skip_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'announce_day', action_id: `announce_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); linxVoice?.stopPlayback(); clearTimeout(state.reconnectTimer); state.source?.close(); });
 for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};

@@ -1,4 +1,4 @@
-import { appendEvent, CAMPS, PHASES } from '../../../packages/domain/src/model.mjs';
+import { appendEvent, CAMPS, PHASES, publicEvent as projectEvent } from '../../../packages/domain/src/model.mjs';
 
 const publicEvent = (room, type, data = {}) => { const event = appendEvent(room, { type, data }); event.publicOnly = true; return event; };
 export class HostCoordinator {
@@ -6,7 +6,8 @@ export class HostCoordinator {
   announce(room) {
     room.hostAnnouncements ??= new Set();
     const events = [];
-    for (const event of room.events.slice(-8)) {
+    for (const raw of [...room.events]) {
+      const event=projectEvent(raw); if(!event)continue;
       if (room.hostAnnouncements.has(event.eventId)) continue;
       if (event.type === 'game.phase_changed') {
         const phase = event.data.phase; const type = phase === PHASES.SPEECH ? 'host.speech_opened' : phase === PHASES.VOTE ? 'host.vote_opened' : 'host.phase_announced';

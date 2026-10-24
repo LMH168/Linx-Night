@@ -54,10 +54,10 @@ export function expireTurn(room, turnId, reason = 'expired') {
   if (turn.status !== 'active') return false; turn.status = 'expired'; turn.completedAt = new Date().toISOString(); turn.reason = reason; room.version += 1; appendEvent(room, { type: 'game.turn_expired', data: { turnId: turn.turnId, seatId: turn.seatId, phase: turn.phase, reason } }); return true;
 }
 
-export function beginControllerPreparation(room, { gameId = id('game'), aiSeatIds = room.seats.filter(seat => seat.playerType === PLAYER_TYPES.AI).map(seat => seat.seatId) } = {}) {
+export function beginControllerPreparation(room, { includeHost = false, gameId = id('game'), aiSeatIds = room.seats.filter(seat => seat.playerType === PLAYER_TYPES.AI).map(seat => seat.seatId) } = {}) {
   if (room.phase !== PHASES.LOBBY) throw new Error('room is not in lobby');
   room.gameId = gameId; room.controllerEpoch += 1; room.controllerPhase = 'connecting'; room.invalidated = false;
-  room.controllers = aiSeatIds.map(seatId => ({ seatId, gameId, controllerEpoch: room.controllerEpoch, profileName: null, agentId: null, deviceId: null, sessionId: null, runId: null, status: CONTROLLER_STATES.PENDING, retryCount: 0, boundAt: null, lastSeenAt: null, errorCode: null }));
+  room.controllers = [...aiSeatIds, ...(includeHost ? ['HOST'] : [])].map(seatId => ({ seatId, gameId, controllerEpoch: room.controllerEpoch, profileName: null, agentId: null, deviceId: null, sessionId: null, runId: null, status: CONTROLLER_STATES.PENDING, retryCount: 0, boundAt: null, lastSeenAt: null, errorCode: null }));
   room.version += 1; return { gameId, controllerEpoch: room.controllerEpoch, controllers: clone(room.controllers) };
 }
 
@@ -106,14 +106,27 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  const hunterResponse = room.hunterResponse ? { windowId: room.hunterResponse.windowId, seatId: room.hunterResponse.seatId, phaseBefore: room.hunterResponse.phaseBefore, cause: room.hunterResponse.cause, status: room.hunterResponse.status, createdAt: room.hunterResponse.createdAt, expiresAt: room.hunterResponse.expiresAt, ...(room.hunterResponse.status !== 'open' ? { targetSeatId: room.hunterResponse.targetSeatId ?? null } : {}) } : null;
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE','HUNTER_RESPONSE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
+  const hunterResponse = null;
+  const resolving = room.phase === 'HUNTER_RESPONSE';
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: resolving ? 'RESOLUTION' : room.phase, version: room.version, round: room.round, currentSeatId: resolving ? null : room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), hostController: publicController(room.controllers?.find(c=>c.seatId==='HOST')), controllers: (room.controllers ?? []).filter(c=>c.seatId!=='HOST').map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => resolving ? {seatId,status:'active',retryCount:0,boundAt:null,lastSeenAt:null,errorCode:null} : ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(publicEvent).filter(Boolean) };
+}
+
+export function publicController(c) { if (!c) return null; const {status,errorCode,retryCount,boundAt,lastSeenAt}=c; return {status,errorCode,retryCount,boundAt,lastSeenAt}; }
+export function publicEvent(event) {
+  const {eventId,version,type,roomId,data}=event;
+  if (type.startsWith('controller.') && type!=='controller.created') return {eventId,version,type:'controller.updated',roomId,data:{}};
+  if (type==='game.hunter_response_opened' || (type==='game.hunter_response_closed' && data.status!=='completed') || (type.startsWith('game.turn_') && data.phase==='HUNTER_RESPONSE')) return null;
+  if (type==='game.hunter_response_closed') return {eventId,version,type:'game.hunter_shot',roomId,data:{seatId:data.seatId,targetSeatId:data.targetSeatId}};
+  return {eventId,version,type,roomId,data:publicEventData(type,data)};
 }
 
 // Events cross a public API/SSE boundary. Keep this allowlist beside the
 // projection so accidental diagnostic, model, audio, or role fields cannot
 // become public when a new internal event is added.
 export function publicEventData(type, data = {}) {
+  if (data.phase==='HUNTER_RESPONSE') return {phase:'RESOLUTION'};
+  if(type.startsWith('game.hunter_response_')) return {};
+  if(type==='game.hunter_shot') return {seatId:data.seatId,targetSeatId:data.targetSeatId};
   if (type.startsWith('game.turn_') && !['SPEECH','VOTE','HUNTER_RESPONSE'].includes(data.phase)) return {phase: data.phase};
   const fields = {
     'game.phase_changed': ['phase', 'seatId', 'winner'],
