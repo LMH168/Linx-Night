@@ -20,6 +20,8 @@
     "linx": "node scripts/linx-client.mjs",
     "test:lab": "node tests/linx-lab.test.mjs && node tests/linx-program-lab.test.mjs",
     "dev:lab": "node scripts/linx-lab.mjs",
+    "check:config": "node scripts/check-config.mjs",
+    "test:mixed": "node tests/mixed-e2e.test.mjs",
     "test:controllers": "node apps/mcp/test/controllers.test.mjs && node apps/linx/test/session-adapter.test.mjs"
   },
   "dependencies": {
