@@ -78,7 +78,7 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 }
 
 export function publicState(room) {
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), speeches: clone(room.speeches), events: room.events.map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data })) };
 }
 
 export function privateState(room, playerId) {
