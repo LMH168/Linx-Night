@@ -4,7 +4,7 @@ const aliveSeats = room => room.seats.filter(seat => seat.alive);
 const seatOf = (room, seatId) => room.seats.find(seat => seat.seatId === seatId);
 const requireAlive = (room, seatId) => { const seat = seatOf(room, seatId); if (!seat || !seat.alive) throw new Error('target seat is not alive'); return seat; };
 const commandKey = (room, key) => room.actions.some(action => action.actionId === key) || room.votes.some(vote => vote.voteId === key);
-const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new Error('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId, seatId: action.seatId, actionType: action.actionType } }); };
+const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new Error('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId } }); };
 const transition = (room, phase, data = {}) => { room.phase = phase; room.currentSeatId = data.seatId ?? null; room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } }); };
 
 export function startGame(room) {
@@ -17,13 +17,14 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new Error('actor is not a living werewolf');
   requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new Error('werewolves cannot target themselves');
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
+  if (submitted.some(a => a.seatId === seatId)) throw new Error('seat already submitted');
   const projected = [...submitted, { seatId, targetSeatId }];
   if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new Error('werewolf targets must agree');
   recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
   if (projected.length >= wolves.length) {
     const targets = new Set(projected.slice(-wolves.length).map(action => action.targetSeatId));
     if (targets.size !== 1) throw new Error('werewolf targets must agree');
-    room.pendingNight = { wolfTarget: submitted.at(-1).targetSeatId }; transition(room, PHASES.NIGHT_SEER);
+    room.pendingNight = { wolfTarget: targetSeatId }; transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
   }
   return room;
 }
@@ -33,7 +34,7 @@ export function seerCheck(room, seatId, targetSeatId, actionId) {
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new Error('actor is not the living seer');
   const target = requireAlive(room, targetSeatId); recordAction(room, { actionId, turnId: room.round, actionType: 'seer_check', seatId, targetSeatId });
   const result = target.camp === CAMPS.WEREWOLF ? 'werewolf' : 'good'; actor.seerResults.push({ round: room.round, seatId: targetSeatId, result });
-  transition(room, PHASES.NIGHT_WITCH); return result;
+  transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return result;
 }
 
 export function witchAction(room, seatId, action, targetSeatId, actionId) {
@@ -74,6 +75,8 @@ export function submitVote(room, seatId, targetSeatId, voteId) {
 }
 
 export function hunterShot(room, seatId, targetSeatId, actionId) {
+  if (room.phase === PHASES.GAME_OVER) throw new Error('game is over');
+  if (commandKey(room, actionId)) throw new Error('duplicate action');
   const hunter = seatOf(room, seatId); if (!hunter || hunter.role !== ROLES.HUNTER || hunter.alive || !hunter.skills.hunterShotAvailable) throw new Error('hunter shot is unavailable');
   requireAlive(room, targetSeatId); hunter.skills.hunterShotAvailable = false; recordAction(room, { actionId, turnId: room.round, actionType: 'hunter_shot', seatId, targetSeatId }); eliminate(room, targetSeatId, 'hunter'); checkWinner(room); return room;
 }
@@ -88,3 +91,8 @@ function resolveVotes(room) {
 function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); }
 
 export function checkWinner(room) { const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
+
+export function skipAbsentRoles(room) {
+  if (room.phase === PHASES.NIGHT_SEER && !aliveSeats(room).some(s => s.role === ROLES.SEER)) transition(room, PHASES.NIGHT_WITCH);
+  if (room.phase === PHASES.NIGHT_WITCH && !aliveSeats(room).some(s => s.role === ROLES.WITCH)) transition(room, PHASES.DAY_ANNOUNCEMENT);
+}
