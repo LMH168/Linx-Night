@@ -30,6 +30,7 @@ function sessionContext(req) {
 }
 function roomFor(context) { const room = rooms.get(context.roomId); if (!room) throw Object.assign(new Error('game room not found'), { code: -32004 }); return room; }
 function seatFor(room, context) { const seat = room.seats.find(item => item.seatId === context.seatId && item.playerId === context.playerId); if (!seat) throw Object.assign(new Error('session seat mismatch'), { code: -32003 }); return seat; }
+function targetSeat(room, playerId) { const seat = room.seats.find(item => item.playerId === playerId || item.seatId === playerId); if (!seat) throw Object.assign(new Error('target player not found'), { code: -32004 }); return seat.seatId; }
 function resultText(value) { return { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false }; }
 
 export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player' }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role }); return sessionId; }
@@ -43,11 +44,12 @@ async function callTool(req, name, args) {
   const action = { roomId: context.roomId, seatId: seat.seatId, playerId: seat.playerId, ...args };
   const actionId = args.action_id || `mcp_${randomUUID()}`;
   if (name === 'submit_speech') { submitSpeech(room, seat.seatId, args.text, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_wolf_target') { wolfTarget(room, seat.seatId, args.target_player_id, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_seer_check') { const result = seerCheck(room, seat.seatId, args.target_player_id, actionId); return resultText({ accepted: true, result, version: room.version }); }
-  if (name === 'submit_witch_action') { witchAction(room, seat.seatId, args.action, args.target_player_id, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, args.target_player_id, actionId); return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_vote') { submitVote(room, seat.seatId, args.target_player_id, actionId); return resultText({ accepted: true, version: room.version }); }
+  const targetSeatId = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
+  if (name === 'submit_wolf_target') { wolfTarget(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_seer_check') { const result = seerCheck(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, result, version: room.version }); }
+  if (name === 'submit_witch_action') { witchAction(room, seat.seatId, args.action, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
+  if (name === 'submit_vote') { submitVote(room, seat.seatId, targetSeatId, actionId); return resultText({ accepted: true, version: room.version }); }
   throw Object.assign(new Error('unknown tool'), { code: -32601 });
 }
 
