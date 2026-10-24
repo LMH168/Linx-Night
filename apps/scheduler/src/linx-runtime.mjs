@@ -34,7 +34,7 @@ export class LinxTurnRuntime {
   }
   async play(room, seat) {
     const gameId = room.gameId;
-    let turn, timer, poll;
+    let turn, timer, poll, acceptedRecorded = false;
     const hunterWindow = room.phase === 'HUNTER_RESPONSE' ? room.hunterResponse : null;
     const context = {roomId:room.roomId,gameId,seatId:seat.seatId,windowId:hunterWindow?.windowId};
     recordTurn('selected',context);
@@ -52,7 +52,7 @@ export class LinxTurnRuntime {
       this.publish(room);
       await new Promise((resolve, reject) => {
         const check = () => {
-          if (stored.status === 'completed') { recordTurn('accepted',context); resolve(); return true; }
+          if (stored.status === 'completed') { if (!acceptedRecorded) { recordTurn('accepted',context); acceptedRecorded = true; } resolve(); return true; }
           if (!active() || room.phase !== stored.phase || room.round !== stored.round || stored.status !== 'active') { reject(new Error('TURN_CANCELLED')); return true; }
           return false;
         };

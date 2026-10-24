@@ -1,0 +1,1604 @@
+{
+  "note": "真实灵矽软件会话 + 合法领域测试夹具。注入故障、定向音频和手工 HTTP 单独标注；不代表完整语音局。",
+  "reports": [
+    {
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "ready",
+      "startedAt": "2026-10-24T16:05:34.097Z",
+      "attempts": 1,
+      "windowStatus": "skipped",
+      "phase": "SPEECH",
+      "requests": [
+        {
+          "at": "2026-10-24T16:05:35.936Z",
+          "requestId": "3b17774f-74cb-4806-8b06-00a2d07061f8",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:05:36.953Z",
+          "requestId": "8e1229f1-7fd5-48e3-89b6-36ca3cbdbc35",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:05:38.688Z",
+          "requestId": "c951a05c-36cc-40eb-9a58-c9c048a1ecb5",
+          "method": "tools/list",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:05:43.832Z",
+          "requestId": "17c9f926-b70e-4b37-a67a-ff72f5abb927",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 41,
+          "afterVersion": 41
+        },
+        {
+          "at": "2026-10-24T16:05:47.277Z",
+          "requestId": "1018b129-7a4e-4890-87c6-6e3580fd7fbe",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 41,
+          "afterVersion": 41
+        },
+        {
+          "at": "2026-10-24T16:05:48.812Z",
+          "requestId": "37787507-4bfa-419d-b48d-f380179aece8",
+          "method": "tools/call",
+          "tool": "get_recent_speeches",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 41,
+          "afterVersion": 41
+        },
+        {
+          "at": "2026-10-24T16:05:54.821Z",
+          "requestId": "a8a19bf1-bfdb-4f2a-ae66-24e765aff836",
+          "method": "tools/call",
+          "tool": "skip_hunter_response",
+          "status": 200,
+          "resultCode": "OK",
+          "actionId": "mcp_e69b3ecd-e794-4c50-94a1-b3ab8841f884",
+          "eventIds": [
+            "evt_134d8850-d6ec-400a-a488-7c80f88cbb6a",
+            "evt_95fb6c0a-632c-4a49-a6e6-8bf8aae31783",
+            "evt_9ed24b41-7803-4560-8e5b-636ba4a3f26c",
+            "evt_423cd34e-2ce3-4190-9b0a-7b7ac8227dbf"
+          ],
+          "beforeVersion": 41,
+          "afterVersion": 48
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:05:36.133Z",
+          "type": "game.player_eliminated",
+          "seatId": "P2",
+          "eventId": "evt_dcb838f6-531a-4abb-b5af-4c320d88bad7"
+        },
+        {
+          "at": "2026-10-24T16:05:36.133Z",
+          "type": "game.hunter_response_opened",
+          "seatId": "P2",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "eventId": "evt_34451833-24f2-4372-b8bf-4686b67dda32"
+        },
+        {
+          "at": "2026-10-24T16:05:36.134Z",
+          "type": "selected",
+          "seatId": "P2",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84"
+        },
+        {
+          "at": "2026-10-24T16:05:36.134Z",
+          "type": "connection_ready",
+          "seatId": "P2",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84"
+        },
+        {
+          "at": "2026-10-24T16:05:36.134Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84"
+        },
+        {
+          "at": "2026-10-24T16:05:36.135Z",
+          "type": "input_start",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "runId": "ac7c0117-e0cf-4c93-b03f-f2769dd62ab3",
+          "attemptId": "53f5a3e6-9721-4381-be57-c32afce43c22",
+          "samples": 58018
+        },
+        {
+          "at": "2026-10-24T16:05:41.724Z",
+          "type": "input_stop",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "runId": "ac7c0117-e0cf-4c93-b03f-f2769dd62ab3",
+          "attemptId": "53f5a3e6-9721-4381-be57-c32afce43c22"
+        },
+        {
+          "at": "2026-10-24T16:05:42.175Z",
+          "type": "stt",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "runId": "ac7c0117-e0cf-4c93-b03f-f2769dd62ab3",
+          "attemptId": "53f5a3e6-9721-4381-be57-c32afce43c22"
+        },
+        {
+          "at": "2026-10-24T16:05:54.821Z",
+          "type": "game.hunter_response_closed",
+          "seatId": "P2",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "eventId": "evt_95fb6c0a-632c-4a49-a6e6-8bf8aae31783"
+        },
+        {
+          "at": "2026-10-24T16:05:54.846Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84"
+        },
+        {
+          "at": "2026-10-24T16:05:54.848Z",
+          "type": "input_failure",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "runId": "ac7c0117-e0cf-4c93-b03f-f2769dd62ab3",
+          "attemptId": "53f5a3e6-9721-4381-be57-c32afce43c22",
+          "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+        },
+        {
+          "at": "2026-10-24T16:05:54.849Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84"
+        },
+        {
+          "at": "2026-10-24T16:05:54.851Z",
+          "type": "closed",
+          "seatId": "P2",
+          "turnId": "turn_48ba6221-ae4f-4fa4-97e8-ad7030bbf476",
+          "windowId": "hunter_00e46cb3-51a9-4713-9bf4-479585be4b84",
+          "runId": "ac7c0117-e0cf-4c93-b03f-f2769dd62ab3"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_557a521d-74d3-4768-8d1b-ef99510ac247",
+          "type": "game.phase_changed",
+          "version": 18
+        },
+        {
+          "eventId": "evt_536b4e53-cad5-4ce7-b9dd-2448d19d73b6",
+          "type": "game.action_submitted",
+          "version": 20
+        },
+        {
+          "eventId": "evt_36008b83-79b7-418c-b14d-6d2073bf5d6c",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_23832c45-7cdc-4dd2-a285-1c251670a632",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_b6fa92c3-3d99-4b0f-b88a-40cf6a40d119",
+          "type": "game.phase_changed",
+          "version": 26
+        },
+        {
+          "eventId": "evt_f8b5b003-2e5e-4d75-8705-95d2bfaa2703",
+          "type": "game.action_submitted",
+          "version": 28
+        },
+        {
+          "eventId": "evt_48d8d099-a13b-42a8-8fde-69a0eaca3fac",
+          "type": "game.phase_changed",
+          "version": 30
+        },
+        {
+          "eventId": "evt_78e24b55-288c-4157-90b3-12decfcc8956",
+          "type": "game.action_submitted",
+          "version": 32
+        },
+        {
+          "eventId": "evt_955a2fef-8b27-4523-b78b-ae18a3932db9",
+          "type": "game.phase_changed",
+          "version": 34
+        },
+        {
+          "eventId": "evt_dcb838f6-531a-4abb-b5af-4c320d88bad7",
+          "type": "game.player_eliminated",
+          "version": 36
+        },
+        {
+          "eventId": "evt_40038cf5-f3e7-4c0f-a1c0-1de71f205125",
+          "type": "game.phase_changed",
+          "version": 38
+        },
+        {
+          "eventId": "evt_34451833-24f2-4372-b8bf-4686b67dda32",
+          "type": "game.hunter_response_opened",
+          "version": 39
+        },
+        {
+          "eventId": "evt_ea0200c5-31c8-4050-b624-9dca3f848ceb",
+          "type": "game.turn_created",
+          "version": 41
+        },
+        {
+          "eventId": "evt_134d8850-d6ec-400a-a488-7c80f88cbb6a",
+          "type": "game.action_submitted",
+          "version": 43
+        },
+        {
+          "eventId": "evt_95fb6c0a-632c-4a49-a6e6-8bf8aae31783",
+          "type": "game.hunter_response_closed",
+          "version": 44
+        },
+        {
+          "eventId": "evt_9ed24b41-7803-4560-8e5b-636ba4a3f26c",
+          "type": "game.phase_changed",
+          "version": 46
+        },
+        {
+          "eventId": "evt_423cd34e-2ce3-4190-9b0a-7b7ac8227dbf",
+          "type": "game.turn_completed",
+          "version": 48
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:05:54.856Z",
+      "inputFile": "hunter.wav",
+      "windowToAcceptedMs": 18688
+    },
+    {
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "ready",
+      "startedAt": "2026-10-24T16:06:52.981Z",
+      "attempts": 1,
+      "windowStatus": "completed",
+      "phase": "SPEECH",
+      "requests": [
+        {
+          "at": "2026-10-24T16:06:55.793Z",
+          "requestId": "572951ba-7d04-4411-ab9e-8eb112128ac3",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:06:56.783Z",
+          "requestId": "29691e9a-b22e-4e07-9c77-582c83cea6a7",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:06:58.989Z",
+          "requestId": "8a970a55-13e2-4898-bf9f-9bb05c288e63",
+          "method": "tools/list",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:07:03.595Z",
+          "requestId": "7a1d76f2-66dc-4332-b98c-dcd1d793f321",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 41,
+          "afterVersion": 41
+        },
+        {
+          "at": "2026-10-24T16:07:04.231Z",
+          "requestId": "11623f95-cdc9-486f-9d5f-6b7f80ece1a6",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 41,
+          "afterVersion": 41
+        },
+        {
+          "at": "2026-10-24T16:07:07.622Z",
+          "requestId": "a0dc74cc-d498-4403-8246-fa52710fd0c6",
+          "method": "tools/call",
+          "tool": "submit_hunter_shot",
+          "status": 200,
+          "resultCode": "OK",
+          "actionId": "mcp_8da91a24-63e0-4f12-9d90-e83eeab97acd",
+          "eventIds": [
+            "evt_4809b5fa-6b06-4ee8-8031-a47cd01beddc",
+            "evt_cc4163ac-d0ad-4adc-a5b6-3aad14ac6420",
+            "evt_4439d99a-88fa-4433-be12-878400c68c39",
+            "evt_38d5b63a-f640-4061-8e10-c6f9db7cb220",
+            "evt_b9e527d1-2a36-45d7-a4dd-b21d972f2769"
+          ],
+          "beforeVersion": 41,
+          "afterVersion": 51
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:06:56.002Z",
+          "type": "game.player_eliminated",
+          "seatId": "P2",
+          "eventId": "evt_e55d6bf1-231d-4ca9-9d1b-b41b32592214"
+        },
+        {
+          "at": "2026-10-24T16:06:56.002Z",
+          "type": "game.hunter_response_opened",
+          "seatId": "P2",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "eventId": "evt_e81b766e-82ed-420b-a103-07b8919d0757"
+        },
+        {
+          "at": "2026-10-24T16:06:56.003Z",
+          "type": "selected",
+          "seatId": "P2",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8"
+        },
+        {
+          "at": "2026-10-24T16:06:56.003Z",
+          "type": "connection_ready",
+          "seatId": "P2",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8"
+        },
+        {
+          "at": "2026-10-24T16:06:56.003Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8"
+        },
+        {
+          "at": "2026-10-24T16:06:56.003Z",
+          "type": "input_start",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "runId": "8dfb50ba-afd9-47b5-9904-c7d3101d6d9f",
+          "attemptId": "764ce290-56c7-43d0-8b39-be03213e0fc8",
+          "samples": 53674
+        },
+        {
+          "at": "2026-10-24T16:07:01.159Z",
+          "type": "input_stop",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "runId": "8dfb50ba-afd9-47b5-9904-c7d3101d6d9f",
+          "attemptId": "764ce290-56c7-43d0-8b39-be03213e0fc8"
+        },
+        {
+          "at": "2026-10-24T16:07:01.717Z",
+          "type": "stt",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "runId": "8dfb50ba-afd9-47b5-9904-c7d3101d6d9f",
+          "attemptId": "764ce290-56c7-43d0-8b39-be03213e0fc8"
+        },
+        {
+          "at": "2026-10-24T16:07:07.622Z",
+          "type": "game.hunter_response_closed",
+          "seatId": "P2",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "eventId": "evt_cc4163ac-d0ad-4adc-a5b6-3aad14ac6420"
+        },
+        {
+          "at": "2026-10-24T16:07:07.622Z",
+          "type": "game.player_eliminated",
+          "seatId": "P3",
+          "eventId": "evt_4439d99a-88fa-4433-be12-878400c68c39"
+        },
+        {
+          "at": "2026-10-24T16:07:07.646Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8"
+        },
+        {
+          "at": "2026-10-24T16:07:07.648Z",
+          "type": "input_failure",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "runId": "8dfb50ba-afd9-47b5-9904-c7d3101d6d9f",
+          "attemptId": "764ce290-56c7-43d0-8b39-be03213e0fc8",
+          "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+        },
+        {
+          "at": "2026-10-24T16:07:07.650Z",
+          "type": "closed",
+          "seatId": "P2",
+          "turnId": "turn_13108ebd-dc04-4652-93a8-2ffdde090d44",
+          "windowId": "hunter_bf25429f-ce42-4c1d-a04a-b3889cd96ef8",
+          "runId": "8dfb50ba-afd9-47b5-9904-c7d3101d6d9f"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_6d797720-3f07-4e8f-8dd2-9f48dbf47b91",
+          "type": "game.phase_changed",
+          "version": 18
+        },
+        {
+          "eventId": "evt_d363fb8d-fa2d-4d7a-89f8-0bf3cd68595d",
+          "type": "game.action_submitted",
+          "version": 20
+        },
+        {
+          "eventId": "evt_40cf6eca-8c33-482f-bb2f-fe1dffe28ffb",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_5c7c45e8-4e27-4415-83b6-e858d92b31e8",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_ceda9047-3acb-465f-a6b4-1d8842690dcd",
+          "type": "game.phase_changed",
+          "version": 26
+        },
+        {
+          "eventId": "evt_a8e7b4a2-22bd-4b42-9b38-e949e3c33e9f",
+          "type": "game.action_submitted",
+          "version": 28
+        },
+        {
+          "eventId": "evt_b2a8dec1-8e10-4478-b72b-b9102cf3edc5",
+          "type": "game.phase_changed",
+          "version": 30
+        },
+        {
+          "eventId": "evt_30d187d5-2d9c-48cc-a419-39bb351f1206",
+          "type": "game.action_submitted",
+          "version": 32
+        },
+        {
+          "eventId": "evt_03a6cd72-2146-4fe0-91d1-9c55e8a1e06e",
+          "type": "game.phase_changed",
+          "version": 34
+        },
+        {
+          "eventId": "evt_e55d6bf1-231d-4ca9-9d1b-b41b32592214",
+          "type": "game.player_eliminated",
+          "version": 36
+        },
+        {
+          "eventId": "evt_2f81f657-04cb-4648-a740-29a355e153dc",
+          "type": "game.phase_changed",
+          "version": 38
+        },
+        {
+          "eventId": "evt_e81b766e-82ed-420b-a103-07b8919d0757",
+          "type": "game.hunter_response_opened",
+          "version": 39
+        },
+        {
+          "eventId": "evt_2a5d33d0-a3d8-40bd-a11c-a8ddccacf16c",
+          "type": "game.turn_created",
+          "version": 41
+        },
+        {
+          "eventId": "evt_4809b5fa-6b06-4ee8-8031-a47cd01beddc",
+          "type": "game.action_submitted",
+          "version": 43
+        },
+        {
+          "eventId": "evt_cc4163ac-d0ad-4adc-a5b6-3aad14ac6420",
+          "type": "game.hunter_response_closed",
+          "version": 45
+        },
+        {
+          "eventId": "evt_4439d99a-88fa-4433-be12-878400c68c39",
+          "type": "game.player_eliminated",
+          "version": 47
+        },
+        {
+          "eventId": "evt_38d5b63a-f640-4061-8e10-c6f9db7cb220",
+          "type": "game.phase_changed",
+          "version": 49
+        },
+        {
+          "eventId": "evt_b9e527d1-2a36-45d7-a4dd-b21d972f2769",
+          "type": "game.turn_completed",
+          "version": 51
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:07:07.682Z",
+      "inputFile": "hunter-shoot.wav",
+      "windowToAcceptedMs": 11620
+    },
+    {
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "reconnect",
+      "startedAt": "2026-10-24T16:06:14.718Z",
+      "attempts": 1,
+      "windowStatus": "skipped",
+      "phase": "SPEECH",
+      "requests": [
+        {
+          "at": "2026-10-24T16:06:17.275Z",
+          "requestId": "4e14f7cc-35c2-46c2-bf03-2ff2be688edb",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:06:17.843Z",
+          "requestId": "202c3770-768d-4004-8fb2-29b0a221397e",
+          "method": "notifications/cancelled",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:06:18.179Z",
+          "requestId": "9b89e578-3e9f-424e-8c65-df4737cc18a1",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:06:18.381Z",
+          "requestId": "d2c8f09c-5768-4728-897c-541ef48a4a68",
+          "status": 405
+        },
+        {
+          "at": "2026-10-24T16:06:18.792Z",
+          "requestId": "a9e6d716-05d3-48e6-9554-f485c0e959b5",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:06:19.424Z",
+          "requestId": "f44a87a9-44de-469e-a8f4-0cf7dc2e2262",
+          "method": "tools/list",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:06:26.126Z",
+          "requestId": "c97e1e4b-c756-44fa-ad9c-6dbc03c0c15f",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 50,
+          "afterVersion": 50
+        },
+        {
+          "at": "2026-10-24T16:06:28.238Z",
+          "requestId": "30630d3f-6ea5-46c9-a9ea-a4de3e139ca9",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 50,
+          "afterVersion": 50
+        },
+        {
+          "at": "2026-10-24T16:06:28.977Z",
+          "requestId": "4502841d-3524-4215-9b96-a7ab05ea96c1",
+          "method": "tools/call",
+          "tool": "get_recent_speeches",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 50,
+          "afterVersion": 50
+        },
+        {
+          "at": "2026-10-24T16:06:36.145Z",
+          "requestId": "22701e01-a034-4f00-a8b9-943d90808baa",
+          "method": "tools/call",
+          "tool": "skip_hunter_response",
+          "status": 200,
+          "resultCode": "OK",
+          "actionId": "mcp_0687bbf8-a4ce-4714-bf34-3ad2f1228c51",
+          "eventIds": [
+            "evt_6f25115e-fdb9-4122-9c5a-fd3028a1a432",
+            "evt_a7b65ab7-93a2-4d72-ab94-a356efbeccaf",
+            "evt_209d9cdc-03fa-4113-96b0-656534f9b1a0",
+            "evt_18e5021f-57df-463a-8cb7-7546f4e506f8"
+          ],
+          "beforeVersion": 50,
+          "afterVersion": 57
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:06:17.513Z",
+          "type": "game.player_eliminated",
+          "seatId": "P2",
+          "eventId": "evt_e6b46b2e-a687-4edb-ae84-38c9785129a0"
+        },
+        {
+          "at": "2026-10-24T16:06:17.513Z",
+          "type": "game.hunter_response_opened",
+          "seatId": "P2",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "eventId": "evt_49656451-a5c9-4e91-b3aa-db712cf46846"
+        },
+        {
+          "at": "2026-10-24T16:06:17.513Z",
+          "type": "selected",
+          "seatId": "P2",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439"
+        },
+        {
+          "at": "2026-10-24T16:06:18.185Z",
+          "type": "connection_ready",
+          "seatId": "P2",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439"
+        },
+        {
+          "at": "2026-10-24T16:06:18.185Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439"
+        },
+        {
+          "at": "2026-10-24T16:06:18.186Z",
+          "type": "input_start",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "runId": "1c21261d-d69e-426f-a383-bcbc711a1cb4",
+          "attemptId": "7b248829-353d-49cd-a578-dcd3ef2de524",
+          "samples": 58018
+        },
+        {
+          "at": "2026-10-24T16:06:23.759Z",
+          "type": "input_stop",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "runId": "1c21261d-d69e-426f-a383-bcbc711a1cb4",
+          "attemptId": "7b248829-353d-49cd-a578-dcd3ef2de524"
+        },
+        {
+          "at": "2026-10-24T16:06:24.382Z",
+          "type": "stt",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "runId": "1c21261d-d69e-426f-a383-bcbc711a1cb4",
+          "attemptId": "7b248829-353d-49cd-a578-dcd3ef2de524"
+        },
+        {
+          "at": "2026-10-24T16:06:36.145Z",
+          "type": "game.hunter_response_closed",
+          "seatId": "P2",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "eventId": "evt_a7b65ab7-93a2-4d72-ab94-a356efbeccaf"
+        },
+        {
+          "at": "2026-10-24T16:06:36.167Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439"
+        },
+        {
+          "at": "2026-10-24T16:06:36.170Z",
+          "type": "input_failure",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "runId": "1c21261d-d69e-426f-a383-bcbc711a1cb4",
+          "attemptId": "7b248829-353d-49cd-a578-dcd3ef2de524",
+          "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+        },
+        {
+          "at": "2026-10-24T16:06:36.171Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439"
+        },
+        {
+          "at": "2026-10-24T16:06:36.175Z",
+          "type": "closed",
+          "seatId": "P2",
+          "turnId": "turn_91d07d5a-2632-42bc-861d-64d424517f68",
+          "windowId": "hunter_58f2b97d-afdf-4010-818a-6d0680b84439",
+          "runId": "1c21261d-d69e-426f-a383-bcbc711a1cb4"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_ee369a1c-116a-4ab6-a2a4-8756d170f563",
+          "type": "game.phase_changed",
+          "version": 20
+        },
+        {
+          "eventId": "evt_ba9ccfac-1dda-4edd-89eb-d79b42b55fdc",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_ad6aa25c-5474-4832-aa89-ca008d15542e",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_364dfa1f-d2de-4a72-ab16-92c1b27e4890",
+          "type": "game.action_submitted",
+          "version": 26
+        },
+        {
+          "eventId": "evt_4780e73e-a0f4-4479-bfa3-c3faa9352cf2",
+          "type": "game.phase_changed",
+          "version": 28
+        },
+        {
+          "eventId": "evt_08e5e870-8de4-44b0-8882-793a38379e02",
+          "type": "game.action_submitted",
+          "version": 30
+        },
+        {
+          "eventId": "evt_963a42c6-1a7e-4470-bf56-67b388842fe0",
+          "type": "game.phase_changed",
+          "version": 32
+        },
+        {
+          "eventId": "evt_5f0428fe-ed8d-47b0-ac6f-53d5e56f5fe4",
+          "type": "game.action_submitted",
+          "version": 34
+        },
+        {
+          "eventId": "evt_761b59d9-07ea-40d4-b53b-06840166b803",
+          "type": "game.phase_changed",
+          "version": 36
+        },
+        {
+          "eventId": "evt_e6b46b2e-a687-4edb-ae84-38c9785129a0",
+          "type": "game.player_eliminated",
+          "version": 38
+        },
+        {
+          "eventId": "evt_f4d177a1-6c9d-4569-a850-3b6601b74924",
+          "type": "game.phase_changed",
+          "version": 40
+        },
+        {
+          "eventId": "evt_49656451-a5c9-4e91-b3aa-db712cf46846",
+          "type": "game.hunter_response_opened",
+          "version": 41
+        },
+        {
+          "eventId": "evt_0a5311a3-5481-453c-8377-11378e585319",
+          "type": "game.turn_created",
+          "version": 50
+        },
+        {
+          "eventId": "evt_6f25115e-fdb9-4122-9c5a-fd3028a1a432",
+          "type": "game.action_submitted",
+          "version": 52
+        },
+        {
+          "eventId": "evt_a7b65ab7-93a2-4d72-ab94-a356efbeccaf",
+          "type": "game.hunter_response_closed",
+          "version": 53
+        },
+        {
+          "eventId": "evt_209d9cdc-03fa-4113-96b0-656534f9b1a0",
+          "type": "game.phase_changed",
+          "version": 55
+        },
+        {
+          "eventId": "evt_18e5021f-57df-463a-8cb7-7546f4e506f8",
+          "type": "game.turn_completed",
+          "version": 57
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:06:36.183Z",
+      "inputFile": "hunter.wav",
+      "windowToAcceptedMs": 18632
+    },
+    {
+      "inputFile": "hunter.wav",
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "retry",
+      "startedAt": "2026-10-24T16:07:58.583Z",
+      "attempts": 1,
+      "injectedFailure": "LINX_INPUT_FAILED",
+      "phase": "SPEECH",
+      "speechAccepted": true,
+      "requests": [
+        {
+          "at": "2026-10-24T16:08:00.043Z",
+          "requestId": "facd03e8-1868-4cb3-888f-0c909ae55518",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:08:00.396Z",
+          "requestId": "44e87d0e-a75b-4b44-b09a-f0e696aea07c",
+          "method": "notifications/cancelled",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:08:00.826Z",
+          "requestId": "56107689-5345-4334-8eb4-2cc53af18787",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:08:00.972Z",
+          "requestId": "447c19e5-ea9b-4e8e-aee2-0986e1fff3b1",
+          "status": 405
+        },
+        {
+          "at": "2026-10-24T16:08:01.420Z",
+          "requestId": "e5280ba4-3dc9-42a5-9d6f-b7e366bff03e",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:08:02.031Z",
+          "requestId": "248c1c22-b8dc-46fb-89d5-469937dad7bc",
+          "method": "tools/list",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:08:07.620Z",
+          "requestId": "fa5f68a0-1c15-48bc-bd03-8ac9d9db3abe",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 60,
+          "afterVersion": 60
+        },
+        {
+          "at": "2026-10-24T16:08:08.236Z",
+          "requestId": "7359fe27-a414-4e37-8c43-8740c3ff6c14",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 60,
+          "afterVersion": 60
+        },
+        {
+          "at": "2026-10-24T16:08:12.377Z",
+          "requestId": "e8d676b0-f70f-4ec8-a24a-21692bf1b05a",
+          "method": "tools/call",
+          "tool": "submit_speech",
+          "status": 200,
+          "resultCode": "OK",
+          "actionId": "mcp_384ffbb4-aa07-43e6-af19-d0b387ccae47",
+          "eventIds": [
+            "evt_44628e7e-37e3-4109-a4bf-35505a49eb60",
+            "evt_d5eeed1b-fe94-4004-bedd-cffef3677929",
+            "evt_c35c32a2-42fe-4cba-a113-a62171b63ab5",
+            "evt_b16a9b0a-3ef3-4944-97e9-996364f2250e"
+          ],
+          "beforeVersion": 60,
+          "afterVersion": 68
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:08:00.065Z",
+          "type": "selected",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:08:00.065Z",
+          "type": "connection_ready",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:08:00.065Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_ccff5c13-8ef3-436f-8645-4d03afb8655c"
+        },
+        {
+          "at": "2026-10-24T16:08:00.065Z",
+          "type": "game.player_eliminated",
+          "seatId": "P9",
+          "eventId": "evt_92a48ce8-c5ce-416e-b418-93a30aaf2c8c"
+        },
+        {
+          "at": "2026-10-24T16:08:00.066Z",
+          "type": "finished",
+          "seatId": "P2",
+          "turnId": "turn_ccff5c13-8ef3-436f-8645-4d03afb8655c",
+          "code": "LINX_INPUT_FAILED"
+        },
+        {
+          "at": "2026-10-24T16:08:00.843Z",
+          "type": "selected",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:08:00.843Z",
+          "type": "connection_ready",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:08:00.843Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881"
+        },
+        {
+          "at": "2026-10-24T16:08:00.843Z",
+          "type": "input_start",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881",
+          "runId": "e2197f13-0ffc-48b8-88c3-b93b5a0f8ddd",
+          "attemptId": "80e9d86e-5996-474e-9d83-6ee09d162176",
+          "samples": 45752
+        },
+        {
+          "at": "2026-10-24T16:08:05.226Z",
+          "type": "input_stop",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881",
+          "runId": "e2197f13-0ffc-48b8-88c3-b93b5a0f8ddd",
+          "attemptId": "80e9d86e-5996-474e-9d83-6ee09d162176"
+        },
+        {
+          "at": "2026-10-24T16:08:05.755Z",
+          "type": "stt",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881",
+          "runId": "e2197f13-0ffc-48b8-88c3-b93b5a0f8ddd",
+          "attemptId": "80e9d86e-5996-474e-9d83-6ee09d162176"
+        },
+        {
+          "at": "2026-10-24T16:08:12.415Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881"
+        },
+        {
+          "at": "2026-10-24T16:08:12.417Z",
+          "type": "input_failure",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881",
+          "runId": "e2197f13-0ffc-48b8-88c3-b93b5a0f8ddd",
+          "attemptId": "80e9d86e-5996-474e-9d83-6ee09d162176",
+          "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+        },
+        {
+          "at": "2026-10-24T16:08:12.419Z",
+          "type": "closed",
+          "seatId": "P2",
+          "turnId": "turn_3a901bb4-f2e4-4873-823a-82894683b881",
+          "runId": "e2197f13-0ffc-48b8-88c3-b93b5a0f8ddd"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_cc3b1ec1-496a-4586-962c-3379b59f5d77",
+          "type": "game.phase_changed",
+          "version": 18
+        },
+        {
+          "eventId": "evt_58438f0f-a8d0-46d0-be92-9aff87ddd102",
+          "type": "game.action_submitted",
+          "version": 20
+        },
+        {
+          "eventId": "evt_87810f38-6987-4cea-976e-5e6ffebc34c6",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_211101b5-ba2a-499e-a490-f8ef39fcea5c",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_fe229069-87d9-4e45-a4b7-f24c6727e2b0",
+          "type": "game.phase_changed",
+          "version": 26
+        },
+        {
+          "eventId": "evt_2ea91718-323d-424c-a4b5-ffce8ceac0f1",
+          "type": "game.action_submitted",
+          "version": 28
+        },
+        {
+          "eventId": "evt_7fe37176-1856-4c7b-a9f4-3b20196649f5",
+          "type": "game.phase_changed",
+          "version": 30
+        },
+        {
+          "eventId": "evt_ec25f19f-9106-41e4-9220-bd1256b41856",
+          "type": "game.action_submitted",
+          "version": 32
+        },
+        {
+          "eventId": "evt_8fbf171a-3fd9-4dd8-958e-f2d73fe83975",
+          "type": "game.phase_changed",
+          "version": 34
+        },
+        {
+          "eventId": "evt_92a48ce8-c5ce-416e-b418-93a30aaf2c8c",
+          "type": "game.player_eliminated",
+          "version": 36
+        },
+        {
+          "eventId": "evt_a028b5dc-0c46-4e44-a2ca-0f006e72c87a",
+          "type": "game.phase_changed",
+          "version": 38
+        },
+        {
+          "eventId": "evt_6de64a5d-0c01-4f6e-b391-29c06dc4e0c9",
+          "type": "game.action_submitted",
+          "version": 40
+        },
+        {
+          "eventId": "evt_ddc5a048-030b-4c24-9fa3-f11d6f655b3d",
+          "type": "game.speech_submitted",
+          "version": 42
+        },
+        {
+          "eventId": "evt_f38d1cb7-8c2a-4870-a4db-f7cfbcf592b9",
+          "type": "game.phase_changed",
+          "version": 44
+        },
+        {
+          "eventId": "evt_4c729546-0401-4440-b70f-fa051289595e",
+          "type": "game.turn_created",
+          "version": 46
+        },
+        {
+          "eventId": "evt_b9f9b233-a6d2-4903-b5d4-511d9c28a147",
+          "type": "game.turn_expired",
+          "version": 48
+        },
+        {
+          "eventId": "evt_86f70edd-8ee7-43b0-b28a-5541695d41a3",
+          "type": "game.turn_created",
+          "version": 60
+        },
+        {
+          "eventId": "evt_44628e7e-37e3-4109-a4bf-35505a49eb60",
+          "type": "game.action_submitted",
+          "version": 62
+        },
+        {
+          "eventId": "evt_d5eeed1b-fe94-4004-bedd-cffef3677929",
+          "type": "game.speech_submitted",
+          "version": 64
+        },
+        {
+          "eventId": "evt_c35c32a2-42fe-4cba-a113-a62171b63ab5",
+          "type": "game.phase_changed",
+          "version": 66
+        },
+        {
+          "eventId": "evt_b16a9b0a-3ef3-4944-97e9-996364f2250e",
+          "type": "game.turn_completed",
+          "version": 68
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:08:12.424Z",
+      "windowToAcceptedMs": null
+    },
+    {
+      "inputFile": "hunter.wav",
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "retry",
+      "startedAt": "2026-10-24T16:09:01.346Z",
+      "attempts": 1,
+      "injectedFailure": "LINX_INPUT_FAILED",
+      "hostRetryStatus": 200,
+      "phase": "SPEECH",
+      "speechAccepted": true,
+      "requests": [
+        {
+          "at": "2026-10-24T16:09:01.588Z",
+          "requestId": "f9941835-059a-4938-85d2-aedd3677ec77",
+          "status": 405
+        },
+        {
+          "at": "2026-10-24T16:09:03.419Z",
+          "requestId": "ce1d5de5-9bc5-4867-83d5-e1a5d7021a27",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:09:03.938Z",
+          "requestId": "346bfa51-7723-45f9-be54-b5c7781994c9",
+          "method": "notifications/cancelled",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:09:04.397Z",
+          "requestId": "55a473ed-cc2f-40df-aee5-5b643f8e1f74",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:09:04.513Z",
+          "requestId": "cad5d8cf-5d4b-4feb-8194-602b142ee0c2",
+          "status": 405
+        },
+        {
+          "at": "2026-10-24T16:09:04.987Z",
+          "requestId": "fa9f2ea4-ffb0-4034-98b7-7a4984bcd3bd",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:09:05.630Z",
+          "requestId": "66965fa7-f872-43fe-93e1-001c152d86b5",
+          "method": "tools/list",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:09:11.256Z",
+          "requestId": "7256f5bd-9e18-4f96-8ffc-19c04aa25812",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 60,
+          "afterVersion": 60
+        },
+        {
+          "at": "2026-10-24T16:09:12.265Z",
+          "requestId": "499f68ee-675e-43a6-9b2f-1c7c28e00398",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 60,
+          "afterVersion": 60
+        },
+        {
+          "at": "2026-10-24T16:09:16.269Z",
+          "requestId": "8005fa1e-e788-4a19-8700-54af94f8a0a9",
+          "method": "tools/call",
+          "tool": "get_recent_speeches",
+          "status": 200,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 60,
+          "afterVersion": 60
+        },
+        {
+          "at": "2026-10-24T16:09:20.997Z",
+          "requestId": "0f11bd05-d6d9-4777-ab32-3711d430e91c",
+          "method": "tools/call",
+          "tool": "submit_speech",
+          "status": 200,
+          "resultCode": "OK",
+          "actionId": "mcp_9928f5c5-a9b3-4821-8a01-56a960797016",
+          "eventIds": [
+            "evt_d1e1af1f-7865-46dd-8030-a5f7af2eee56",
+            "evt_d961d9c0-f0f2-4879-99e3-8c312084627c",
+            "evt_92016f3c-ab24-4c04-b57c-df0223a6de49",
+            "evt_ea37d352-6bcd-4dc7-b8f7-8a8653f01536"
+          ],
+          "beforeVersion": 60,
+          "afterVersion": 68
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:09:03.591Z",
+          "type": "selected",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:09:03.591Z",
+          "type": "connection_ready",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:09:03.591Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_2fe79580-3116-4f70-9e3f-9f7029dd1837"
+        },
+        {
+          "at": "2026-10-24T16:09:03.591Z",
+          "type": "game.player_eliminated",
+          "seatId": "P9",
+          "eventId": "evt_56970037-520a-4127-b453-59b48dca8d30"
+        },
+        {
+          "at": "2026-10-24T16:09:03.592Z",
+          "type": "finished",
+          "seatId": "P2",
+          "turnId": "turn_2fe79580-3116-4f70-9e3f-9f7029dd1837",
+          "code": "LINX_INPUT_FAILED"
+        },
+        {
+          "at": "2026-10-24T16:09:04.658Z",
+          "type": "selected",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:09:04.658Z",
+          "type": "connection_ready",
+          "seatId": "P2"
+        },
+        {
+          "at": "2026-10-24T16:09:04.658Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83"
+        },
+        {
+          "at": "2026-10-24T16:09:04.658Z",
+          "type": "input_start",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83",
+          "runId": "a5142546-4949-4d77-879f-794091bfa458",
+          "attemptId": "e0c7ec5a-2252-44be-9b78-01e18c882d65",
+          "samples": 45752
+        },
+        {
+          "at": "2026-10-24T16:09:09.047Z",
+          "type": "input_stop",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83",
+          "runId": "a5142546-4949-4d77-879f-794091bfa458",
+          "attemptId": "e0c7ec5a-2252-44be-9b78-01e18c882d65"
+        },
+        {
+          "at": "2026-10-24T16:09:09.530Z",
+          "type": "stt",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83",
+          "runId": "a5142546-4949-4d77-879f-794091bfa458",
+          "attemptId": "e0c7ec5a-2252-44be-9b78-01e18c882d65"
+        },
+        {
+          "at": "2026-10-24T16:09:21.051Z",
+          "type": "accepted",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83"
+        },
+        {
+          "at": "2026-10-24T16:09:21.053Z",
+          "type": "input_failure",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83",
+          "runId": "a5142546-4949-4d77-879f-794091bfa458",
+          "attemptId": "e0c7ec5a-2252-44be-9b78-01e18c882d65",
+          "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+        },
+        {
+          "at": "2026-10-24T16:09:21.055Z",
+          "type": "closed",
+          "seatId": "P2",
+          "turnId": "turn_df71bae2-afd9-46ba-a3de-53e43879bf83",
+          "runId": "a5142546-4949-4d77-879f-794091bfa458"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_41a198e5-3c22-493f-b6ac-0ce52f32ad28",
+          "type": "game.phase_changed",
+          "version": 18
+        },
+        {
+          "eventId": "evt_bc12c2d9-e59e-4140-aa4a-6119b187421e",
+          "type": "game.action_submitted",
+          "version": 20
+        },
+        {
+          "eventId": "evt_94c73fb6-904d-4c45-9d15-9427b22679c5",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_586331f9-2138-4d3b-9473-96ca6662f578",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_f6797ada-481d-4ad0-a41e-c0424696e443",
+          "type": "game.phase_changed",
+          "version": 26
+        },
+        {
+          "eventId": "evt_b35248c2-bbba-4eec-a008-10393fa9a41b",
+          "type": "game.action_submitted",
+          "version": 28
+        },
+        {
+          "eventId": "evt_eb410748-6202-47c1-8004-a6d6053dc103",
+          "type": "game.phase_changed",
+          "version": 30
+        },
+        {
+          "eventId": "evt_f0985b2b-5ef3-4fd1-8876-6109e6cb1dce",
+          "type": "game.action_submitted",
+          "version": 32
+        },
+        {
+          "eventId": "evt_f1e0e203-d6e6-45c0-84cf-9da129f1ce32",
+          "type": "game.phase_changed",
+          "version": 34
+        },
+        {
+          "eventId": "evt_56970037-520a-4127-b453-59b48dca8d30",
+          "type": "game.player_eliminated",
+          "version": 36
+        },
+        {
+          "eventId": "evt_deb1726f-d6d3-4cd0-88e4-e350ba6c68cd",
+          "type": "game.phase_changed",
+          "version": 38
+        },
+        {
+          "eventId": "evt_82c78cb4-d642-4cdb-b1e3-ba441bfd1a36",
+          "type": "game.action_submitted",
+          "version": 40
+        },
+        {
+          "eventId": "evt_9055bc8c-eff2-4d47-b583-e1ca444e6a93",
+          "type": "game.speech_submitted",
+          "version": 42
+        },
+        {
+          "eventId": "evt_502d4bf1-5e20-454b-8471-0f54234f7c71",
+          "type": "game.phase_changed",
+          "version": 44
+        },
+        {
+          "eventId": "evt_4db5a44f-b9f1-48bd-8fbe-6d048669fe80",
+          "type": "game.turn_created",
+          "version": 46
+        },
+        {
+          "eventId": "evt_da878081-5f33-482e-89ea-dd2563387761",
+          "type": "game.turn_expired",
+          "version": 48
+        },
+        {
+          "eventId": "evt_bee54ff8-9054-4a8f-8afe-d3ab2cb2b1cc",
+          "type": "game.turn_created",
+          "version": 60
+        },
+        {
+          "eventId": "evt_d1e1af1f-7865-46dd-8030-a5f7af2eee56",
+          "type": "game.action_submitted",
+          "version": 62
+        },
+        {
+          "eventId": "evt_d961d9c0-f0f2-4879-99e3-8c312084627c",
+          "type": "game.speech_submitted",
+          "version": 64
+        },
+        {
+          "eventId": "evt_92016f3c-ab24-4c04-b57c-df0223a6de49",
+          "type": "game.phase_changed",
+          "version": 66
+        },
+        {
+          "eventId": "evt_ea37d352-6bcd-4dc7-b8f7-8a8653f01536",
+          "type": "game.turn_completed",
+          "version": 68
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:09:21.085Z",
+      "windowToAcceptedMs": null
+    },
+    {
+      "inputFile": "hunter.wav",
+      "source": "real-Linx-hunter-with-domain-fixture",
+      "mode": "timeout",
+      "startedAt": "2026-10-24T16:08:29.377Z",
+      "attempts": 1,
+      "injectedFailure": "INPUT_WITHHELD",
+      "windowStatus": "expired",
+      "phase": "SPEECH",
+      "speechAccepted": false,
+      "manualLateProbe": {
+        "source": "manual-http-not-platform",
+        "rejected": true,
+        "unchanged": true
+      },
+      "requests": [
+        {
+          "at": "2026-10-24T16:08:30.954Z",
+          "requestId": "5dd860ba-a8ac-4342-8b9e-01bba7d90051",
+          "method": "initialize",
+          "status": 200
+        },
+        {
+          "at": "2026-10-24T16:08:31.869Z",
+          "requestId": "ba4314ad-9f2c-40e0-9768-67737e81ff0c",
+          "method": "notifications/initialized",
+          "status": 202
+        },
+        {
+          "at": "2026-10-24T16:08:33.440Z",
+          "requestId": "818030eb-e0cb-4ca8-8fae-3bf274eb4a52",
+          "method": "tools/list",
+          "status": 200
+        }
+      ],
+      "timeline": [
+        {
+          "at": "2026-10-24T16:08:31.081Z",
+          "type": "game.player_eliminated",
+          "seatId": "P2",
+          "eventId": "evt_9115408f-829d-4ba3-be34-8dba853e62eb"
+        },
+        {
+          "at": "2026-10-24T16:08:31.081Z",
+          "type": "game.hunter_response_opened",
+          "seatId": "P2",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f",
+          "eventId": "evt_d5774994-a830-4b5e-ab4f-1e778fba716f"
+        },
+        {
+          "at": "2026-10-24T16:08:31.082Z",
+          "type": "selected",
+          "seatId": "P2",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f"
+        },
+        {
+          "at": "2026-10-24T16:08:31.082Z",
+          "type": "connection_ready",
+          "seatId": "P2",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f"
+        },
+        {
+          "at": "2026-10-24T16:08:31.082Z",
+          "type": "lease_created",
+          "seatId": "P2",
+          "turnId": "turn_ff32f6b3-2283-411e-a89b-5054e95eee3a",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f"
+        },
+        {
+          "at": "2026-10-24T16:09:01.093Z",
+          "type": "finished",
+          "seatId": "P2",
+          "turnId": "turn_ff32f6b3-2283-411e-a89b-5054e95eee3a",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f",
+          "code": "HUNTER_WINDOW_EXPIRED"
+        },
+        {
+          "at": "2026-10-24T16:09:01.100Z",
+          "type": "game.hunter_response_closed",
+          "seatId": "P2",
+          "windowId": "hunter_f666ad4f-5c32-4642-8c1b-beafb16bda0f",
+          "eventId": "evt_4a8491e2-d4d1-4081-a1a8-72f7cd6f593c"
+        }
+      ],
+      "events": [
+        {
+          "eventId": "evt_c75d3706-d3e3-4185-8c91-2dfc7d2ad398",
+          "type": "game.phase_changed",
+          "version": 18
+        },
+        {
+          "eventId": "evt_84e675c5-676d-4c27-b7fd-edf69ff77d91",
+          "type": "game.action_submitted",
+          "version": 20
+        },
+        {
+          "eventId": "evt_2276207e-edb9-41c5-b2af-c6aca085928e",
+          "type": "game.action_submitted",
+          "version": 22
+        },
+        {
+          "eventId": "evt_b6d05bff-7b1f-471e-a8eb-0860c99722c0",
+          "type": "game.action_submitted",
+          "version": 24
+        },
+        {
+          "eventId": "evt_5aa34fc2-0738-4ef6-92a6-143f61767178",
+          "type": "game.phase_changed",
+          "version": 26
+        },
+        {
+          "eventId": "evt_ee40626b-a71b-4ad5-b357-812c106ccd95",
+          "type": "game.action_submitted",
+          "version": 28
+        },
+        {
+          "eventId": "evt_f3cef482-ccce-4718-af19-be0ac4801002",
+          "type": "game.phase_changed",
+          "version": 30
+        },
+        {
+          "eventId": "evt_89f9e539-6abd-4b29-a2b0-4eab4485bf25",
+          "type": "game.action_submitted",
+          "version": 32
+        },
+        {
+          "eventId": "evt_d3fcb3fa-c5c4-4d5b-a7d4-d72a97da9c63",
+          "type": "game.phase_changed",
+          "version": 34
+        },
+        {
+          "eventId": "evt_9115408f-829d-4ba3-be34-8dba853e62eb",
+          "type": "game.player_eliminated",
+          "version": 36
+        },
+        {
+          "eventId": "evt_1ddabdad-918c-4c4c-aedd-0f538b30a0e1",
+          "type": "game.phase_changed",
+          "version": 38
+        },
+        {
+          "eventId": "evt_d5774994-a830-4b5e-ab4f-1e778fba716f",
+          "type": "game.hunter_response_opened",
+          "version": 39
+        },
+        {
+          "eventId": "evt_33cb8543-2fa0-4e7f-a729-012b773cc4ce",
+          "type": "game.turn_created",
+          "version": 41
+        },
+        {
+          "eventId": "evt_dbd298ec-1247-461e-a7fe-25dd0c5d243e",
+          "type": "player.control_changed",
+          "version": 42
+        },
+        {
+          "eventId": "evt_4a8491e2-d4d1-4081-a1a8-72f7cd6f593c",
+          "type": "game.hunter_response_closed",
+          "version": 43
+        },
+        {
+          "eventId": "evt_64115b81-167b-4916-b9ea-c8269630c073",
+          "type": "game.phase_changed",
+          "version": 45
+        },
+        {
+          "eventId": "evt_b37f3a2f-2002-43bc-9831-a560cef6a8e8",
+          "type": "game.turn_expired",
+          "version": 47
+        }
+      ],
+      "bindingsReleased": true,
+      "controllersReleased": true,
+      "finishedAt": "2026-10-24T16:09:01.110Z",
+      "windowToAcceptedMs": null
+    }
+  ]
+}
