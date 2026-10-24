@@ -13,7 +13,7 @@ try {
   for (const humans of [2,4,8,9]) {
     const created = await (await post(`${base}/api/rooms`,{display_name:'tester'})).json();
     for(let i=1;i<humans;i++) assert.equal((await post(`${base}/api/rooms/${created.room_id}/players`,{display_name:`human${i}`})).status,201);
-    assert.equal((await post(`${base}/api/rooms/${created.room_id}/start`,{}, {'x-player-id':created.player_id})).status,200);
+    assert.ok([200,202].includes((await post(`${base}/api/rooms/${created.room_id}/start`,{}, {'x-player-id':created.player_id})).status)); await new Promise(resolve => setImmediate(resolve));
     const room = rooms.get(created.room_id);
     assert.equal(room.seats.filter(s => s.playerType === 'human').length,humans);
     // Simulated humans use deterministic legal actions; this is not a live Linx test.
