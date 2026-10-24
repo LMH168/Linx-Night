@@ -1,7 +1,8 @@
+import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { rooms, publishNewEvents } from '../../server/src/api.mjs';
-import { controllerFor, privateState, publicState, updateController, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
+import { completeTurn, controllerFor, privateState, publicState, updateController, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
 import { RuleError, seerCheck, skipHunterResponse, submitHunterResponse, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
@@ -25,7 +26,7 @@ function sessionContext(req, requiredToken) {
   if (context.controllerEpoch !== undefined) {
     const room = rooms.get(context.roomId); const controller = room && controllerFor(room, context.seatId);
     const headerMatches = (!req.headers['x-linx-room-id'] || req.headers['x-linx-room-id'] === context.roomId) && (!req.headers['x-linx-seat-id'] || req.headers['x-linx-seat-id'] === context.seatId) && (!req.headers['x-linx-game-id'] || req.headers['x-linx-game-id'] === context.gameId) && (!req.headers['x-linx-controller-epoch'] || Number(req.headers['x-linx-controller-epoch']) === context.controllerEpoch);
-    if (!room || !controller || controller.controllerEpoch !== context.controllerEpoch || controller.sessionId !== sessionId || controller.deviceId !== deviceId || controller.agentId !== agentId || controller.status !== CONTROLLER_STATES.READY || !headerMatches) throw Object.assign(new Error('Linx controller is no longer active'), { code: -32005 });
+    if (!room || room.invalidated || room.gameId !== context.gameId || !controller || controller.controllerEpoch !== context.controllerEpoch || controller.sessionId !== sessionId || controller.deviceId !== deviceId || controller.agentId !== agentId || controller.status !== CONTROLLER_STATES.READY || !headerMatches) throw Object.assign(new Error('Linx controller is no longer active'), { code: -32005 });
   }
   return { ...context, sessionId, deviceId, agentId };
 }
@@ -40,8 +41,10 @@ export function bindController(binding) {
   const required = ['roomId', 'gameId', 'seatId', 'controllerEpoch', 'agentId', 'deviceId', 'sessionId'];
   if (!binding || required.some(key => binding[key] === undefined || binding[key] === null || binding[key] === '')) throw new Error('controller binding fields are required');
   const room = rooms.get(binding.roomId); if (!room || room.gameId !== binding.gameId) throw new Error('game room is not preparing controllers');
+  if (room.invalidated || room.phase === 'GAME_OVER') throw new Error('room is inactive');
   const controller = controllerFor(room, binding.seatId); const seat = room.seats.find(item => item.seatId === binding.seatId);
   if (!controller || !seat || seat.playerType !== 'ai' || controller.controllerEpoch !== binding.controllerEpoch) throw new Error('controller reservation does not match');
+  if ((controller.agentId && controller.agentId !== binding.agentId) || (controller.deviceId && controller.deviceId !== binding.deviceId)) throw new Error('expected controller identity mismatch');
   if (controller.status === CONTROLLER_STATES.RELEASED || (controller.sessionId && controller.sessionId !== binding.sessionId)) throw new Error('controller seat is already occupied');
   if (![CONTROLLER_STATES.PENDING, CONTROLLER_STATES.CONNECTED, CONTROLLER_STATES.BINDING].includes(controller.status)) throw new Error('controller is not accepting a binding');
   for (const existing of controllerBindings.values()) {
@@ -55,8 +58,8 @@ export function bindController(binding) {
 export function releaseController(binding) {
   if (!binding?.sessionId) return false;
   const context = controllerBindings.get(binding.sessionId) || sessions.get(binding.sessionId); if (!context) return false;
-  controllerBindings.delete(binding.sessionId); sessions.delete(binding.sessionId); if (context.agentId && context.deviceId) devices.delete(`${context.agentId}:${context.deviceId}`);
-  const room = rooms.get(context.roomId); const seat = room?.seats.find(item => item.seatId === context.seatId); if (room) { const controller = controllerFor(room, context.seatId); if (controller) updateController(room, context.seatId, { status: CONTROLLER_STATES.RELEASED, sessionId: null, runId: null, lastSeenAt: new Date().toISOString() }); } if (seat) { seat.linxControlled = false; if (seat.playerType === 'ai') seat.controlSource = 'rule_bot'; }
+  controllerBindings.delete(binding.sessionId); sessions.delete(binding.sessionId); if (context.agentId && context.deviceId && devices.get(`${context.agentId}:${context.deviceId}`)?.sessionId === binding.sessionId) devices.delete(`${context.agentId}:${context.deviceId}`);
+  const room = rooms.get(context.roomId); const seat = room?.seats.find(item => item.seatId === context.seatId); if (room) { const controller = controllerFor(room, context.seatId); if (controller?.sessionId === binding.sessionId) updateController(room, context.seatId, { status: CONTROLLER_STATES.RELEASED, sessionId: null, runId: null, lastSeenAt: new Date().toISOString() }); } if (seat && seat.controlSource === 'linx') seat.linxControlled = true;
   return true;
 }
 
@@ -74,6 +77,12 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
     if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
+    let turn;
+    if (room.requireActionLease && seat.controlSource === 'linx') {
+      turn = currentTurn(room, seat.seatId);
+      const controller = controllerFor(room, seat.seatId);
+      if (!turn || args.turn_id !== turn.turnId || turn.controllerEpoch !== context.controllerEpoch || controller?.status !== 'ready' || Date.now() >= turn.expiresAt || !actionAvailable(room, seat)) throw new RuleError('current action lease is required');
+    }
     const actionId = args.action_id || `mcp_${randomUUID()}`;
     trace.actionId = actionId;
     const target = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
@@ -85,6 +94,7 @@ async function callTool(req, name, args, requiredToken, trace) {
     else if (name === 'submit_hunter_shot') submitHunterResponse(room, seat.seatId, target, actionId, args.window_id);
     else if (name === 'skip_hunter_response') skipHunterResponse(room, seat.seatId, actionId, args.window_id);
     else if (name === 'submit_vote') submitVote(room, seat.seatId, target, actionId);
+    if (turn) completeTurn(room, turn.turnId);
     trace.eventIds = room.events.filter(e => e.version > trace.beforeVersion).map(e => e.eventId);
     audit.ok = true;
     publishNewEvents(room);

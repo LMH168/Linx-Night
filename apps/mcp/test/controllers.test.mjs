@@ -11,7 +11,7 @@ try {
   assert.throws(() => bindController({ ...binding, sessionId: 'session-b', seatId: room.controllers[1].seatId }), /device is already bound/);
   assert.throws(() => bindController({ ...binding, controllerEpoch: first.controllerEpoch + 1 }), /reservation does not match/);
   updateController(room, first.seatId, { status: CONTROLLER_STATES.READY, deviceId: binding.deviceId, agentId: binding.agentId, sessionId: binding.sessionId });
-  assert.equal(releaseController({ sessionId: binding.sessionId }), true); assert.equal(sessions.has(binding.sessionId), false); assert.equal(devices.has(`${binding.agentId}:${binding.deviceId}`), false); assert.equal(room.seats[1].linxControlled, false); assert.equal(room.seats[1].controlSource, 'rule_bot');
+  assert.equal(releaseController({ sessionId: binding.sessionId }), true); assert.equal(sessions.has(binding.sessionId), false); assert.equal(devices.has(`${binding.agentId}:${binding.deviceId}`), false); assert.equal(room.seats[1].linxControlled, true); assert.equal(room.seats[1].controlSource, 'linx');
   assert.equal(releaseController({ sessionId: binding.sessionId }), false);
   console.log('controller binding isolation and release passed');
 } finally { controllerBindings.clear(); sessions.clear(); devices.clear(); rooms.delete(room.roomId); }

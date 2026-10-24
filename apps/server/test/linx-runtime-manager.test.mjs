@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {createLinxControllerManager} from '../src/linx-manager.mjs';
+import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation} from '../../../packages/domain/src/model.mjs';
+const wav=Buffer.alloc(46);wav.write('RIFF');wav.writeUInt32LE(38,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(2,40);
+const setup=()=>{const room=createRoom();addPlayer(room,{playerId:room.hostPlayerId,displayName:'host'});fillAiSeats(room);beginControllerPreparation(room,{aiSeatIds:['P2']});return room;};
+let count=0,sends=0,closed=0;
+const manager=createLinxControllerManager({env:{LINX_AGENT_ID:'agent',LINX_PROFILES:'a',LINX_MCP_ADMIN_URL:'http://test',LINX_MCP_ADMIN_TOKEN:'secret'},loadAudio:async()=>wav,readIdentity:async()=>({deviceId:'device'}),fetchImpl:async url=>Response.json(url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'secret'}}:{registered:true}),clientFactory:()=>({state:'closed',sessionId:`s-${++count}`,async connect(){this.state='ready';},async send(){sends++;},close(){closed++;this.state='closed';}})});
+const room=setup();await manager.prepare(room);await manager.sendTurn(room,room.seats[1]);assert.equal(sends,1);
+await manager.releaseSeat(room,room.seats[1]);
+await assert.rejects(manager.prepare(setup()),/profile unavailable/);
+await manager.ensureConnected(room,room.seats[1]);assert.equal(count,2);assert.equal(room.controllers[0].controllerEpoch,2);
+await manager.release(room);await manager.prepare(setup());assert.equal(count,3);assert.ok(closed>=2);
+console.log('Manager reserves profiles across turns and rooms, sends validated PCM and reconnects new epochs');

@@ -1,3 +1,4 @@
+import { actionAvailable, currentTurn } from './turns.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -26,11 +27,11 @@ export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } 
   };
 }
 
-const turnPhases = new Set([PHASES.NIGHT_WOLF, PHASES.NIGHT_SEER, PHASES.NIGHT_WITCH, PHASES.SPEECH, PHASES.VOTE]);
+const turnPhases = new Set([PHASES.NIGHT_WOLF, PHASES.NIGHT_SEER, PHASES.NIGHT_WITCH, PHASES.SPEECH, PHASES.VOTE, PHASES.HUNTER_RESPONSE]);
 export function createTurn(room, { seatId, controlSource, controllerEpoch = null } = {}) {
   room.events ??= []; room.version ??= 0;
   const seat = room.seats.find(item => item.seatId === seatId);
-  if (!seat || !seat.alive || (room.phase !== undefined && !turnPhases.has(room.phase))) throw new Error('turn is not available');
+  if (!seat || (!seat.alive && !(room.phase === PHASES.HUNTER_RESPONSE && room.hunterResponse?.seatId === seatId)) || (room.phase !== undefined && !turnPhases.has(room.phase))) throw new Error('turn is not available');
   if (!['human', 'linx', 'rule_bot'].includes(controlSource)) throw new Error('invalid control source');
   const phase = room.phase ?? 'SCHEDULER';
   room.turns ??= [];
@@ -39,7 +40,7 @@ export function createTurn(room, { seatId, controlSource, controllerEpoch = null
     if (active.controlSource !== controlSource || active.controllerEpoch !== controllerEpoch) throw new Error('turn ownership mismatch');
     return clone(active);
   }
-  const turn = { turnId: id('turn'), seatId, round: room.round ?? 0, phase, controlSource, controllerEpoch, status: 'active', createdAt: new Date().toISOString(), completedAt: null };
+  const turn = { turnId: id('turn'), gameId: room.gameId, seatId, round: room.round ?? 0, phase, controlSource, controllerEpoch, status: 'active', createdAt: new Date().toISOString(), completedAt: null };
   room.turns.push(turn); room.version += 1; appendEvent(room, { type: 'game.turn_created', data: { turnId: turn.turnId, seatId, phase: turn.phase, controlSource } }); return clone(turn);
 }
 export function completeTurn(room, turnId) {
@@ -76,7 +77,7 @@ export function releaseControllerReservation(room, seatId) {
 }
 
 export function invalidateRoomControllers(room) {
-  for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.RELEASED; controller.sessionId = null; controller.runId = null; }
+  for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.RELEASED; }
   room.controllerPhase = 'invalidated'; room.invalidated = true; room.version += 1; return room;
 }
 
@@ -106,13 +107,14 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 
 export function publicState(room) {
   const hunterResponse = room.hunterResponse ? { windowId: room.hunterResponse.windowId, seatId: room.hunterResponse.seatId, phaseBefore: room.hunterResponse.phaseBefore, cause: room.hunterResponse.cause, status: room.hunterResponse.status, createdAt: room.hunterResponse.createdAt, expiresAt: room.hunterResponse.expiresAt, ...(room.hunterResponse.status !== 'open' ? { targetSeatId: room.hunterResponse.targetSeatId ?? null } : {}) } : null;
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active').map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: room.phase, version: room.version, round: room.round, currentSeatId: room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), controllers: (room.controllers ?? []).map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE','HUNTER_RESPONSE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(({ eventId, version, type, roomId, data }) => ({ eventId, version, type, roomId, data: publicEventData(type, data) })) };
 }
 
 // Events cross a public API/SSE boundary. Keep this allowlist beside the
 // projection so accidental diagnostic, model, audio, or role fields cannot
 // become public when a new internal event is added.
 export function publicEventData(type, data = {}) {
+  if (type.startsWith('game.turn_') && !['SPEECH','VOTE','HUNTER_RESPONSE'].includes(data.phase)) return {phase: data.phase};
   const fields = {
     'game.phase_changed': ['phase', 'seatId', 'winner'],
     'game.speech_submitted': ['speechId', 'seatId'],
@@ -144,7 +146,7 @@ export function publicEventData(type, data = {}) {
 export function privateState(room, playerId) {
   requireText(playerId, 'playerId'); const seat = room.seats.find(item => item.playerId === playerId); if (!seat) throw new Error('player not found');
   const teammates = seat.camp === CAMPS.WEREWOLF ? room.seats.filter(item => item.camp === CAMPS.WEREWOLF && item.playerId !== playerId && item.alive).map(item => item.seatId) : [];
-  return { roomId: room.roomId, seatId: seat.seatId, playerId: seat.playerId, role: seat.role, camp: seat.camp, alive: seat.alive, skills: clone(seat.skills), seerResults: clone(seat.seerResults), nightVictim: seat.role === ROLES.WITCH ? room.pendingNight?.wolfTarget ?? null : null, werewolfTeammates: teammates };
+  return { currentTurn: room.requireActionLease && actionAvailable(room, seat) ? clone(currentTurn(room, seat.seatId)) : null, wolfProposal: seat.role === ROLES.WEREWOLF && room.phase === PHASES.NIGHT_WOLF ? room.actions.find(a => a.turnId === room.round && a.actionType === 'wolf_target')?.targetSeatId ?? null : null, roomId: room.roomId, seatId: seat.seatId, playerId: seat.playerId, role: seat.role, camp: seat.camp, alive: seat.alive, skills: clone(seat.skills), seerResults: clone(seat.seerResults), nightVictim: seat.role === ROLES.WITCH ? room.pendingNight?.wolfTarget ?? null : null, werewolfTeammates: teammates };
 }
 
 export function appendEvent(room, { eventId = id('evt'), type, data = {} } = {}) {
