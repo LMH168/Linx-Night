@@ -184,9 +184,6 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       if (url.pathname === '/mcp' && req.method === 'DELETE') {
         res.writeHead(405, {allow:'POST'}); return res.end();
       }
-      if (url.pathname === '/mcp' && req.method === 'GET' && protocolVersion && !String(req.headers.accept || '').includes('text/event-stream')) {
-        res.writeHead(405, {allow:'POST, GET'}); return res.end();
-      }
       if (url.pathname === '/mcp' && req.method === 'GET') {
         const id = randomUUID();
         res.writeHead(200, {'content-type':'text/event-stream', 'cache-control':'no-cache', connection:'keep-alive'});
