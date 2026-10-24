@@ -18,7 +18,7 @@
     "test:integration": "node tests/integration.mjs",
     "test:linx": "node --test apps/linx/test/*.test.mjs",
     "linx": "node scripts/linx-client.mjs",
-    "test:lab": "node tests/linx-lab.test.mjs",
+    "test:lab": "node tests/linx-lab.test.mjs && node tests/linx-program-lab.test.mjs",
     "dev:lab": "node scripts/linx-lab.mjs"
   },
   "dependencies": {
