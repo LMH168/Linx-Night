@@ -16,10 +16,12 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WOLF) throw new Error('wolf action is not allowed now');
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new Error('actor is not a living werewolf');
   requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new Error('werewolves cannot target themselves');
-  recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
-  if (submitted.length >= wolves.length) {
-    const targets = new Set(submitted.slice(-wolves.length).map(action => action.targetSeatId));
+  const projected = [...submitted, { seatId, targetSeatId }];
+  if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new Error('werewolf targets must agree');
+  recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
+  if (projected.length >= wolves.length) {
+    const targets = new Set(projected.slice(-wolves.length).map(action => action.targetSeatId));
     if (targets.size !== 1) throw new Error('werewolf targets must agree');
     room.pendingNight = { wolfTarget: submitted.at(-1).targetSeatId }; transition(room, PHASES.NIGHT_SEER);
   }
@@ -38,8 +40,10 @@ export function witchAction(room, seatId, action, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WITCH) throw new Error('witch action is not allowed now');
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.WITCH) throw new Error('actor is not the living witch');
   if (!['save', 'poison', 'skip'].includes(action)) throw new Error('invalid witch action');
+  if (commandKey(room, actionId)) throw new Error('duplicate action');
+  if (action === 'poison') requireAlive(room, targetSeatId);
   if (action === 'save') { if (!actor.skills.antidoteAvailable) throw new Error('antidote is unavailable'); actor.skills.antidoteAvailable = false; }
-  if (action === 'poison') { if (!actor.skills.poisonAvailable) throw new Error('poison is unavailable'); actor.skills.poisonAvailable = false; requireAlive(room, targetSeatId); }
+  if (action === 'poison') { if (!actor.skills.poisonAvailable) throw new Error('poison is unavailable'); actor.skills.poisonAvailable = false; }
   recordAction(room, { actionId, turnId: room.round, actionType: 'witch_action', seatId, action, targetSeatId: targetSeatId ?? null });
   room.pendingNight.witch = { action, targetSeatId: targetSeatId ?? null }; transition(room, PHASES.DAY_ANNOUNCEMENT); return room;
 }
