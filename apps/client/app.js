@@ -42,7 +42,7 @@ function render(room) {
   const preparing = room.controllerPhase && room.controllerPhase !== 'idle' && room.controllerPhase !== 'released' && room.phase === 'LOBBY' && room.preparing !== false;
   const failed = room.controllerPhase === 'failed';
   const turnFailed = !lobby && (room.controllers || []).some(c => c.status === 'failed');
-  show('retryTurn',turnFailed && host); show('lobbyBar',lobby || preparing || turnFailed); show('start',lobby && host && !preparing); show('retryControllers',preparing && failed && host); show('cancelControllers',preparing && host); $('#start').disabled=!lobby || !host || preparing;
+  show('retryTurn',turnFailed && host); show('lobbyBar',lobby || preparing || turnFailed || (!lobby && room.phase !== 'GAME_OVER')); show('start',lobby && host && !preparing); show('retryControllers',preparing && failed && host); show('cancelControllers',preparing && host); show('endGame',!lobby && room.phase !== 'GAME_OVER' && host); $('#start').disabled=!lobby || !host || preparing;
   $('#lobbyHint').textContent=turnFailed?'灵矽行动失败，已暂停该座位。房主可重试，不会自动换成规则机器人。':preparing?(failed?'AI 连接失败，请重试或取消。':'正在连接 AI 玩家，全部准备完成后才会开始。'):host?'朋友到齐后即可开始，空位将由 Linx 会话准备。':'已入座，等待房主开始游戏。';
   const controllers=room.controllers||[]; $('#controllerHint').hidden=!preparing && !turnFailed; $('#controllerHint').textContent=controllers.map(c=>`${c.seatId}: ${c.status}${c.errorCode?`（${c.errorCode}）`:''}`).join(' · ');
   show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER');
@@ -145,6 +145,7 @@ $('#start').onclick = async () => { try { save(); const body = await call(`/api/
 $('#retryTurn').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry-turn`,{method:'POST'}); render(body.state); } catch(error){message(error.message);} };
 $('#retryControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry`,{method:'POST'}); render(body.state); message('已取消失败准备，可以重新点击开始游戏。'); } catch(error){message(error.message);} };
 $('#cancelControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/cancel`,{method:'POST'}); render(body.state); message('已取消本次准备或对局。已分配身份的对局请创建新房间。'); } catch(error){message(error.message);} };
+$('#endGame').onclick = async () => { if (!confirm('确定提前结束本局并释放所有 AI 会话吗？')) return; try { await call(`/api/rooms/${state.roomId}/end`,{method:'POST'}); state.source?.close(); sessionStorage.removeItem('linx-room'); sessionStorage.removeItem('linx-player'); globalThis.location.href = globalThis.location.pathname; } catch(error){message(error.message);} };
 $('#speech').onclick = async () => { stopVoice(); try { await call(`/api/rooms/${state.roomId}/speeches`, { method: 'POST', body: JSON.stringify({ text: $('#speechText').value, action_id: `speech_${Date.now()}` }) }); $('#speechText').value = ''; state.voice.draft = false; $('#voiceStatus').textContent = '语音只生成草稿，不会自动提交。'; await refresh(); } catch (error) { message(error.message); } };
 $('#skill').onclick = async () => { try { const role = state.privateState.role; const type = role === 'werewolf' ? 'wolf_target' : role === 'seer' ? 'seer_check' : 'witch_action'; const body = { type, target_seat_id: $('#target').value, action_id: `skill_${Date.now()}` }; if (type === 'witch_action') body.action = $('#witchAction').value; await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify(body) }); await refresh(); } catch (error) { message(error.message); } };
 $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/votes`, { method: 'POST', body: JSON.stringify({ target_seat_id: $('#target').value, action_id: `vote_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
@@ -170,7 +171,7 @@ if (state.roomId) { refresh(); connectEvents(); }
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
 
 $('#witchAction').onchange=renderActions;
-for (const id of ['confirmDraft','takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','speech','skill','vote','hunterShot','hunterSkip','announce']) {
+for (const id of ['confirmDraft','takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','endGame','speech','skill','vote','hunterShot','hunterSkip','announce']) {
   const handler=$(id).onclick;
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }
