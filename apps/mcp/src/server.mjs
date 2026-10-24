@@ -2,23 +2,13 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { rooms, publishNewEvents } from '../../server/src/api.mjs';
 import { privateState, publicState } from '../../../packages/domain/src/model.mjs';
-import { hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { RuleError, hunterShot, seerCheck, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+
+import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
 
 export const sessions = new Map();
 export const auditLog = [];
 export const devices = new Map();
-const tools = [
-  ['get_public_game_state', '获取当前房间公开状态', {}],
-  ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
-  ['get_recent_speeches', '获取最近公开发言', {}],
-  ['submit_speech', '提交公开发言', { text: { type: 'string', minLength: 1 } }],
-  ['submit_wolf_target', '提交狼人目标', { target_player_id: { type: 'string' } }],
-  ['submit_seer_check', '提交预言家查验目标', { target_player_id: { type: 'string' } }],
-  ['submit_witch_action', '提交女巫行动', { action: { type: 'string', enum: ['save', 'poison', 'skip'] }, target_player_id: { type: 'string' } }],
-  ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: { type: 'string' } }],
-  ['submit_vote', '提交投票目标', { target_player_id: { type: 'string' } }],
-];
-const toolMap = new Map(tools.map(([name, description, properties]) => [name, { name, description, inputSchema: { type: 'object', properties, required: Object.keys(properties).filter(key => key !== 'target_player_id') } }]));
 
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(body)); };
 const rpc = (id, result) => ({ jsonrpc: '2.0', id, result });
@@ -35,31 +25,49 @@ function sessionContext(req, requiredToken) {
 }
 function roomFor(context) { const room = rooms.get(context.roomId); if (!room) throw Object.assign(new Error('game room not found'), { code: -32004 }); return room; }
 function seatFor(room, context) { const seat = room.seats.find(item => item.seatId === context.seatId && item.playerId === context.playerId); if (!seat) throw Object.assign(new Error('session seat mismatch'), { code: -32003 }); return seat; }
-function targetSeat(room, playerId) { const seat = room.seats.find(item => item.playerId === playerId || item.seatId === playerId); if (!seat) throw Object.assign(new Error('target player not found'), { code: -32004 }); return seat.seatId; }
+function targetSeat(room, playerId) { const seat = room.seats.find(item => item.playerId === playerId || item.seatId === playerId); if (!seat) throw new ToolInputError('target player not found'); return seat.seatId; }
 function resultText(value) { return { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false }; }
 
 export function registerSession({ sessionId = randomUUID(), roomId, seatId, playerId, role = 'player', deviceId, agentId }) { if (!roomId || !seatId || !playerId) throw new Error('roomId, seatId and playerId are required'); sessions.set(sessionId, { roomId, seatId, playerId, role, deviceId, agentId }); return sessionId; }
 
-async function callTool(req, name, args, requiredToken) {
-  const context = sessionContext(req, requiredToken); const room = roomFor(context); const seat = context.role === 'host' ? null : seatFor(room, context);
-  const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, roomId: context.roomId, seatId: context.seatId, tool: name, ok: false };
+async function callTool(req, name, args, requiredToken, trace) {
+  const context = sessionContext(req, requiredToken);
+  const room = roomFor(context);
+  const seat = context.role === 'host' ? null : seatFor(room, context);
+  Object.assign(trace, { roomId: room.roomId, seatId: context.seatId, beforeVersion: room.version, eventIds: [] });
+  const tool = toolMap.get(name);
+  if (!tool) throw Object.assign(new Error('unknown tool'), { code: -32601 });
+  if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches'].includes(name)) throw Object.assign(new Error('host is read-only'), { code: -32002 });
+  const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, tool: name, ok: false };
   try {
+    validateArguments(tool, args);
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
-    if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches'].includes(name)) throw Object.assign(new Error('host is read-only'), {code: -32002});
     if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
-  if (context.role === 'host' && name !== 'submit_speech') throw Object.assign(new Error('host cannot submit player action'), { code: -32002 });
-  const action = { roomId: context.roomId, seatId: seat.seatId, playerId: seat.playerId, ...args };
-  const actionId = args.action_id || `mcp_${randomUUID()}`;
-  if (name === 'submit_speech') { submitSpeech(room, seat.seatId, args.text, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
-  const targetSeatId = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
-  if (name === 'submit_wolf_target') { wolfTarget(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_seer_check') { const result = seerCheck(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, result, version: room.version }); }
-  if (name === 'submit_witch_action') { witchAction(room, seat.seatId, args.action, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_hunter_shot') { hunterShot(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
-  if (name === 'submit_vote') { submitVote(room, seat.seatId, targetSeatId, actionId); audit.ok = true; return resultText({ accepted: true, version: room.version }); }
-  throw Object.assign(new Error('unknown tool'), { code: -32601 });
-  } finally { publishNewEvents(room); auditLog.push(audit); if (auditLog.length > 1000) auditLog.shift(); }
+    const actionId = args.action_id || `mcp_${randomUUID()}`;
+    trace.actionId = actionId;
+    const target = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
+    let result;
+    if (name === 'submit_speech') submitSpeech(room, seat.seatId, args.text, actionId);
+    else if (name === 'submit_wolf_target') wolfTarget(room, seat.seatId, target, actionId);
+    else if (name === 'submit_seer_check') result = seerCheck(room, seat.seatId, target, actionId);
+    else if (name === 'submit_witch_action') witchAction(room, seat.seatId, args.action, target, actionId);
+    else if (name === 'submit_hunter_shot') hunterShot(room, seat.seatId, target, actionId);
+    else if (name === 'submit_vote') submitVote(room, seat.seatId, target, actionId);
+    trace.eventIds = room.events.filter(e => e.version > trace.beforeVersion).map(e => e.eventId);
+    audit.ok = true;
+    publishNewEvents(room);
+    return resultText({ accepted: true, requestId: trace.requestId, actionId, version: room.version, eventIds: trace.eventIds, ...(result === undefined ? {} : { result }) });
+  } catch (error) {
+    if (!(error instanceof RuleError || error instanceof ToolInputError)) throw error;
+    trace.resultCode = error instanceof ToolInputError ? 'INVALID_ARGUMENTS' : 'ACTION_REJECTED';
+    trace.failure = { code: trace.resultCode, reason: error.message };
+    return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId }) }], isError: true };
+  } finally {
+    trace.afterVersion = room.version;
+    trace.resultCode ??= audit.ok ? 'OK' : 'INTERNAL_ERROR';
+    auditLog.push({ ...audit, ...trace }); if (auditLog.length > 1000) auditLog.shift();
+  }
 }
 
 export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), authToken: requiredToken = process.env.MCP_AUTH_TOKEN || '', adminToken = process.env.ADMIN_TOKEN || '' } = {}) {
@@ -69,6 +77,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     const url = new URL(req.url, 'http://localhost');
     let message;
     let failure;
+    const trace = { requestId: randomUUID() };
     const recordFailure = body => {
       if (body.error) {
         const known = ['MCP authentication failed', 'unknown Linx session', 'Linx session metadata mismatch', 'game room not found', 'session seat mismatch', 'invalid JSON', 'unsupported MCP protocol version'];
@@ -80,7 +89,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       if (!['/mcp', '/mcp/message'].includes(url.pathname)) return;
       const authenticated = !requiredToken || authToken(req) === requiredToken;
       const identity = authenticated ? Object.fromEntries(['session', 'device', 'agent'].map(key => [key + 'Id', req.headers[`x-linx-${key}-id`]?.slice(0, 256)])) : {};
-      diagnostics.push({ at: new Date().toISOString(), path: url.pathname, httpMethod: req.method, method: typeof message?.method === 'string' ? message.method.slice(0, 128) : undefined, tool: typeof message?.params?.name === 'string' ? message.params.name.slice(0, 128) : undefined, status: res.statusCode, authenticated, ...identity, failure });
+      diagnostics.push({ at: new Date().toISOString(), path: url.pathname, httpMethod: req.method, method: typeof message?.method === 'string' ? message.method.slice(0, 128) : undefined, tool: typeof message?.params?.name === 'string' ? message.params.name.slice(0, 128) : undefined, status: res.statusCode, authenticated, ...identity, ...trace, failure: failure || trace.failure });
       if (diagnostics.length > 100) diagnostics.shift();
     });
     try {
@@ -141,9 +150,9 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         if (method === 'initialize') response = rpc(id,{protocolVersion:streamable ? (versions.includes(params.protocolVersion) ? params.protocolVersion : '2025-03-26') : '2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.3.0'}});
         else if (method === 'ping') response = rpc(id,{});
         else if (method === 'tools/list') response = rpc(id,{tools:[...toolMap.values()]});
-        else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments || {},requiredToken));
+        else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments === undefined ? {} : params.arguments,requiredToken,trace));
         else response = rpcError(id,-32601,'unknown method');
-      } catch(error) {response = rpcError(message.id,error.code || -32603,error.message);}
+      } catch(error) { if (!error.code) trace.internalError = error.message; trace.resultCode = error.code || 'INTERNAL_ERROR'; response = rpcError(message.id,error.code || -32603,error.code ? error.message : 'internal error');}
       if (stream) {recordFailure(response); stream.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`); res.writeHead(202); return res.end();}
       return reply(200,response);
     } catch(error) {return reply(400,rpcError(message?.id ?? null,error.code || -32600,error.message));}

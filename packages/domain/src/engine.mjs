@@ -1,56 +1,59 @@
 import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES } from './model.mjs';
 
+export class RuleError extends Error {}
+
 const aliveSeats = room => room.seats.filter(seat => seat.alive);
 const seatOf = (room, seatId) => room.seats.find(seat => seat.seatId === seatId);
-const requireAlive = (room, seatId) => { const seat = seatOf(room, seatId); if (!seat || !seat.alive) throw new Error('target seat is not alive'); return seat; };
+const requireAlive = (room, seatId) => { const seat = seatOf(room, seatId); if (!seat || !seat.alive) throw new RuleError('target seat is not alive'); return seat; };
 const commandKey = (room, key) => room.actions.some(action => action.actionId === key) || room.votes.some(vote => vote.voteId === key);
-const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new Error('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId } }); };
+const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new RuleError('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId } }); };
 const transition = (room, phase, data = {}) => { room.phase = phase; room.currentSeatId = data.seatId ?? null; room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } }); };
 
 export function startGame(room) {
-  if (room.phase !== PHASES.ROLE_ASSIGNMENT) throw new Error('roles must be assigned before starting');
+  if (room.phase !== PHASES.ROLE_ASSIGNMENT) throw new RuleError('roles must be assigned before starting');
   transition(room, PHASES.NIGHT_WOLF); return room;
 }
 
 export function wolfTarget(room, seatId, targetSeatId, actionId) {
-  if (room.phase !== PHASES.NIGHT_WOLF) throw new Error('wolf action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new Error('actor is not a living werewolf');
-  requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new Error('werewolves cannot target themselves');
+  if (room.phase !== PHASES.NIGHT_WOLF) throw new RuleError('wolf action is not allowed now');
+  const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new RuleError('actor is not a living werewolf');
+  requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new RuleError('werewolves cannot target themselves');
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
-  if (submitted.some(a => a.seatId === seatId)) throw new Error('seat already submitted');
+  if (submitted.some(a => a.seatId === seatId)) throw new RuleError('seat already submitted');
   const projected = [...submitted, { seatId, targetSeatId }];
-  if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new Error('werewolf targets must agree');
+  if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new RuleError('werewolf targets must agree');
   recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
   if (projected.length >= wolves.length) {
     const targets = new Set(projected.slice(-wolves.length).map(action => action.targetSeatId));
-    if (targets.size !== 1) throw new Error('werewolf targets must agree');
+    if (targets.size !== 1) throw new RuleError('werewolf targets must agree');
     room.pendingNight = { wolfTarget: targetSeatId }; transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
   }
   return room;
 }
 
 export function seerCheck(room, seatId, targetSeatId, actionId) {
-  if (room.phase !== PHASES.NIGHT_SEER) throw new Error('seer action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new Error('actor is not the living seer');
+  if (room.phase !== PHASES.NIGHT_SEER) throw new RuleError('seer action is not allowed now');
+  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new RuleError('actor is not the living seer');
   const target = requireAlive(room, targetSeatId); recordAction(room, { actionId, turnId: room.round, actionType: 'seer_check', seatId, targetSeatId });
   const result = target.camp === CAMPS.WEREWOLF ? 'werewolf' : 'good'; actor.seerResults.push({ round: room.round, seatId: targetSeatId, result });
   transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return result;
 }
 
 export function witchAction(room, seatId, action, targetSeatId, actionId) {
-  if (room.phase !== PHASES.NIGHT_WITCH) throw new Error('witch action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.WITCH) throw new Error('actor is not the living witch');
-  if (!['save', 'poison', 'skip'].includes(action)) throw new Error('invalid witch action');
-  if (commandKey(room, actionId)) throw new Error('duplicate action');
+  if (room.phase !== PHASES.NIGHT_WITCH) throw new RuleError('witch action is not allowed now');
+  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.WITCH) throw new RuleError('actor is not the living witch');
+  if (!['save', 'poison', 'skip'].includes(action)) throw new RuleError('invalid witch action');
+  if (commandKey(room, actionId)) throw new RuleError('duplicate action');
   if (action === 'poison') requireAlive(room, targetSeatId);
-  if (action === 'save') { if (!actor.skills.antidoteAvailable) throw new Error('antidote is unavailable'); actor.skills.antidoteAvailable = false; }
-  if (action === 'poison') { if (!actor.skills.poisonAvailable) throw new Error('poison is unavailable'); actor.skills.poisonAvailable = false; }
+  if (!room.pendingNight) throw new RuleError('night action context is unavailable');
+  if (action === 'save') { if (!actor.skills.antidoteAvailable) throw new RuleError('antidote is unavailable'); actor.skills.antidoteAvailable = false; }
+  if (action === 'poison') { if (!actor.skills.poisonAvailable) throw new RuleError('poison is unavailable'); actor.skills.poisonAvailable = false; }
   recordAction(room, { actionId, turnId: room.round, actionType: 'witch_action', seatId, action, targetSeatId: targetSeatId ?? null });
   room.pendingNight.witch = { action, targetSeatId: targetSeatId ?? null }; transition(room, PHASES.DAY_ANNOUNCEMENT); return room;
 }
 
 export function announceDay(room) {
-  if (room.phase !== PHASES.DAY_ANNOUNCEMENT) throw new Error('day announcement is not allowed now');
+  if (room.phase !== PHASES.DAY_ANNOUNCEMENT) throw new RuleError('day announcement is not allowed now');
   const night = room.pendingNight ?? {}; const deaths = new Set();
   if (night.wolfTarget && night.witch?.action !== 'save') deaths.add(night.wolfTarget);
   if (night.witch?.action === 'poison') deaths.add(night.witch.targetSeatId);
@@ -61,23 +64,25 @@ export function announceDay(room) {
 }
 
 export function submitSpeech(room, seatId, text, actionId) {
-  if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new Error('speech is not allowed for this seat now');
-  const seat = requireAlive(room, seatId); if (typeof text !== 'string' || !text.trim()) throw new Error('speech must not be empty');
+  if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
+  const seat = requireAlive(room, seatId); if (typeof text !== 'string' || !text.trim()) throw new RuleError('speech must not be empty');
   recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: text.trim() }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
   const next = aliveSeats(room).find(item => item.seatId > seat.seatId); const first = aliveSeats(room)[0]; if (next) transition(room, PHASES.SPEECH, { seatId: next.seatId }); else transition(room, PHASES.VOTE); return room;
 }
 
 export function submitVote(room, seatId, targetSeatId, voteId) {
-  if (room.phase !== PHASES.VOTE) throw new Error('vote is not allowed now');
-  requireAlive(room, seatId); requireAlive(room, targetSeatId); if (room.votes.some(vote => vote.round === room.round && vote.seatId === seatId)) throw new Error('seat already voted');
+  if (room.phase !== PHASES.VOTE) throw new RuleError('vote is not allowed now');
+  if (commandKey(room, voteId)) throw new RuleError('duplicate action');
+  requireAlive(room, seatId); requireAlive(room, targetSeatId); if (room.votes.some(vote => vote.round === room.round && vote.seatId === seatId)) throw new RuleError('seat already voted');
   room.votes.push({ voteId, round: room.round, seatId, targetSeatId }); room.version += 1;
+  appendEvent(room, { type: 'game.vote_submitted', data: { voteId, seatId } });
   if (room.votes.filter(vote => vote.round === room.round).length === aliveSeats(room).length) resolveVotes(room); return room;
 }
 
 export function hunterShot(room, seatId, targetSeatId, actionId) {
-  if (room.phase === PHASES.GAME_OVER) throw new Error('game is over');
-  if (commandKey(room, actionId)) throw new Error('duplicate action');
-  const hunter = seatOf(room, seatId); if (!hunter || hunter.role !== ROLES.HUNTER || hunter.alive || !hunter.skills.hunterShotAvailable) throw new Error('hunter shot is unavailable');
+  if (room.phase === PHASES.GAME_OVER) throw new RuleError('game is over');
+  if (commandKey(room, actionId)) throw new RuleError('duplicate action');
+  const hunter = seatOf(room, seatId); if (!hunter || hunter.role !== ROLES.HUNTER || hunter.alive || !hunter.skills.hunterShotAvailable) throw new RuleError('hunter shot is unavailable');
   requireAlive(room, targetSeatId); hunter.skills.hunterShotAvailable = false; recordAction(room, { actionId, turnId: room.round, actionType: 'hunter_shot', seatId, targetSeatId }); eliminate(room, targetSeatId, 'hunter'); checkWinner(room); return room;
 }
 
