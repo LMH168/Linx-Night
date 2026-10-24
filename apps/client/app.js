@@ -1,5 +1,15 @@
 const $ = id => document.getElementById(id.replace(/^#/, ''));
+// Test links prefill only public connection fields, never a player identity.
+const entryQuery = new URLSearchParams(globalThis.location?.search || '');
 const state = { api: sessionStorage.getItem('linx-api') || 'http://localhost:5000', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, unloading: false };
+const entryApi = entryQuery.get('api') || state.api;
+const entryRoom = entryQuery.get('room') || state.roomId;
+if (entryApi !== state.api || entryRoom !== state.roomId) {
+  state.api = entryApi;
+  state.roomId = entryRoom;
+  state.playerId = '';
+  sessionStorage.removeItem('linx-player');
+}
 $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
