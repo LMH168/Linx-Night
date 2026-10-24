@@ -25,7 +25,7 @@ pwsh -NoProfile -File scripts/linx-audio.ps1
 
 1. lab 输入 `scene speech`，网页加入 P1，lab 输入 `arm`。
 2. 另一个终端 `node scripts/linx-client.mjs connect player-a`。
-3. 客户端输入 `send <query.wav绝对路径>`。第一次未绑定的查询预计失败，用于观察真实 MCP 身份头。等待该轮结束后，lab 输入 `recent`。
+3. 先在 lab 输入 `recent`。实测连接时平台就会发起带身份头的 MCP 初始化/发现请求，可与本机 hello 核对后进入下一步。若没有这些请求，再发送 query 音频发现身份；未绑定查询可能长回复超时，超时后必须换新连接和场景。
 4. 核对本机 profile/connection.json 和本次已认证诊断，在 lab 输入 `bind-program P2 player-a <实际SessionID>`。该命令还会验证 profile、Agent、连接时间和当前场景，不接受任意远端请求自动注册。
 5. 再发送 query，确认查询成功，再发送 speech。核对实际 `submit_speech` 成功、P2 只有一条发言、当前席位 P3、网页未刷新自动更新。
 6. 立即 `export`；保存平台工具记录和网页截图/录像，记录浏览器更新的时间。客户端 `close`。
@@ -63,3 +63,4 @@ node tests/linx-program-lab.test.mjs
 ```
 
 结束时 export → 两个客户端 close → lab quit → 关闭本批独立 cloudflared。不关闭其他任务的实例或隧道。原始 profile 保留供下次免激活连接，临时会话 Token 不落盘。本批没有自动调度、网页音频或实际九人混合局能力。
+
