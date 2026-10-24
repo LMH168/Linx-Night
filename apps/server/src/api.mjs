@@ -1,3 +1,4 @@
+import { publicNarration, readVoiceBody } from './voice.mjs';
 import { heartbeat, expirePresence, setHumanControl } from '../../../packages/domain/src/presence.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -18,7 +19,7 @@ const currentPlayer = (req, room) => { const playerId = req.headers['x-player-id
 const roomOrFail = roomId => { const room = rooms.get(roomId); if (!room) throw Object.assign(new Error('room not found'), { status: 404 }); return room; };
 const actionId = (req, body) => body.action_id || req.headers['idempotency-key'] || `action_${randomUUID()}`;
 
-export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, linxSeats = configuredLinxSeats(process.env) } = {}) {
+export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, linxSeats = configuredLinxSeats(process.env) } = {}) {
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
@@ -28,6 +29,20 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
       const room = roomOrFail(roomId);
       if (req.method === 'POST' && parts[3] === 'players') { const body = await readBody(req); const player = addPlayer(room, { playerId: body.player_id || `player_${randomUUID()}`, displayName: body.display_name || '玩家' }); return json(res, 201, { player, state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'voice') {
+        const actor=currentPlayer(req,room);if(actor.playerType!=='human')throw new Error('仅真人可使用网页语音');
+        if(!voice)throw new Error('未配置灵矽语音');
+        const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
+        if(kind==='transcribe') {
+          if(actor.controlSource!=='human' || room.phase!=='SPEECH' || room.currentSeatId!==actor.seatId || !actor.alive)throw new Error('当前不能生成发言草稿');
+          if(typeof body.wav!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.wav))throw new Error('无效录音');
+          const round=room.round;const result=await voice({kind,wav:Buffer.from(body.wav,'base64'),signal:abort.signal});
+          if(room.phase!=='SPEECH' || room.currentSeatId!==actor.seatId || room.round!==round || actor.controlSource!=='human')throw new Error('发言回合已变更');
+          return json(res,200,{text:result.text});
+        }
+        if(kind==='speak') {const text=publicNarration(room,body.event_id);const result=await voice({kind,text,signal:abort.signal});return json(res,200,{event_id:body.event_id,wav:result.wav.toString('base64')});}
+        throw new Error('无效语音操作');
+      }
       if (req.method === 'POST' && parts[3] === 'presence') { const seat=currentPlayer(req,room); heartbeat(room,seat); publishNewEvents(room); return json(res,200,{ok:true}); }
       if (req.method === 'POST' && parts[3] === 'control') { const body=await readBody(req); const seat=currentPlayer(req,room); setHumanControl(room,seat,body.mode); publishNewEvents(room); return json(res,200,{state:publicState(room)}); }
       if (req.method === 'POST' && parts[3] === 'start') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can start the room'), { status: 403 }); if (room.phase !== 'LOBBY' || room.preparing || room.seats.some(s => s.role)) throw new Error('room already started'); fillAiSeats(room); const aiSeats = linxSeats.filter(id => room.seats.some(s => s.seatId === id && s.playerType === 'ai')); const preparation = beginControllerPreparation(room, { aiSeatIds: aiSeats }); room.requireActionLease = typeof sessions.sendTurn === 'function'; for (const seat of room.seats) if (aiSeats.includes(seat.seatId)) { seat.controlSource = 'linx'; seat.linxControlled = true; } room.controllerPhase = 'connecting'; room.preparing = true; controllerEvent(room, 'controller.created', { gameId: preparation.gameId, controllerEpoch: preparation.controllerEpoch, seatIds: room.controllers.map(controller => controller.seatId) }); publishNewEvents(room); setImmediate(() => Promise.resolve(sessions.prepare(room)).then(() => { if (room.invalidated || room.gameId !== preparation.gameId || room.controllerPhase !== 'ready') return; for (const controller of room.controllers) controllerEvent(room, 'controller.bound', { seatId: controller.seatId, status: controller.status }); controllerEvent(room, 'game.ready', { gameId: room.gameId, controllerEpoch: room.controllerEpoch }); assignRoles(room); startGame(room); room.preparing = false; publishNewEvents(room); }).catch(error => { if (room.invalidated || room.gameId !== preparation.gameId) return; room.controllerPhase = 'failed'; room.preparing = true; room.controllers.forEach(controller => { if (controller.status !== CONTROLLER_STATES.READY) { controller.status = CONTROLLER_STATES.FAILED; controller.errorCode = error.code || 'CONNECT_FAILED'; controllerEvent(room, 'controller.failed', { seatId: controller.seatId, errorCode: controller.errorCode }); } }); room.version += 1; publishNewEvents(room); })); return json(res, 202, { preparation: true, game_id: preparation.gameId, controller_epoch: preparation.controllerEpoch, state: publicState(room) }); }

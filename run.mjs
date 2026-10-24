@@ -1,3 +1,4 @@
+import { createVoiceService } from './apps/linx/src/voice.mjs';
 import { LinxTurnRuntime } from './apps/scheduler/src/linx-runtime.mjs';
 import { rooms, publishNewEvents } from './apps/server/src/api.mjs';
 import { tickRoom } from './apps/scheduler/src/local.mjs';
@@ -8,7 +9,7 @@ import './apps/client/server.mjs';
 const manager = createLinxControllerManager({onChange:room=>publishNewEvents(room)});
 const servers = [];
 const runtime = new LinxTurnRuntime({manager,publish:publishNewEvents});
-for (const [factory, options] of [[createApiServer, { sessions: manager }], [createMcpServer, {}]]) {
+for (const [factory, options] of [[createApiServer, { sessions: manager, voice: createVoiceService() }], [createMcpServer, {}]]) {
   const {server, port} = factory(options); servers.push(server);
   server.listen(port, '127.0.0.1', () => console.log(`Listening on ${port}`));
 }
