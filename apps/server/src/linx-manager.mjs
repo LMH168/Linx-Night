@@ -1,10 +1,11 @@
+import { recordTurn } from './turn-diagnostics.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ota } from '../../linx/src/ota.mjs';
 import { LinxClient } from '../../linx/src/client.mjs';
 import { readProfile } from '../../linx/src/profile.mjs';
 import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
-import { parseWav } from '../../linx/src/wav.mjs';
+import { parseTriggerWav } from '../../linx/src/wav.mjs';
 import { waitForMcpDiscovery } from './mcp-discovery.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
@@ -22,7 +23,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const names = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(value => value.trim()).filter(Boolean);
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
-  let audio;
+  const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
+  let audio, hunterAudio;
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
       const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, names[i]]));
@@ -51,7 +53,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (assigned.length !== room.controllers.length || new Set(assigned).size !== assigned.length || assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       const gameId = room.gameId;
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
-      audio ??= await loadAudio(audioPath); parseWav(audio);
+      audio ??= await loadAudio(audioPath); parseTriggerWav(audio);
+      hunterAudio ??= await loadAudio(hunterAudioPath); parseTriggerWav(hunterAudio);
       if (room.invalidated || room.gameId !== gameId) throw new Error('PREPARATION_CANCELLED');
       if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       for (const name of assigned) reservations.set(name, room.roomId);
@@ -69,7 +72,9 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     async sendTurn(room, seat) {
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
-      return client.send(audio);
+      const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
+      client.record = event => { if (['input_start','input_stop','stt','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
+      return client.send(room.phase === 'HUNTER_RESPONSE' ? hunterAudio : audio);
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);

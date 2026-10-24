@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events';
+import { recordTurn } from './turn-diagnostics.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { publicNarration, readVoiceBody } from './voice.mjs';
 import { heartbeat, expirePresence, setHumanControl } from '../../../packages/domain/src/presence.mjs';
@@ -8,6 +10,7 @@ import { announceDay, expireHunterResponse, seerCheck, skipHunterResponse, start
 import { EventHub, eventStream } from './realtime.mjs';
 import { createHostCoordinator } from './host-coordinator.mjs';
 
+export const roomChanges = new EventEmitter();
 export const rooms = new Map();
 export const events = new EventHub();
 export const hostCoordinator = createHostCoordinator({ publish: (roomId, event) => events.publish(roomId, event) });
@@ -81,4 +84,4 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   return { server, port };
 }
 
-export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) events.publish(room.roomId, event); room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); }
+export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) { events.publish(room.roomId, event); if (['game.player_eliminated','game.hunter_response_opened','game.hunter_response_closed'].includes(event.type)) recordTurn(event.type,{roomId:room.roomId,gameId:room.gameId,eventId:event.eventId,seatId:event.data.seatId,windowId:event.data.windowId}); } room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); roomChanges.emit('changed', room); }

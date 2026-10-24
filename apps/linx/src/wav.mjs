@@ -25,3 +25,9 @@ export function* frames(audio) {
     const frame = Buffer.alloc(640); audio.copy(frame, 0, offset, Math.min(offset + 640, audio.length)); yield frame;
   }
 }
+
+export function parseTriggerWav(buffer) {
+  const audio = parseWav(buffer);
+  if (audio.length > 32000 * 5) throw new Error('行动触发音频不得超过 5 秒，请重新生成短音频');
+  return audio;
+}
