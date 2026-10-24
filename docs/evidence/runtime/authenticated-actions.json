@@ -1,0 +1,429 @@
+{
+  "note": "真实平台 MCP + 脚本观察员；非真人和浏览器验收。两轮均通过正常 API 开始，结束后取消。",
+  "reports": [
+    {
+      "source": "real-Linx-with-scripted-human",
+      "startedAt": "2026-10-24T15:05:19.969Z",
+      "finishedAt": "2026-10-24T15:08:50.701Z",
+      "cancelled": true,
+      "samples": [
+        {
+          "at": "2026-10-24T15:05:25.055Z",
+          "phase": "NIGHT_WOLF",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "ready",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:06:10.198Z",
+          "phase": "NIGHT_WITCH",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "released",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:06:15.221Z",
+          "phase": "SPEECH",
+          "round": 0,
+          "currentSeat": "P2",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "ready",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:07:05.401Z",
+          "phase": "SPEECH",
+          "round": 0,
+          "currentSeat": "P3",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "released",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 1
+        },
+        {
+          "at": "2026-10-24T15:07:50.527Z",
+          "phase": "SPEECH",
+          "round": 0,
+          "currentSeat": "P5",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "released",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "released",
+              "errorCode": null
+            }
+          ],
+          "speeches": 3
+        },
+        {
+          "at": "2026-10-24T15:07:55.541Z",
+          "phase": "SPEECH",
+          "round": 0,
+          "currentSeat": "P8",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "released",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "released",
+              "errorCode": null
+            }
+          ],
+          "speeches": 6
+        },
+        {
+          "at": "2026-10-24T15:08:00.556Z",
+          "phase": "VOTE",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "binding",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "released",
+              "errorCode": null
+            }
+          ],
+          "speeches": 8
+        },
+        {
+          "at": "2026-10-24T15:08:50.701Z",
+          "phase": "VOTE",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "released",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 8
+        }
+      ],
+      "toolCalls": [
+        {
+          "at": "2026-10-24T15:06:04.592Z",
+          "requestId": "88f505e2-a2c2-4818-bba0-9e00b69eeb7f",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 35,
+          "afterVersion": 35
+        },
+        {
+          "at": "2026-10-24T15:06:05.663Z",
+          "requestId": "558dd644-9dc2-46e9-bd71-e4f9f14d8b61",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 35,
+          "afterVersion": 35
+        },
+        {
+          "at": "2026-10-24T15:06:08.269Z",
+          "requestId": "d9291675-5384-4b35-8b78-b59fd6e7d24c",
+          "method": "tools/call",
+          "tool": "submit_wolf_target",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "actionId": "mcp_b872d5f8-991b-49b7-b40e-ac762075dd96",
+          "eventIds": [
+            "evt_751d11b2-e4d4-4b9a-8eab-9edad5db333a",
+            "evt_783bdaf9-e157-43e7-b1f4-ddf23b72b67a",
+            "evt_82fe2206-084a-4e30-8dbe-05f3cfbcf6ca"
+          ],
+          "beforeVersion": 35,
+          "afterVersion": 42
+        },
+        {
+          "at": "2026-10-24T15:06:55.434Z",
+          "requestId": "7b443f6b-6d83-46b8-bace-a34fe7d07b66",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 69,
+          "afterVersion": 69
+        },
+        {
+          "at": "2026-10-24T15:06:56.177Z",
+          "requestId": "4335750e-27e6-4208-a044-2c4b11b25430",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 69,
+          "afterVersion": 69
+        },
+        {
+          "at": "2026-10-24T15:06:59.083Z",
+          "requestId": "c788c707-3e77-4798-a5ed-1f43a4befeab",
+          "method": "tools/call",
+          "tool": "get_recent_speeches",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 69,
+          "afterVersion": 69
+        },
+        {
+          "at": "2026-10-24T15:07:01.496Z",
+          "requestId": "452fee3a-65d8-48ff-b465-5363117592da",
+          "method": "tools/call",
+          "tool": "submit_speech",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "actionId": "mcp_4eaf33f4-afc6-4793-87bf-28ae70ff35c3",
+          "eventIds": [
+            "evt_6cf3da72-f13e-4acc-88cc-b5ab1ffa3068",
+            "evt_f15d5279-1538-4e4c-af7c-0cb714e5b332",
+            "evt_9a00d2fa-71c4-4176-ba28-4af17591f5e9",
+            "evt_7da3660f-90b2-4798-993b-b4b30f3b2e2f"
+          ],
+          "beforeVersion": 69,
+          "afterVersion": 78
+        },
+        {
+          "at": "2026-10-24T15:07:44.670Z",
+          "requestId": "e1bd7e8e-171f-4dbf-9e82-9e0c493a4ab6",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 82,
+          "afterVersion": 82
+        },
+        {
+          "at": "2026-10-24T15:07:46.102Z",
+          "requestId": "1c2b4663-c08f-4818-a666-e14d422d3421",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 82,
+          "afterVersion": 82
+        },
+        {
+          "at": "2026-10-24T15:07:48.608Z",
+          "requestId": "2dad8b36-419d-45cb-a11b-ec407a6c30a5",
+          "method": "tools/call",
+          "tool": "submit_speech",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "actionId": "mcp_2b68f6df-9ceb-45e0-9404-95dcc2ba89af",
+          "eventIds": [
+            "evt_72ecf835-eb3c-456f-bf47-2a5284d53a73",
+            "evt_6eb78777-62ac-4d83-9207-aaef42cfc594",
+            "evt_4703446a-2ea7-48a6-953c-76ce538ebd72",
+            "evt_9c433283-e7c7-47b0-9af5-8b1c5082d8f2"
+          ],
+          "beforeVersion": 82,
+          "afterVersion": 91
+        },
+        {
+          "at": "2026-10-24T15:08:41.575Z",
+          "requestId": "7029696f-da59-4b76-bf71-41028d108b84",
+          "method": "tools/call",
+          "tool": "get_public_game_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 156,
+          "afterVersion": 156
+        },
+        {
+          "at": "2026-10-24T15:08:42.642Z",
+          "requestId": "13d4c5f3-cb21-45bf-9318-36a4973a9b38",
+          "method": "tools/call",
+          "tool": "get_my_private_state",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "eventIds": [],
+          "beforeVersion": 156,
+          "afterVersion": 156
+        },
+        {
+          "at": "2026-10-24T15:08:47.414Z",
+          "requestId": "67879e63-8bbb-4442-a26d-b52a0202ac31",
+          "method": "tools/call",
+          "tool": "submit_vote",
+          "status": 200,
+          "authenticated": true,
+          "resultCode": "OK",
+          "actionId": "mcp_d503afa5-3801-4e05-ae9c-96789fb1fac1",
+          "eventIds": [
+            "evt_87632269-cb70-4d05-964d-9975b2efcff8",
+            "evt_298e9f00-3a07-4739-9043-2f24e79d3730"
+          ],
+          "beforeVersion": 156,
+          "afterVersion": 160
+        }
+      ]
+    },
+    {
+      "source": "real-Linx-with-scripted-human",
+      "startedAt": "2026-10-24T15:09:21.094Z",
+      "finishedAt": "2026-10-24T15:10:06.325Z",
+      "cancelled": true,
+      "samples": [
+        {
+          "at": "2026-10-24T15:09:26.182Z",
+          "phase": "NIGHT_WOLF",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "ready",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:09:31.213Z",
+          "phase": "NIGHT_WITCH",
+          "round": 0,
+          "currentSeat": null,
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "ready",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:09:36.224Z",
+          "phase": "HUNTER_RESPONSE",
+          "round": 0,
+          "currentSeat": "P2",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "ready",
+              "errorCode": null
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        },
+        {
+          "at": "2026-10-24T15:10:06.325Z",
+          "phase": "SPEECH",
+          "round": 0,
+          "currentSeat": "P1",
+          "controllers": [
+            {
+              "seatId": "P2",
+              "status": "failed",
+              "errorCode": "TURN_TIMEOUT"
+            },
+            {
+              "seatId": "P3",
+              "status": "ready",
+              "errorCode": null
+            }
+          ],
+          "speeches": 0
+        }
+      ],
+      "toolCalls": []
+    }
+  ]
+}
