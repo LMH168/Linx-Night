@@ -73,13 +73,18 @@ function renderActions() {
   const canControl=seat?.playerType==='human' && room.phase!=='LOBBY' && room.phase!=='GAME_OVER';
   show('controlCard',canControl); show('takeover',canControl && seat.controlSource==='human'); show('restoreControl',canControl && seat.controlSource==='rule_bot');
   $('#controlHint').textContent=seat?.controlSource==='rule_bot'?'当前由规则机器人托管，恢复后你可操作后续回合。':'断线只显示离线；需要自动行动时请主动托管。';
+  if(state.actionDraft && state.actionDraft.context!==voiceContext()){state.actionDraft=null;$('#actionDraftText').value='';}
   const active=!!(room && seat?.controlSource!=='rule_bot' && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
-  if ((state.voice.recognition || state.voice.linxRecording) && (!active || !mine.alive || room.phase!=='SPEECH' || room.currentSeatId!==mine.seatId || state.voice.context!==voiceContext())) stopVoice();
+  if ((state.voice.recognition || state.voice.linxRecording) && (!active || state.voice.context!==voiceContext())) stopVoice();
+  show('linxVoiceTools',false);show('confirmDraft',false);
   show('actionCard',active); if(!active) return;
   const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
   const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && room.phase==='HUNTER_RESPONSE' && room.hunterResponse?.seatId===mine.seatId && room.hunterResponse.status==='open';
   const vote=mine.alive && room.phase==='VOTE';
+  const voiceAllowed=speech||skill||hunter||vote;
+  show('linxVoiceTools',voiceAllowed);show('actionDraftField',voiceAllowed&&!speech);show('confirmDraft',voiceAllowed&&!speech&&!!state.actionDraft);
+  $('#actionDraftHint').textContent=state.actionDraft?'待确认：'+state.actionDraft.label:'识别不会自动行动；请检查动作和目标。';
   const announce=room.phase==='DAY_ANNOUNCEMENT' && state.playerId===room.hostPlayerId;
   show('speechField',speech); show('speech',speech); show('voiceStart',speech); show('voiceCancel',speech && state.voice.draft); show('witchField',skill && mine.role==='witch');
   if(skill && mine.role==='witch') {
@@ -100,7 +105,7 @@ function renderActions() {
   $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(room.hunterResponse.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
-function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.playerId].join(':'); }
+function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.room?.hunterResponse?.windowId,state.room?.seats.find(s=>s.seatId===state.privateState?.seatId)?.controlSource,state.playerId].join(':'); }
 function stopVoice() {
   linxVoice?.stop(); state.voice.linxRecording=false;
   const recognition=state.voice.recognition; state.voice.recognition=null; state.voice.listening=false;
@@ -149,7 +154,11 @@ $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.room
 window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); linxVoice?.stopPlayback(); clearTimeout(state.reconnectTimer); state.source?.close(); });
 for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};
 setInterval(()=>{if(!state.unloading && state.roomId && state.playerId)call('/api/rooms/'+state.roomId+'/presence',{method:'POST'}).catch(()=>{});},10000);
-const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,applyDraft:text=>{ $('#speechText').value=text;state.voice.draft=true;renderActions(); }});
+const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,applyDraft:text=>{if(state.room.phase==='SPEECH'){$('#speechText').value=text;state.voice.draft=true;}else{$('#actionDraftText').value=text;buildActionDraft();}renderActions();}});
+function buildActionDraft(){const draft=window.parseActionDraft?.($('#actionDraftText').value,state.room,state.privateState);state.actionDraft=draft?{...draft,context:voiceContext()}:null;renderActions();if(!draft)$('#actionDraftHint').textContent='无法明确识别，请使用原有目标和行动按钮。';}
+$('#parseAction').onclick=buildActionDraft;
+$('#actionDraftText').oninput=()=>{state.actionDraft=null;show('confirmDraft',false);};
+$('#confirmDraft').onclick=async()=>{const draft=state.actionDraft;if(!draft || draft.context!==voiceContext())return;stopVoice();try{await call('/api/rooms/'+state.roomId+'/'+draft.route,{method:'POST',body:JSON.stringify({...draft.body,action_id:'voice_'+Date.now()})});state.actionDraft=null;$('#actionDraftText').value='';await refresh();}catch(error){message(error.message);}};
 $('#linxRecord').onclick=()=>{stopVoice();state.voice.context=voiceContext();state.voice.linxRecording=true;linxVoice?.record();};
 $('#linxRecordCancel').onclick=()=>{stopVoice();$('#linxVoiceStatus').textContent='已取消录音或转写。';};
 $('#linxRecordStop').onclick=()=>linxVoice?.end();
@@ -161,7 +170,7 @@ if (state.roomId) { refresh(); connectEvents(); }
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
 
 $('#witchAction').onchange=renderActions;
-for (const id of ['takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','speech','skill','vote','hunterShot','hunterSkip','announce']) {
+for (const id of ['confirmDraft','takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','speech','skill','vote','hunterShot','hunterSkip','announce']) {
   const handler=$(id).onclick;
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }

@@ -1,3 +1,4 @@
+import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { publicNarration, readVoiceBody } from './voice.mjs';
 import { heartbeat, expirePresence, setHumanControl } from '../../../packages/domain/src/presence.mjs';
 import { createServer } from 'node:http';
@@ -34,10 +35,10 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         if(!voice)throw new Error('未配置灵矽语音');
         const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
         if(kind==='transcribe') {
-          if(actor.controlSource!=='human' || room.phase!=='SPEECH' || room.currentSeatId!==actor.seatId || !actor.alive)throw new Error('当前不能生成发言草稿');
+          if(actor.controlSource!=='human' || !actionAvailable(room,actor))throw new Error('当前不能生成发言草稿');
           if(typeof body.wav!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.wav))throw new Error('无效录音');
-          const round=room.round;const result=await voice({kind,wav:Buffer.from(body.wav,'base64'),signal:abort.signal});
-          if(room.phase!=='SPEECH' || room.currentSeatId!==actor.seatId || room.round!==round || actor.controlSource!=='human')throw new Error('发言回合已变更');
+          const round=room.round, phase=room.phase, epoch=actor.controlEpoch;const result=await voice({kind,wav:Buffer.from(body.wav,'base64'),signal:abort.signal});
+          if(room.phase!==phase || room.round!==round || actor.controlEpoch!==epoch || !actionAvailable(room,actor) || actor.controlSource!=='human')throw new Error('发言回合已变更');
           return json(res,200,{text:result.text});
         }
         if(kind==='speak') {const text=publicNarration(room,body.event_id);const result=await voice({kind,text,signal:abort.signal});return json(res,200,{event_id:body.event_id,wav:result.wav.toString('base64')});}
