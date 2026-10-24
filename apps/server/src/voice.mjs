@@ -4,7 +4,7 @@ export function publicNarration(room,eventId) {
   if(event.type==='game.speech_submitted'){
     const speech=room.speeches.find(s=>s.speechId===event.data.speechId);if(speech)return `${speech.seatId} 发言：${speech.text}`;
   }
-  if(event.type==='game.phase_changed' && phases[event.data.phase])return phases[event.data.phase];
+  if(event.type==='game.phase_changed' && phases[event.data.phase])return event.data.phase==='SPEECH' ? (event.data.seatId ? `请 ${event.data.seatId} 发言。` : phases.SPEECH) : event.data.phase==='GAME_OVER' ? `本局结束，${event.data.winner==='good'?'好人':'狼人'}阵营获胜。` : phases[event.data.phase];
   if(event.type==='game.hunter_response_closed' && event.data.status==='completed')return `${event.data.seatId} 发动猎人技能，带走 ${event.data.targetSeatId}。`;
   if(event.type==='game.player_eliminated')return `${event.data.seatId} 已出局。`;
   if(event.type==='game.vote_resolved')return `投票结果：${event.data.leaders.join('、')}。`;
