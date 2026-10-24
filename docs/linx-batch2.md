@@ -63,4 +63,3 @@ node tests/linx-program-lab.test.mjs
 ```
 
 结束时 export → 两个客户端 close → lab quit → 关闭本批独立 cloudflared。不关闭其他任务的实例或隧道。原始 profile 保留供下次免激活连接，临时会话 Token 不落盘。本批没有自动调度、网页音频或实际九人混合局能力。
-
