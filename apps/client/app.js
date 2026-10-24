@@ -4,14 +4,92 @@ $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
 async function call(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.playerId) headers['x-player-id'] = state.playerId; const response = await fetch(`${api()}${path}`, { ...options, headers }); const body = await response.json(); if (!response.ok) throw new Error(body.error?.message || '请求失败'); return body; }
-function save() { state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
-function render(room) { state.room = room; $('#roomLabel').textContent = `房间 ${room.roomId}`; $('#phase').textContent = room.phase; const humans = room.seats.filter(s => s.playerType === 'human').length; const ais = room.seats.filter(s => s.playerType === 'ai').length; $('#counts').textContent = `真人 ${humans} · AI ${ais} · 空位 ${9 - humans - ais}`; $('#seats').replaceChildren(...room.seats.map(seat => { const el = document.createElement('div'); el.className = `seat ${seat.playerType || ''}`; el.textContent = `${seat.seatId} ${seat.displayName || '空位'} · ${seat.playerType || '等待加入'} · ${seat.alive ? '存活' : '出局'}`; return el; })); $('#start').disabled = !state.playerId || room.phase !== 'LOBBY'; $('#events').replaceChildren(...[...room.speeches.map(s => `${s.seatId}: ${s.text}`), ...room.events.filter(e => ['game.player_eliminated', 'game.vote_resolved'].includes(e.type) || e.data?.winner).map(e => JSON.stringify(e.data))].map(text => {const li=document.createElement('li'); li.textContent=text; return li;})); if (state.privateState) renderPrivate(); renderActions(); }
-function renderPrivate() { const value = state.privateState; $('#privateCard').hidden = false; $('#identity').textContent = `${value.seatId} · ${value.role} · ${value.camp} · ${value.alive ? '存活' : '出局'}`; $('#skills').textContent = `狼人队友：${value.werewolfTeammates.join(', ') || '-'} · 查验：${JSON.stringify(value.seerResults)} · 今夜刀口：${value.nightVictim || '-'} · 解药 ${value.skills.antidoteAvailable ? '可用' : '不可用'} · 毒药 ${value.skills.poisonAvailable ? '可用' : '不可用'} · 猎人开枪 ${value.skills.hunterShotAvailable ? '可用' : '不可用'}`; }
-function renderActions() { if (!state.room || !state.privateState) return; $('#actionCard').hidden = false; const mine = state.privateState; const ownTurn = state.room.currentSeatId === mine.seatId; $('#turnHint').textContent = `阶段：${state.room.phase} · ${ownTurn ? '轮到你' : `当前座位 ${state.room.currentSeatId || '-'}`}`; const targets = state.room.seats.filter(s => s.alive); $('#target').replaceChildren(...targets.map(s => new Option(`${s.seatId} ${s.displayName || ''}`, s.seatId))); $('#speech').disabled = !(ownTurn && state.room.phase === 'SPEECH' && mine.alive); $('#skill').disabled = !(mine.alive && ['NIGHT_WOLF','NIGHT_SEER','NIGHT_WITCH'].includes(state.room.phase)); $('#hunterShot').disabled = !(mine.role === 'hunter' && !mine.alive && mine.skills.hunterShotAvailable); $('#vote').disabled = !(mine.alive && state.room.phase === 'VOTE'); $('#announce').disabled = !(state.room.phase === 'DAY_ANNOUNCEMENT' && state.playerId === state.room.hostPlayerId); }
-async function loadPrivate() { try { const body = await call(`/api/rooms/${state.roomId}/private-state`); state.privateState = body.private_state; renderPrivate(); renderActions(); } catch { /* 开局前没有私密状态 */ } }
+function save() { state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
+const roles = {werewolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',villager:'平民'};
+const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'狼人行动',NIGHT_SEER:'预言家行动',NIGHT_WITCH:'女巫行动',DAY_ANNOUNCEMENT:'天亮了',SPEECH:'依次发言',VOTE:'放逐投票',RESOLUTION:'结算中',GAME_OVER:'本局结束'};
+const descriptions = {werewolf:'与队友协商，在夜晚选择目标。',seer:'每晚查验一名玩家，寻找隐藏的狼人。',witch:'解药与毒药各一瓶，每晚只能选择一种。',hunter:'出局后可使用一次开枪技能。',villager:'倾听发言，用推理和投票帮助好人获胜。'};
+const show = (id, visible) => { $(id).hidden = !visible; };
+function render(room) {
+  state.room = room;
+  const lobby = room.phase === 'LOBBY';
+  show('entryCard',lobby || room.phase==='GAME_OVER');
+  $('#roomLabel').textContent = room.roomId;
+  $('#phase').textContent = phases[room.phase] || '对局进行中';
+  const humans = room.seats.filter(s => s.playerType === 'human').length;
+  const ais = room.seats.filter(s => s.playerType === 'ai').length;
+  $('#counts').textContent = `真人 ${humans} / 机器人 ${ais} / 空位 ${9-humans-ais}`;
+  $('#seats').replaceChildren(...room.seats.map(seat => {
+    const el = document.createElement('div');
+    el.className = `seat ${!seat.playerType?'empty':''} ${!seat.alive?'dead':''} ${room.currentSeatId===seat.seatId?'active':''}`;
+    const number = document.createElement('span'); number.className='seat-number'; number.textContent=seat.seatId;
+    const copy = document.createElement('div'); copy.className='seat-copy';
+    const name = document.createElement('strong'); name.textContent=seat.displayName || '等待入座';
+    const status = document.createElement('small'); status.textContent=!seat.playerType?'空位':`${seat.playerType==='human'?'真人':'机器人'} · ${lobby?'已入座':seat.alive?'存活':'已出局'}${state.privateState?.seatId===seat.seatId?' · 你':''}`;
+    copy.replaceChildren(name,status); el.replaceChildren(number,copy); return el;
+  }));
+  const host = room.hostPlayerId === state.playerId;
+  show('lobbyBar',lobby); show('start',lobby && host); $('#start').disabled=!lobby || !host;
+  $('#lobbyHint').textContent=host?'朋友到齐后即可开始，空位将由本地规则机器人补齐。':'已入座，等待房主开始游戏。';
+  show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER');
+  const winner=[...room.events].reverse().find(e=>e.data?.winner)?.data.winner;
+  $('#resultTitle').textContent=winner==='good'?'好人阵营获胜':winner==='werewolf'?'狼人阵营获胜':'对局已结束';
+  const lines=[...room.speeches.map(s=>`${s.seatId}：${s.text}`),...room.events.flatMap(e=>e.type==='game.player_eliminated'?[`${e.data.seatId} 已出局`]:e.type==='game.vote_resolved'?[`投票结果：${e.data.leaders.join('、')}`]:e.data?.winner?[e.data.winner==='good'?'好人阵营获胜':'狼人阵营获胜']:[])];
+  $('#events').replaceChildren(...lines.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
+  show('emptyEvents',lines.length===0);
+  renderPrivate(); renderActions();
+}
+function renderPrivate() {
+  const mine=state.privateState;
+  const visible=!!(state.room && state.room.phase!=='LOBBY' && mine?.role);
+  show('privateCard',visible); if(!visible) return;
+  $('#identity').textContent=`${roles[mine.role]} · ${mine.seatId}`;
+  $('#roleDescription').textContent=`${mine.alive?'存活':'已出局'} · ${descriptions[mine.role]}`;
+  let details='没有夜间技能，请留意公开发言。';
+  if(mine.role==='werewolf') details=`存活队友：${mine.werewolfTeammates.join('、') || '无'}\n每晚与队友选择同一目标。`;
+  if(mine.role==='seer') details=mine.seerResults.map(r=>`第 ${r.round+1} 夜 · ${r.seatId}：${r.result==='werewolf'?'狼人':'好人'}`).join('\n') || '尚无查验记录。';
+  if(mine.role==='witch') details=`解药：${mine.skills.antidoteAvailable?'可用':'已用完'}\n毒药：${mine.skills.poisonAvailable?'可用':'已用完'}${state.room.phase==='NIGHT_WITCH'?`\n今夜被袭击：${mine.nightVictim || '暂无'}`:''}`;
+  if(mine.role==='hunter') details=`开枪机会：${mine.skills.hunterShotAvailable?'尚未使用':'已使用'}`;
+  $('#skills').textContent=details;
+}
+function renderActions() {
+  const room=state.room, mine=state.privateState;
+  for(const id of ['speechField','speech','targetField','witchField','skill','hunterShot','vote','announce']) show(id,false);
+  const active=!!(room && mine?.role && !['LOBBY','ROLE_ASSIGNMENT','GAME_OVER'].includes(room.phase));
+  show('actionCard',active); if(!active) return;
+  const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
+  const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
+  const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable;
+  const vote=mine.alive && room.phase==='VOTE';
+  const announce=room.phase==='DAY_ANNOUNCEMENT' && state.playerId===room.hostPlayerId;
+  show('speechField',speech); show('speech',speech); show('witchField',skill && mine.role==='witch');
+  if(skill && mine.role==='witch') {
+    for(const opt of $('#witchAction').options) opt.disabled=(opt.value==='save' && (!mine.skills.antidoteAvailable || !mine.nightVictim)) || (opt.value==='poison' && !mine.skills.poisonAvailable);
+    if($('#witchAction').selectedOptions[0]?.disabled) $('#witchAction').value='skip';
+  }
+  show('skill',skill); show('hunterShot',hunter); show('vote',vote); show('announce',announce);
+  const needsTarget=hunter || vote || (skill && (mine.role!=='witch' || $('#witchAction').value==='poison'));
+  show('targetField',needsTarget);
+  if(needsTarget) {
+    const targets=room.seats.filter(s=>s.alive && !(skill && mine.role==='werewolf' && s.seatId===mine.seatId));
+    const key=targets.map(s=>s.seatId+':'+s.displayName).join('|');
+    if(state.targetKey!==key){const previous=$('#target').value;$('#target').replaceChildren(...targets.map(s=>new Option(`${s.seatId} · ${s.displayName}`,s.seatId)));if(targets.some(s=>s.seatId===previous)) $('#target').value=previous;state.targetKey=key;}
+  }
+  for(const id of ['speech','skill','hunterShot','vote','announce']) $(id).disabled=state.busy || (needsTarget && ['skill','hunterShot','vote'].includes(id) && !$('#target').value);
+  $('#skill').textContent={werewolf:'确认袭击目标',seer:'查验身份',witch:'确认用药选择'}[mine.role] || '确认行动';
+  $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
+  $('#turnHint').textContent=speech?'提交后将轮到下一位存活玩家发言。':skill?'请确认你的选择，再提交行动。':hunter?'选择一名存活玩家作为开枪目标。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
+}
+async function loadPrivate() {
+  if(!state.room || state.room.phase==='LOBBY'){state.privateState=null;renderPrivate();renderActions();return;}
+  const roomId=state.roomId;
+  try {const body=await call(`/api/rooms/${roomId}/private-state`);if(roomId!==state.roomId)return;state.privateState=body.private_state;}
+  catch {state.privateState=null;message('身份读取失败，请检查连接后重试。');}
+  renderPrivate();renderActions();
+}
+
 function scheduleReconnect() { if (state.unloading || state.reconnectTimer || !state.roomId) return; state.reconnectTimer = setTimeout(() => { state.reconnectTimer = null; connectEvents(); }, state.reconnectDelay); state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30_000); }
-function connectEvents() { if (state.unloading || !state.roomId) return; state.source?.close(); const after = state.lastVersion ? `?after=${state.lastVersion}` : ''; state.source = new EventSource(`${api()}/api/rooms/${state.roomId}/events${after}`); state.source.onopen = () => { state.reconnectDelay = 1000; message('实时连接已恢复'); refresh(); }; state.source.onmessage = event => { const item = JSON.parse(event.data); state.lastVersion = Math.max(state.lastVersion, Number(item.version || 0)); if (state.events.has(item.eventId)) return; state.events.add(item.eventId); const li = document.createElement('li'); li.textContent = `${item.type} · ${JSON.stringify(item.data)}`; $('#events').prepend(li); refresh(); }; state.source.onerror = () => { state.source?.close(); state.source = null; message('实时连接断开，正在自动重连。'); scheduleReconnect(); }; }
-async function refresh() { if (!state.roomId) return; try { const body = await call(`/api/rooms/${state.roomId}/state`); render(body.state); await loadPrivate(); } catch (error) { message(error.message); } }
+function connectEvents() { if (state.unloading || !state.roomId) return; state.source?.close(); const after = state.lastVersion ? `?after=${state.lastVersion}` : ''; state.source = new EventSource(`${api()}/api/rooms/${state.roomId}/events${after}`); state.source.onopen = () => { state.reconnectDelay = 1000; message('实时连接已恢复'); refresh(); }; state.source.onmessage = event => { const item = JSON.parse(event.data); state.lastVersion = Math.max(state.lastVersion, Number(item.version || 0)); if (state.events.has(item.eventId)) return; state.events.add(item.eventId);  refresh(); }; state.source.onerror = () => { state.source?.close(); state.source = null; message('实时连接断开，正在自动重连。'); scheduleReconnect(); }; }
+async function refresh() { if (!state.roomId || state.refreshing) return; const roomId=state.roomId; state.refreshing=true; try { const body = await call(`/api/rooms/${roomId}/state`); if(roomId!==state.roomId)return; render(body.state); await loadPrivate(); } catch (error) { message(error.message); } finally {state.refreshing=false;} }
 $('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间号：${body.room_id}`); } catch (error) { message(error.message); } };
 $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(); if (!state.roomId) throw new Error('请填写房间号'); const body = await call(`/api/rooms/${state.roomId}/players`, { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家' }) }); state.playerId = body.player.playerId; save(); render(body.state); connectEvents(); message('已加入房间'); } catch (error) { message(error.message); } };
 $('#start').onclick = async () => { try { save(); const body = await call(`/api/rooms/${state.roomId}/start`, { method: 'POST' }); render(body.state); await loadPrivate(); message('游戏已开始，未绑定 Linx 的空位由本地规则机器人补齐'); } catch (error) { message(error.message); } };
@@ -24,3 +102,9 @@ window.addEventListener('beforeunload', () => { state.unloading = true; clearTim
 if (state.roomId) { refresh(); connectEvents(); }
 
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
+
+$('#witchAction').onchange=renderActions;
+for (const id of ['create','join','start','speech','skill','vote','hunterShot','announce']) {
+  const handler=$(id).onclick;
+  $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
+}
