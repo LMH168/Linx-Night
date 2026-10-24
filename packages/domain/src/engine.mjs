@@ -17,7 +17,7 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new Error('actor is not a living werewolf');
   requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new Error('werewolves cannot target themselves');
   recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
-  const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
+  const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
   if (submitted.length >= wolves.length) {
     const targets = new Set(submitted.slice(-wolves.length).map(action => action.targetSeatId));
     if (targets.size !== 1) throw new Error('werewolf targets must agree');
