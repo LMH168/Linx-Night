@@ -8,7 +8,7 @@ export class HostPlayback {
   room.hostTasks??=[];room.hostEventCursor??=0;room.hostNarratedEventIds??=new Set();
   for(const e of room.events.filter(e=>e.version>room.hostEventCursor)){
    if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
-   if(!['game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
+   if(!['game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>t.status!=='played').length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
    room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);room.hostTasks.push({id:randomUUID(),eventId:e.eventId,text,status:'pending',errorCode:null});

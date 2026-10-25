@@ -1,3 +1,4 @@
+import { tickHumanSpeech } from './human-speech.mjs';
 import { EventEmitter } from 'node:events';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
@@ -87,7 +88,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   });
   let hunterTimer;
   server.on('listening', () => { hunterTimer = setInterval(() => {
-    for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); publishNewEvents(room); }
+    for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); tickHumanSpeech(room); publishNewEvents(room); }
   }, 250); hunterTimer.unref(); });
   server.on('close', () => clearInterval(hunterTimer));
   return { server, port };

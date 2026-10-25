@@ -67,6 +67,7 @@ export function announceDay(room) {
   if (night.wolfTarget && night.witch?.action !== 'save') deaths.add(night.wolfTarget);
   if (night.witch?.action === 'poison') deaths.add(night.witch.targetSeatId);
   room.pendingNight = null;
+  appendEvent(room, { type: 'game.night_resolved', data: { round: room.round, deathSeatIds: [...deaths] } });
   for (const seatId of deaths) eliminate(room, seatId, 'night');
   if (room.hunterResponse?.status === 'open') return room;
   const winner = checkWinner(room); if (winner) return winner;
