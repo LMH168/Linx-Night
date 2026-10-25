@@ -3,7 +3,8 @@
 Linx Night 是一个把 **真人网页玩家、灵矽 AI 玩家和独立 AI 主持** 放进同一局九人狼人杀的本机应用。默认阵容为 3 名狼人、预言家、女巫、猎人和 3 名平民，支持 1 名真人加 8 名灵矽 AI 完成一局游戏。
 
 项目当前以本机联调和真实灵矽接入为目标：房间状态保存在内存中，重启后需要重新创建房间；完整的连续语音播放、真人麦克风和多昼夜稳定性仍在验收中。
-https://github.com/user-attachments/assets/7aa96a71-86ea-46ce-a30e-20f5dda2bdcb
+
+https://github.com/user-attachments/assets/b0b711d2-c47f-4c16-9743-b97e77e60d71
 ## 功能
 
 - 九席房间：创建/加入房间，添加 AI，满九席后开始游戏。
