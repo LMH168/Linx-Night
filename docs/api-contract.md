@@ -14,6 +14,7 @@ GET  /api/rooms/{room_id}/private-state
 POST /api/rooms/{room_id}/speeches
 POST /api/rooms/{room_id}/actions
 POST /api/rooms/{room_id}/votes
+PATCH /api/rooms/{room_id}/players/{seat_id}
 POST /api/rooms/{room_id}/end
 GET  /api/rooms/{room_id}/settlement
 GET  /api/settlements/{settlement_id}
@@ -42,6 +43,12 @@ GET  /api/settlements/{settlement_id}
 ```
 
 客户端按 `version` 去重，重连时先请求最新快照。
+
+## 九席开局与投票状态（#107）
+
+九人房间必须先由真人加入或房主通过 `POST /api/rooms/{room_id}/players` 传入 `player_type: "ai"` 添加 AI，九个座位全部占用后才能调用开始接口。未满员时返回 `409`、错误码 `ROOM_NOT_FULL`，并返回 `occupied` 和 `missing`。房主可在 `LOBBY` 阶段通过 `PATCH /api/rooms/{room_id}/players/{seat_id}` 修改 AI 名称。
+
+投票阶段公共状态提供 `submittedVoteRound` 和 `submittedVoteSeatIds`，只表示哪些座位已经提交投票。该投影不包含投票目标、票数或投票关系，结算后清空。
 
 ## 提前结束结算（#95）
 

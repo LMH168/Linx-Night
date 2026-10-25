@@ -103,3 +103,11 @@ console.log('Action draft requires confirmation and expires on phase change');
 const voteText=run("formatVoteResolution({entries:[{seatId:'P6',votes:5},{seatId:'P3',votes:2}],totalVotes:7,maxVotes:5,leaders:['P6'],eliminatedSeatId:'P6'})");
 assert.match(voteText,/P6：5 票/);assert.match(voteText,/P3：2 票/);assert.match(voteText,/共 7 票/);assert.match(voteText,/放逐 P6/);
 console.log('Vote resolution statistics render passed');
+
+run("state.playerId='host';state.room={roomId:'room_test',hostPlayerId:'host',phase:'LOBBY',seats:[{seatId:'P1',playerType:'human',displayName:'房主',alive:true},{seatId:'P2',playerType:'ai',displayName:'AI一号',alive:true},{seatId:'P3',playerType:null,displayName:null,alive:true}],speeches:[],events:[],controllers:[]};render(state.room);");
+assert.equal(elements.get('start').disabled,true);assert.equal(elements.get('aiConfig').hidden,false);assert.match(elements.get('counts').textContent,/还需要添加 7 个玩家/);
+run("state.room={roomId:'room_test',hostPlayerId:'host',phase:'SPEECH',currentSeatId:'P2',seats:[{seatId:'P1',playerType:'human',displayName:'房主',alive:true},{seatId:'P2',playerType:'ai',displayName:'AI一号',alive:true}],speeches:[],events:[],controllers:[]};render(state.room);");
+assert.match(elements.get('seats').children[1].className,/active/);assert.equal(elements.get('seats').children[1].children[1].children[1].textContent.includes('正在发言'),true);
+run("state.room={roomId:'room_test',hostPlayerId:'host',phase:'VOTE',submittedVoteSeatIds:['P1'],seats:[{seatId:'P1',playerType:'human',displayName:'房主',alive:true},{seatId:'P2',playerType:'ai',displayName:'AI一号',alive:true}],speeches:[],events:[],controllers:[]};render(state.room);");
+assert.match(elements.get('seats').children[0].className,/voted/);assert.match(elements.get('seats').children[0].children[1].children[1].textContent,/已投票/);assert.match(elements.get('seats').children[1].children[1].children[1].textContent,/等待投票/);
+console.log('AI room configuration, speech highlight and vote status render passed');
