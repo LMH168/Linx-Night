@@ -111,3 +111,10 @@ assert.match(elements.get('seats').children[1].className,/active/);assert.equal(
 run("state.room={roomId:'room_test',hostPlayerId:'host',phase:'VOTE',submittedVoteSeatIds:['P1'],seats:[{seatId:'P1',playerType:'human',displayName:'房主',alive:true},{seatId:'P2',playerType:'ai',displayName:'AI一号',alive:true}],speeches:[],events:[],controllers:[]};render(state.room);");
 assert.match(elements.get('seats').children[0].className,/voted/);assert.match(elements.get('seats').children[0].children[1].children[1].textContent,/已投票/);assert.match(elements.get('seats').children[1].children[1].children[1].textContent,/等待投票/);
 console.log('AI room configuration, speech highlight and vote status render passed');
+
+run("state.room={roomId:'room_test',hostPlayerId:'host',phase:'LOBBY',seats:[{seatId:'P1',playerType:'human',displayName:'房主',alive:true},{seatId:'P2',playerType:'ai',displayName:'AI一号',alive:true},{seatId:'P3',playerType:null,displayName:null,alive:true}],speeches:[],events:[],controllers:[]};render(state.room);");
+assert.equal(elements.get('aiName').value,'灵矽AI玩家3');
+elements.get('aiName').value='自定义 AI'; elements.get('aiName').dataset={edited:'true'};
+run("state.room={...state.room,seats:[...state.room.seats]};render(state.room);");
+assert.equal(elements.get('aiName').value,'自定义 AI');
+console.log('AI seat name prefill and manual name preservation passed');

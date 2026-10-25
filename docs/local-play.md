@@ -20,6 +20,8 @@ node --env-file="$env:LOCALAPPDATA\LinxNight-local.env" scripts/diagnose-mcp.mjs
 
 使用 Node.js 22 或以上。在项目目录运行 `node run.mjs`，统一启动 API 5000、网页 5010、MCP 9091。不要再分别启动 API 和 MCP：它们必须在同一进程共享房间。重启会清空房间和绑定。
 
+混合局语音时序：真人提交文字后立即进入下一席，真人内容不会进入公共 TTS。灵矽 AI 提交发言后，服务端会保持当前发言席位，等待房主浏览器完成公共音频播放；浏览器调用播放确认接口后才唤醒下一位 AI 或进入投票。音频生成失败自动重试一次，仍失败会暂停当前阶段，房主可重试或跳过。未完成或暂停的 AI 发言不会提前写入桌边公开记录，刷新和 SSE 重连会根据播放历史恢复。
+
 PowerShell 设置独立的随机管理员令牌，另设 MCP 令牌：
 
 ```powershell
