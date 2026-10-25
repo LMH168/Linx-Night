@@ -23,7 +23,7 @@ export function createRoom({ roomId = id('room'), hostPlayerId = id('player') } 
     roomId, hostPlayerId, phase: PHASES.LOBBY, version: 0, round: 0, currentSeatId: null,
     gameId: null, controllerEpoch: 0, controllerPhase: 'idle', controllers: [], invalidated: false, hunterResponse: null,
     seats: Array.from({ length: 9 }, (_, index) => ({ seatId: `P${index + 1}`, playerId: null, playerType: null, controlSource: null, linxControlled: false, displayName: null, connectionState: null, role: null, camp: null, alive: true, skills: { antidoteAvailable: false, poisonAvailable: false, hunterShotAvailable: false }, seerResults: [] })),
-    events: [], speeches: [], actions: [], votes: [], turns: [],
+    events: [], speeches: [], actions: [], votes: [], voteResolutions: [], turns: [],
   };
 }
 
@@ -108,7 +108,7 @@ export function fillAiSeats(room, name = index => `AI ${index}`) {
 export function publicState(room) {
   const hunterResponse = null;
   const resolving = room.phase === 'HUNTER_RESPONSE';
-  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, speechDeadline: room.speechClock?.phase === room.phase && room.speechClock?.seatId === room.currentSeatId && room.speechClock?.round === room.round ? room.speechClock.expiresAt : null, hostPlaybackBlocked: Boolean(room.hostPlaybackBlocked), hostPlaybackEnabled: Boolean(room.hostPlaybackEnabled), gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: resolving ? 'RESOLUTION' : room.phase, version: room.version, round: room.round, currentSeatId: resolving ? null : room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), hostController: publicController(room.controllers?.find(c=>c.seatId==='HOST')), controllers: (room.controllers ?? []).filter(c=>c.seatId!=='HOST').map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => resolving ? {seatId,status:'active',retryCount:0,boundAt:null,lastSeenAt:null,errorCode:null} : ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), events: (room.events ?? []).map(publicEvent).filter(Boolean) };
+  return { roomId: room.roomId, hostPlayerId: room.hostPlayerId, speechDeadline: room.speechClock?.phase === room.phase && room.speechClock?.seatId === room.currentSeatId && room.speechClock?.round === room.round ? room.speechClock.expiresAt : null, hostPlaybackBlocked: Boolean(room.hostPlaybackBlocked), hostPlaybackEnabled: Boolean(room.hostPlaybackEnabled), gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: resolving ? 'RESOLUTION' : room.phase, version: room.version, round: room.round, currentSeatId: resolving ? null : room.currentSeatId, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), hostController: publicController(room.controllers?.find(c=>c.seatId==='HOST')), controllers: (room.controllers ?? []).filter(c=>c.seatId!=='HOST').map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => resolving ? {seatId,status:'active',retryCount:0,boundAt:null,lastSeenAt:null,errorCode:null} : ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: (room.speeches ?? []).map(({ speechId, round, seatId, text }) => ({ speechId, round, seatId, text })), voteResolutions: clone(room.voteResolutions ?? []), events: (room.events ?? []).map(publicEvent).filter(Boolean) };
 }
 
 export function publicController(c) { if (!c) return null; const {status,errorCode,retryCount,boundAt,lastSeenAt}=c; return {status,errorCode,retryCount,boundAt,lastSeenAt}; }
@@ -133,7 +133,7 @@ export function publicEventData(type, data = {}) {
     'game.night_resolved': ['round', 'deathSeatIds'],
     'game.speech_submitted': ['speechId', 'seatId'],
     'game.vote_submitted': ['voteId', 'seatId'],
-    'game.vote_resolved': ['leaders'],
+    'game.vote_resolved': ['resolutionId', 'round', 'entries', 'totalVotes', 'maxVotes', 'leaders', 'eliminatedSeatId'],
     'game.player_eliminated': ['seatId', 'cause'],
     'game.action_submitted': ['actionId'],
     'player.control_changed': ['seatId','connectionState','controlSource'],
