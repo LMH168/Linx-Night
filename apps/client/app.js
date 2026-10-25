@@ -9,12 +9,15 @@ if (entryApi !== state.api || entryRoom !== state.roomId) {
   state.roomId = entryRoom;
   state.playerId = '';
   sessionStorage.removeItem('linx-player');
+  state.settlement = null;
+  state.settlementId = '';
+  sessionStorage.removeItem('linx-settlement');
 }
 $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
 async function call(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.playerId) headers['x-player-id'] = state.playerId; const response = await fetch(`${api()}${path}`, { ...options, headers }); const body = await response.json(); if (!response.ok) throw new Error(body.error?.message || '请求失败'); return body; }
-function save() { hostPlayer?.stop(); stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
+function save() { hostPlayer?.stop(); stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.room = null; state.settlement = null; state.settlementId = ''; sessionStorage.removeItem('linx-settlement'); state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
 const roles = {werewolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',villager:'平民'};
 const defaultAiName = seatId => { const match = /^P(\d+)$/.exec(String(seatId || '')); return match ? `灵矽AI玩家${match[1]}` : '灵矽AI玩家'; };
 const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'狼人行动',NIGHT_SEER:'预言家行动',NIGHT_WITCH:'女巫行动',DAY_ANNOUNCEMENT:'天亮了',HUNTER_RESPONSE:'猎人响应',SPEECH:'依次发言',VOTE:'放逐投票',RESOLUTION:'结算中',GAME_OVER:'本局结束'};
@@ -23,6 +26,11 @@ const show = (id, visible) => { $(id).hidden = !visible; };
 function render(room) {
 
   if(state.room && [state.room.gameId,state.room.round,state.room.phase,state.room.currentSeatId].join(':')!==[room.gameId,room.round,room.phase,room.currentSeatId].join(':'))state.actionStatus='';
+  if (state.settlement && (state.settlement.roomId !== room.roomId || room.phase !== 'GAME_OVER')) {
+    state.settlement = null;
+    state.settlementId = '';
+    sessionStorage.removeItem('linx-settlement');
+  }
   state.room = room; linxVoice?.update(room);
   const lobby = room.phase === 'LOBBY';
   show('entryCard',lobby || room.phase==='GAME_OVER');
@@ -76,7 +84,7 @@ function renderSettlement(report, winner) {
 }
 async function loadSettlement(id = state.settlementId) {
   if (!id) return null;
-  try { const body=await call(`/api/settlements/${id}`); state.settlement=body.settlement; state.settlementId=id; sessionStorage.setItem('linx-settlement',id); return state.settlement; }
+  try { const body=await call(`/api/settlements/${id}`); if (state.roomId && body.settlement?.roomId !== state.roomId) { state.settlement=null; state.settlementId=''; sessionStorage.removeItem('linx-settlement'); return null; } state.settlement=body.settlement; state.settlementId=id; sessionStorage.setItem('linx-settlement',id); return state.settlement; }
   catch (error) { message(error.message); return null; }
 }
 function formatVoteResolution(data) {
