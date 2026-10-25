@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createRoom,addPlayer,fillAiSeats,publicState,assignRoles} from '../packages/domain/src/model.mjs';
 import {announceDay} from '../packages/domain/src/engine.mjs';
-import {tickHumanSpeech} from '../apps/server/src/human-speech.mjs';
+import {tickHumanSpeech,startRecording,beginTranscription,confirmRecording} from '../apps/server/src/human-speech.mjs';
 import {publicNarration} from '../apps/server/src/voice.mjs';
 const room=createRoom();addPlayer(room,{displayName:'human'});fillAiSeats(room);assignRoles(room);
 room.gameId='test';room.phase='SPEECH';room.currentSeatId='P1';room.hostPlaybackBlocked=true;
@@ -16,3 +16,20 @@ announceDay(room);const event=publicState(room).events.find(e=>e.type==='game.ni
 assert.deepEqual(event.data.deathSeatIds,[]);assert.match(publicNarration(room,event.eventId),/平安夜/);
 assert.ok(!JSON.stringify(event).includes('save'));
 console.log('Human speech deadline, one-time timeout, host gate and public peaceful-night result passed');
+
+const spoken=createRoom();addPlayer(spoken,{displayName:'human'});fillAiSeats(spoken);assignRoles(spoken);Object.assign(spoken,{gameId:'g',phase:'SPEECH',currentSeatId:'P1'});
+tickHumanSpeech(spoken,1000);const actor=spoken.seats[0],r=startRecording(spoken,actor,2000);
+assert.equal(r.deadline,31000);assert.throws(()=>startRecording(spoken,actor,3000));
+assert.throws(()=>beginTranscription(spoken,actor,r.recordingId,30000,4000));
+beginTranscription(spoken,actor,r.recordingId,1000,4000);assert.equal(spoken.speechClock.expiresAt,64000);
+assert.throws(()=>beginTranscription(spoken,actor,r.recordingId,1000,5000));
+confirmRecording(spoken,actor,r.recordingId,5000);assert.equal(spoken.speechClock.expiresAt,20000);
+confirmRecording(spoken,actor,r.recordingId,10000);assert.equal(spoken.speechClock.expiresAt,20000);
+tickHumanSpeech(spoken,20000);assert.equal(spoken.speeches.length,1);assert.equal(spoken.currentSeatId,'P2');
+assert.throws(()=>confirmRecording(spoken,actor,r.recordingId,21000));
+console.log('Recording remaining-time limit, one upload, bounded confirmation and stale recording rejection passed');
+spoken.phase='SPEECH';spoken.currentSeatId='P1';spoken.round=1;spoken.speechClock=null;
+tickHumanSpeech(spoken,30000);const noUpload=startRecording(spoken,actor,31000);
+tickHumanSpeech(spoken,60000);assert.equal(spoken.speechClock.stage,'transcribing');assert.equal(spoken.speechClock.expiresAt,120000);
+tickHumanSpeech(spoken,120000);assert.equal(spoken.speechClock.stage,'confirming');assert.equal(spoken.speechClock.expiresAt,135000);
+tickHumanSpeech(spoken,135000);assert.equal(spoken.currentSeatId,'P2');assert.throws(()=>beginTranscription(spoken,actor,noUpload.recordingId,1,135001));

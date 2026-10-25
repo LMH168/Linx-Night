@@ -12,7 +12,7 @@ export function createVoiceService({env=process.env,readIdentity=readProfile,con
   let busy=false;
   return async ({kind,wav,text,signal}) => {
     const profile=env.LINX_VOICE_PROFILE;
-    if(!profile || String(env.LINX_PROFILES||'player-a,player-b').split(',').map(s=>s.trim()).includes(profile)) throw new Error('请配置独立 LINX_VOICE_PROFILE');
+    if(!profile || profile===env.LINX_HOST_PROFILE || String(env.LINX_PROFILES||'player-a,player-b').split(',').map(s=>s.trim()).includes(profile)) throw new Error('请配置独立 LINX_VOICE_PROFILE');
     if(busy) throw new Error('语音服务忙，请稍后重试');
     if(kind==='transcribe')parseWav(wav);
     else if(kind!=='speak' || typeof text!=='string' || !text.trim() || text.length>1200)throw new Error('无效播报请求');

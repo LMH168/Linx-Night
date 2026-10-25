@@ -1,4 +1,5 @@
-import { tickHumanSpeech } from './human-speech.mjs';
+import { tickHumanSpeech, startRecording, beginTranscription, confirmRecording, speechSession } from './human-speech.mjs';
+import { parseWav } from '../../linx/src/wav.mjs';
 import { EventEmitter } from 'node:events';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
@@ -25,6 +26,7 @@ const roomOrFail = roomId => { const room = rooms.get(roomId); if (!room) throw 
 const actionId = (req, body) => body.action_id || req.headers['idempotency-key'] || `action_${randomUUID()}`;
 
 export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, hostPlayback, linxSeats = null } = {}) {
+  const transcriptions = new Set();
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
@@ -46,13 +48,24 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'POST' && parts[3] === 'voice') {
         const actor=currentPlayer(req,room);if(actor.playerType!=='human')throw new Error('仅真人可使用网页语音');
         const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
+        if(kind==='recording-start'){const recording=startRecording(room,actor);publishNewEvents(room);return json(res,200,recording);}
+        if(kind==='recording-cancel'){confirmRecording(room,actor,body.recording_id);publishNewEvents(room);return json(res,200,{cancelled:true});}
         if(kind==='transcribe') {
           if(!voice)throw new Error('未配置灵矽语音');
           if(actor.controlSource!=='human' || !actionAvailable(room,actor))throw new Error('当前不能生成发言草稿');
           if(typeof body.wav!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.wav))throw new Error('无效录音');
-          const round=room.round, phase=room.phase, epoch=actor.controlEpoch;const result=await voice({kind,wav:Buffer.from(body.wav,'base64'),signal:abort.signal});
-          if(room.phase!==phase || room.round!==round || actor.controlEpoch!==epoch || !actionAvailable(room,actor) || actor.controlSource!=='human')throw new Error('发言回合已变更');
-          return json(res,200,{text:result.text});
+          const wav=Buffer.from(body.wav,'base64'),duration=parseWav(wav).length/32;
+          const round=room.round,phase=room.phase,epoch=actor.controlEpoch,gameId=room.gameId;
+          const clock=phase==='SPEECH'?beginTranscription(room,actor,body.recording_id,duration):null;
+          const active={abort,valid:()=>!room.invalidated&&rooms.get(room.roomId)===room&&room.gameId===gameId&&room.phase===phase&&room.round===round&&actor.controlEpoch===epoch&&actor.controlSource==='human'&&actionAvailable(room,actor)&&(!clock||(room.speechClock===clock&&clock.stage==='transcribing'&&Date.now()<clock.expiresAt))};
+          transcriptions.add(active);
+          publishNewEvents(room);
+          try {
+            const result=await voice({kind,wav,signal:clock?AbortSignal.any([abort.signal,AbortSignal.timeout(Math.max(1,clock.expiresAt-Date.now()))]):abort.signal});
+            if(room.invalidated||room.gameId!==gameId||room.phase!==phase||room.round!==round||actor.controlEpoch!==epoch||!actionAvailable(room,actor)||actor.controlSource!=='human'||abort.signal.aborted)throw Error('发言回合已变更');
+            if(clock){if(room.speechClock!==clock||clock.stage!=='transcribing'||Date.now()>=clock.expiresAt)throw Error('转写窗口已结束');confirmRecording(room,actor,body.recording_id);}
+            return json(res,200,{text:result.text});
+          } finally {transcriptions.delete(active);if(clock&&room.speechClock===clock&&clock.stage==='transcribing'){try{confirmRecording(room,actor,body.recording_id);}catch{}}publishNewEvents(room);}
         }
         if(kind==='speak') {publicNarration(room,body.event_id);const task=hostPlayback?.state(room).task;if(!task||task.eventId!==body.event_id)throw new Error('公共音频任务不存在或已结束');return json(res,200,{event_id:body.event_id,wav:hostPlayback.getAudio(room,task.id).toString('base64')});}
         throw new Error('无效语音操作');
@@ -80,7 +93,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'GET' && parts[3] === 'speeches') return json(res, 200, { speeches: room.speeches, version: room.version });
       if (req.method === 'GET' && parts[3] === 'hunter-response') return json(res, 200, { hunter_response: publicState(room).hunterResponse });
       if (req.method === 'GET' && parts[3] === 'events') return eventStream(res, events, room.roomId, { version: Number(url.searchParams.get('after') || 0), history: room.events });
-      if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); if(room.hostPlaybackBlocked)throw new Error('请等待主持播报完成'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); if(room.hostPlaybackBlocked)throw new Error('请等待主持播报完成'); const speechClock=speechSession(room,actor);if(['recording','transcribing'].includes(speechClock.stage))throw Error('请先结束或取消录音转写'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'hunter-response') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipHunterResponse(room, actor.seatId, id, body.window_id); else if (body.action === 'shoot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else throw new Error('invalid hunter action'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'actions') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); const privatePhase = room.phase.startsWith('NIGHT_') || room.phase === 'HUNTER_RESPONSE'; const hostAction = body.type === 'announce_day'; if(room.hostPlaybackBlocked && !privatePhase && !hostAction)throw new Error('请等待主持播报完成'); if (body.type === 'wolf_target') wolfTarget(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'seer_check') seerCheck(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'witch_action') witchAction(room, actor.seatId, body.action, body.target_seat_id, id); else if (body.type === 'hunter_shot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else if (hostAction) { if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can announce day'), { status: 403 }); announceDay(room); } else throw new Error('invalid action type'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'votes') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); if(room.hostPlaybackBlocked)throw new Error('请等待主持播报完成'); submitVote(room, actor.seatId, body.target_seat_id, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
@@ -90,8 +103,9 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   let hunterTimer;
   server.on('listening', () => { hunterTimer = setInterval(() => {
     for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); tickHumanSpeech(room); publishNewEvents(room); }
+    for (const active of transcriptions) if(!active.valid())active.abort.abort();
   }, 250); hunterTimer.unref(); });
-  server.on('close', () => clearInterval(hunterTimer));
+  server.on('close', () => {clearInterval(hunterTimer);for(const active of transcriptions)active.abort.abort();transcriptions.clear();});
   return { server, port };
 }
 
