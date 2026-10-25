@@ -44,6 +44,7 @@ for(const [role,phase] of [['werewolf','NIGHT_WOLF'],['seer','NIGHT_SEER'],['wit
   run("state.room.phase='SPEECH';state.room.currentSeatId='P2';renderActions();");assert.equal(elements.get('skill').hidden,true);assert.equal(elements.get('speech').hidden,true);
 }
 run("state.room.currentSeatId='P1';renderActions();");assert.equal(elements.get('speech').hidden,false);
+run("state.room.phase='VOTE';state.room.hostPlaybackBlocked=true;state.privateState.role='villager';state.privateState.alive=true;state.room.seats[0].controlSource='human';renderActions();");assert.equal(elements.get('vote').hidden,false);assert.match(elements.get('turnHint').textContent,/投票已开放/);
 run("state.privateState.role='hunter';state.privateState.alive=false;state.room.phase='RESOLUTION';state.privateState.hunterAction={seatId:'P1',status:'open',windowId:'window',expiresAt:new Date(Date.now()+30000).toISOString()};renderActions();");assert.equal(elements.get('hunterShot').hidden,false);assert.equal(elements.get('vote').hidden,true);
 run("state.room.phase='GAME_OVER';renderActions();");assert.equal(elements.get('actionCard').hidden,true);
 run("state.room.phase='LOBBY';renderPrivate();renderActions();");assert.equal(elements.get('privateCard').hidden,true);
