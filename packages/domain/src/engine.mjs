@@ -90,7 +90,7 @@ export function submitVote(room, seatId, targetSeatId, voteId) {
   if (room.phase !== PHASES.VOTE) throw new RuleError('vote is not allowed now');
   if (commandKey(room, voteId)) throw new RuleError('duplicate action');
   requireAlive(room, seatId); requireAlive(room, targetSeatId); if (room.votes.some(vote => vote.round === room.round && vote.seatId === seatId)) throw new RuleError('seat already voted');
-  room.votes.push({ voteId, round: room.round, seatId, targetSeatId }); room.version += 1;
+  room.votes.push({ voteId, round: room.round, seatId, targetSeatId }); room.submittedVoteRound = room.round; room.submittedVoteSeatIds ??= []; if (!room.submittedVoteSeatIds.includes(seatId)) room.submittedVoteSeatIds.push(seatId); room.version += 1;
   appendEvent(room, { type: 'game.vote_submitted', data: { voteId, seatId } });
   if (room.votes.filter(vote => vote.round === room.round).length === aliveSeats(room).length) resolveVotes(room); return room;
 }
@@ -213,7 +213,7 @@ function resolveVotes(room) {
   const entries = [...counts].map(([seatId, votes]) => ({ seatId, votes })).sort((a, b) => b.votes - a.votes || a.seatId.localeCompare(b.seatId));
   const leaders = entries.filter(entry => entry.votes === maxVotes).map(entry => entry.seatId); const eliminatedSeatId = leaders.length === 1 ? leaders[0] : null;
   const eventId = `vote_resolved_${round}_${room.events.length + 1}`; const resolution = { resolutionId: eventId, round, entries, totalVotes: votes.length, maxVotes, leaders, eliminatedSeatId };
-  room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution });
+  room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution }); room.submittedVoteRound = null; room.submittedVoteSeatIds = [];
   if (eliminatedSeatId) eliminate(room, eliminatedSeatId, 'vote');
   if (room.hunterResponse?.status === 'open') return room;
   room.lastWordsContinuation = PHASES.NIGHT_WOLF;
