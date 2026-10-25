@@ -57,7 +57,9 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
         if(names.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE||env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)throw new Error('主持身份与 Agent 必须独立');
         assigned.push(env.LINX_HOST_PROFILE);
       }
-      if (assigned.length !== room.controllers.length || new Set(assigned).size !== assigned.length || assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
+      if (assigned.length !== room.controllers.length) throw Object.assign(new Error('not enough activated profiles configured'), {code:'PROFILE_POOL_INSUFFICIENT'});
+      if (new Set(assigned).size !== assigned.length) throw Object.assign(new Error('duplicate profiles configured'), {code:'PROFILE_POOL_DUPLICATE'});
+      if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile reserved by another room'), {code:'PROFILE_IN_USE'});
       const gameId = room.gameId;
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
       audio ??= await loadAudio(audioPath); parseTriggerWav(audio);
@@ -67,7 +69,14 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       for (const name of assigned) reservations.set(name, room.roomId);
       const adapter = adapterFor(room);
       const results=await Promise.allSettled(room.controllers.map(c => adapter.connect(room, c.seatId)));
-      const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
+      const failure=results.find(r=>r.status==='rejected');
+      if(failure) {
+        // Failed preparation must not leave successful peers or the whole pool reserved.
+        await adapter.releaseAll(room).catch(() => {});
+        if (adapters.get(room.roomId) === adapter) adapters.delete(room.roomId);
+        for (const [name, owner] of reservations) if (owner === room.roomId) reservations.delete(name);
+        throw failure.reason;
+      }
       if (room.invalidated || adapters.get(room.roomId) !== adapter) throw new Error('PREPARATION_CANCELLED');
       room.controllerPhase = 'ready'; return room;
     },
