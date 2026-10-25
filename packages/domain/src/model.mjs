@@ -135,7 +135,6 @@ export function publicEventData(type, data = {}) {
     'game.speech_submitted': ['speechId', 'seatId'],
     'game.vote_submitted': ['voteId', 'seatId'],
     'game.vote_resolved': ['resolutionId', 'round', 'entries', 'totalVotes', 'maxVotes', 'leaders', 'eliminatedSeatId'],
-    'game.settlement_created': ['settlementId', 'settlementType', 'reason', 'endedAt', 'finalVersion', 'winner'],
     'game.last_words_opened': ['windowId', 'seatId', 'round', 'cause', 'expiresAt'],
     'game.last_words_submitted': ['lastWordsId', 'seatId', 'round', 'text'],
     'game.last_words_skipped': ['lastWordsId', 'seatId', 'round'],
@@ -184,17 +183,11 @@ export function createSettlement(room, { settlementType, reason, winner = null, 
   const settlementId = id('settlement');
   const publicEvents = (room.events ?? []).map(publicEvent).filter(Boolean);
   const eliminations = publicEvents.filter(event => event.type === 'game.player_eliminated').map(event => ({ ...clone(event.data), eventId: event.eventId }));
-  const report = { settlementId, roomId: room.roomId, gameId: room.gameId, settlementType, reason: reason || settlementType, endedAt, finalVersion: null, winner, participants: room.seats.filter(seat => seat.playerId).map(seat => seat.playerId), seats: room.seats.map(({ seatId, displayName, role, camp, alive }) => ({ seatId, displayName, role, camp, alive })), eliminations, speeches: clone(room.speeches ?? []), voteResolutions: clone(room.voteResolutions ?? []), publicEvents, trace: { eventIds: publicEvents.map(event => event.eventId), actionIds: (room.actions ?? []).map(action => action.actionId).filter(Boolean), requestIds: (room.actions ?? []).map(action => action.requestId).filter(Boolean) }, release: { controllers: 'pending', hostPlayback: 'pending', mcpBindings: 'pending' } };
+  const report = { settlementId, roomId: room.roomId, gameId: room.gameId, settlementType, reason: reason || settlementType, endedAt, finalVersion: null, winner, seats: room.seats.map(({ seatId, displayName, role, camp, alive }) => ({ seatId, displayName, role, camp, alive })), eliminations, speeches: clone(room.speeches ?? []), voteResolutions: clone(room.voteResolutions ?? []), publicEvents, trace: { eventIds: publicEvents.map(event => event.eventId), actionIds: (room.actions ?? []).map(action => action.actionId).filter(Boolean), requestIds: (room.actions ?? []).map(action => action.requestId).filter(Boolean) }, release: { controllers: 'pending', hostPlayback: 'pending', mcpBindings: 'pending' } };
   room.settlement = report;
   const event = appendEvent(room, { type: 'game.settlement_created', data: { settlementId, settlementType, reason: report.reason, endedAt, finalVersion: room.version + 1, winner } });
-  report.finalVersion = room.version;
-  report.publicEvents = [...publicEvents, publicEvent(event)].filter(Boolean);
-  report.trace.eventIds = report.publicEvents.map(item => item.eventId);
-  return clone(report);
+  report.finalVersion = room.version; report.publicEvents = [...publicEvents, publicEvent(event)].filter(Boolean); report.trace.eventIds = report.publicEvents.map(item => item.eventId); return clone(report);
 }
-
 export function settlementReport(room) { return room.settlement ? clone(room.settlement) : null; }
-
 export async function saveSnapshot(room, filePath) { await mkdir(dirname(filePath), { recursive: true }); await writeFile(filePath, `${JSON.stringify(room, null, 2)}\n`, 'utf8'); }
 export async function loadSnapshot(filePath) { return JSON.parse(await readFile(filePath, 'utf8')); }
-

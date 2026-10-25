@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { rooms, publishNewEvents } from '../../server/src/api.mjs';
 import { completeTurn, controllerFor, privateState, publicState, updateController, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
-import { RuleError, seerCheck, skipHunterResponse, submitHunterResponse, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { RuleError, seerCheck, skipHunterResponse, skipLastWords, submitHunterResponse, submitLastWords, submitSpeech, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 
 import { toolMap, validateArguments, ToolInputError } from './tools.mjs';
 
@@ -80,6 +80,7 @@ async function callTool(req, name, args, requiredToken, trace) {
   try {
     validateArguments(tool, args);
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
+    if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: room.lastWords, history: room.lastWordsHistory ?? [], version: room.version }); }
     if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }
     if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
@@ -100,6 +101,8 @@ async function callTool(req, name, args, requiredToken, trace) {
     else if (name === 'submit_hunter_shot') submitHunterResponse(room, seat.seatId, target, actionId, args.window_id);
     else if (name === 'skip_hunter_response') skipHunterResponse(room, seat.seatId, actionId, args.window_id);
     else if (name === 'submit_vote') submitVote(room, seat.seatId, target, actionId);
+    else if (name === 'submit_last_words') submitLastWords(room, seat.seatId, args.text, actionId, args.window_id);
+    else if (name === 'skip_last_words') skipLastWords(room, seat.seatId, actionId, args.window_id);
     if (turn) completeTurn(room, turn.turnId);
     trace.eventIds = room.events.filter(e => e.version > trace.beforeVersion).map(e => e.eventId);
     audit.ok = true;
