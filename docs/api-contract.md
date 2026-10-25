@@ -14,6 +14,9 @@ GET  /api/rooms/{room_id}/private-state
 POST /api/rooms/{room_id}/speeches
 POST /api/rooms/{room_id}/actions
 POST /api/rooms/{room_id}/votes
+POST /api/rooms/{room_id}/end
+GET  /api/rooms/{room_id}/settlement
+GET  /api/settlements/{settlement_id}
 ```
 
 成功响应统一返回业务数据；失败响应格式为：
@@ -39,6 +42,12 @@ POST /api/rooms/{room_id}/votes
 ```
 
 客户端按 `version` 去重，重连时先请求最新快照。
+
+## 提前结束结算（#95）
+
+房主调用 `POST /api/rooms/{room_id}/end` 后，服务端生成一次 `HOST_ENDED` 结算记录并释放控制器、主持播放和 MCP 绑定。重复调用返回相同 `settlement_id`。原房间随后从活动房间移除，状态和写操作拒绝；参与者可通过 room ID 或 settlement ID 查询报告，陌生玩家返回 403。
+
+结算报告包含角色翻牌、存活状态、出局顺序、已公开发言、已完成投票统计、公开事件追踪和资源释放状态。报告不包含参与者认证清单、Token、Session、Device、模型原文、录音、私密查询或未公开目标。第一版报告保存在进程内存，服务重启后丢失。
 
 ## MCP 工具基线
 
