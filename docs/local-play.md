@@ -20,7 +20,7 @@ node --env-file="$env:LOCALAPPDATA\LinxNight-local.env" scripts/diagnose-mcp.mjs
 
 使用 Node.js 22 或以上。在项目目录运行 `node run.mjs`，统一启动 API 5000、网页 5010、MCP 9091。不要再分别启动 API 和 MCP：它们必须在同一进程共享房间。重启会清空房间和绑定。
 
-混合局语音时序：真人提交文字后立即进入下一席，真人内容不会进入公共 TTS。灵矽 AI 提交发言后，服务端会保持当前发言席位，等待房主浏览器完成公共音频播放；浏览器调用播放确认接口后才唤醒下一位 AI 或进入投票。音频生成失败自动重试一次，仍失败会暂停当前阶段，房主可重试或跳过。未完成或暂停的 AI 发言不会提前写入桌边公开记录，刷新和 SSE 重连会根据播放历史恢复。
+混合局语音时序：真人提交文字后立即进入下一席，真人内容不会进入公共 TTS。灵矽 AI 提交发言后，服务端会保持当前发言席位，等待房主浏览器完成公共音频播放；浏览器调用播放确认接口后才唤醒下一位 AI 或进入投票。下一席可以在此期间完成连接预热，但不会创建行动租约或调用 MCP。音频生成失败自动重试一次，仍失败会暂停当前阶段，房主可重试或跳过。未完成或暂停的 AI 发言不会提前写入桌边公开记录，刷新和 SSE 重连会根据播放历史恢复。
 
 PowerShell 设置独立的随机管理员令牌，另设 MCP 令牌：
 
@@ -38,7 +38,7 @@ node run.mjs
 
 参考官方文档 https://linx.qiniu.com/docs/xrobot/mcp/software-mcp 。平台在设备 WebSocket 会话中自动携带 X-Linx-Device-Id、X-Linx-Agent-Id、X-Linx-Session-Id，不必让模型生成这些字段。
 
-1. 运行 `cloudflared tunnel --url http://127.0.0.1:9091`，保持进程运行。
+1. 运行 `cloudflared tunnel --url http://127.0.0.1:9091`，保持进程运行。触发音频应为 1～2 秒且不得超过 5 秒；连接复用和预热只优化等待，不改变严格串行规则。
 2. 在 Linx 的 MCP 服务管理中选择 Streamable HTTP，添加 MCP URL：`https://隧道域名/mcp`。
 3. 若控制台支持认证请求头，设置 `Authorization: Bearer <MCP_AUTH_TOKEN>`。官方页面未说明认证字段具体位置；若当前界面不支持自定义头，不要假定可以填写或撤掉生产认证，需要确认平台认证能力。先用本机集成测试验证协议。
 4. 创建主持人 Agent，采用 apps/mcp/prompts/host.md；创建玩家 Agent 模板，采用 apps/mcp/prompts/player.md；分别绑定上述 MCP 服务。
