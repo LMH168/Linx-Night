@@ -47,9 +47,12 @@ export class LinxTurnRuntime {
     try {
       const controllerBeforeConnect = room.controllers.find(item => item.seatId === seat.seatId);
       const reused = seat.controlSource === 'linx' && controllerBeforeConnect?.status === 'ready' && Boolean(controllerBeforeConnect.sessionId);
-      if (seat.controlSource === 'linx') await this.manager.ensureConnected(room, seat);
-      if (reused) recordTurn('connection_reused', context);
-      recordTurn('connection_ready',context);
+      if (seat.controlSource === 'linx') {
+        recordTurn(reused ? 'connection_reused' : 'connection_started', context);
+        const connectionStartedAt = this.now();
+        await this.manager.ensureConnected(room, seat);
+        recordTurn('connection_ready', {...context,durationMs:this.now() - connectionStartedAt});
+      }
       if (active() && hunterWindow && this.now() >= Date.parse(hunterWindow.expiresAt)) { expireHunterResponse(room,this.now()); recordTurn('finished',{...context,code:'HUNTER_WINDOW_EXPIRED'}); return; }
       if (!active() || !actionAvailable(room, seat)) return;
       const c = room.controllers.find(c => c.seatId === seat.seatId);
