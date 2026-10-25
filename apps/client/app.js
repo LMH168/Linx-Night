@@ -49,10 +49,15 @@ function render(room) {
   show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER');
   const winner=[...room.events].reverse().find(e=>e.data?.winner)?.data.winner;
   $('#resultTitle').textContent=winner==='good'?'好人阵营获胜':winner==='werewolf'?'狼人阵营获胜':'对局已结束';
-  const lines=[...room.speeches.map(s=>`${s.seatId}：${s.text}`),...room.events.flatMap(e=>e.type==='game.night_resolved'?[e.data.deathSeatIds.length?`昨夜出局：${e.data.deathSeatIds.join('、')}`:'昨夜平安夜，无人出局。']:e.type==='game.player_eliminated'?[`${e.data.seatId} 已出局`]:e.type==='game.vote_resolved'?[`投票结果：${e.data.leaders.join('、')}`]:e.type==='game.hunter_shot'?[`${e.data.seatId} 开枪带走 ${e.data.targetSeatId}`]:e.data?.winner?[e.data.winner==='good'?'好人阵营获胜':'狼人阵营获胜']:[])];
+  const lines=[...room.speeches.map(s=>`${s.seatId}：${s.text}`),...room.events.flatMap(e=>e.type==='game.night_resolved'?[e.data.deathSeatIds.length?`昨夜出局：${e.data.deathSeatIds.join('、')}`:'昨夜平安夜，无人出局。']:e.type==='game.player_eliminated'?[`${e.data.seatId} 已出局`]:e.type==='game.vote_resolved'?[formatVoteResolution(e.data)]:e.type==='game.hunter_shot'?[`${e.data.seatId} 开枪带走 ${e.data.targetSeatId}`]:e.data?.winner?[e.data.winner==='good'?'好人阵营获胜':'狼人阵营获胜']:[])];
   $('#events').replaceChildren(...lines.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
   show('emptyEvents',lines.length===0);
   renderPrivate(); renderActions();
+}
+function formatVoteResolution(data) {
+  const entries=(data.entries || []).map(entry=>`${entry.seatId}：${entry.votes} 票`).join('、');
+  const result=data.eliminatedSeatId ? `放逐 ${data.eliminatedSeatId}` : '平票，本轮无人出局';
+  return `投票结果：${entries}；共 ${data.totalVotes} 票，最高 ${data.maxVotes} 票；${result}`;
 }
 function renderPrivate() {
   const mine=state.privateState;

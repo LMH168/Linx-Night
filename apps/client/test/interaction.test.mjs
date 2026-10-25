@@ -99,3 +99,7 @@ run("state.room.phase='VOTE';state.privateState.alive=true;state.room.seats[0].c
 elements.get('actionDraftText').value='投给三号玩家';const beforeDraft=requests.length;await elements.get('parseAction').onclick();assert.equal(requests.length,beforeDraft);assert.equal(elements.get('confirmDraft').hidden,false);assert.match(elements.get('actionDraftHint').textContent,/P3/);
 run("state.room.phase='NIGHT_WOLF';renderActions();");assert.equal(elements.get('confirmDraft').hidden,true);assert.equal(run('state.actionDraft'),null);
 console.log('Action draft requires confirmation and expires on phase change');
+
+const voteText=run("formatVoteResolution({entries:[{seatId:'P6',votes:5},{seatId:'P3',votes:2}],totalVotes:7,maxVotes:5,leaders:['P6'],eliminatedSeatId:'P6'})");
+assert.match(voteText,/P6：5 票/);assert.match(voteText,/P3：2 票/);assert.match(voteText,/共 7 票/);assert.match(voteText,/放逐 P6/);
+console.log('Vote resolution statistics render passed');
