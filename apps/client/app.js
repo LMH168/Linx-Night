@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id.replace(/^#/, ''));
 // Test links prefill only public connection fields, never a player identity.
 const entryQuery = new URLSearchParams(globalThis.location?.search || '');
-const state = { api: sessionStorage.getItem('linx-api') || 'http://127.0.0.1:5100', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', settlementId: sessionStorage.getItem('linx-settlement') || '', settlement: null, source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, voice: { recognition: null, listening: false, draft: false }, unloading: false };
+const state = { api: sessionStorage.getItem('linx-api') || 'http://127.0.0.1:5100', roomId: sessionStorage.getItem('linx-room') || '', playerId: sessionStorage.getItem('linx-player') || '', settlementId: sessionStorage.getItem('linx-settlement') || '', settlement: null, source: null, reconnectTimer: null, reconnectDelay: 1000, events: new Set(), lastVersion: 0, room: null, privateState: null, voice: { recognition: null, listening: false, draft: false }, hostNotify: null, unloading: false };
 const entryApi = entryQuery.get('api') || state.api;
 const entryRoom = entryQuery.get('room') || state.roomId;
 if (entryApi !== state.api || entryRoom !== state.roomId) {
@@ -103,7 +103,7 @@ function renderActions() {
   if ((state.voice.recognition || state.voice.linxRecording) && (!active || state.voice.context!==voiceContext())) stopVoice();
   show('linxVoiceTools',false);show('confirmDraft',false);
   show('actionCard',active); if(!active) return;
-  const speech=mine.alive && !room.hostPlaybackBlocked && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
+  const speech=mine.alive && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
   const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && Boolean(mine.hunterAction);
   const vote=mine.alive && room.phase==='VOTE';
@@ -129,7 +129,7 @@ function renderActions() {
   $('#linxRecord').disabled=state.voice.linxRecording || (room.phase==='SPEECH' && mine.speechSession && mine.speechSession.stage!=='speaking');
   $('#speech').disabled=state.busy || ['recording','transcribing'].includes(mine.speechSession?.stage);
   $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
-  $('#turnHint').textContent=room.hostPlaybackBlocked&&room.phase==='SPEECH'?'正在等待主持播报完成；请在下方启用主持声音。':speech?`发言剩余 ${Math.max(0,Math.ceil(((room.speechDeadline||Date.now()+30000)-Date.now())/1000))} 秒；到时自动结束，请及时提交。`:skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?(room.hostPlaybackBlocked?'主持播报尚未完成，但你可以直接投票。':'选择你认为最可疑的玩家。'):!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
+  $('#turnHint').textContent=speech?`发言剩余 ${Math.max(0,Math.ceil(((room.speechDeadline||Date.now()+30000)-Date.now())/1000))} 秒；到时自动结束，请及时提交。`:skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?(room.hostPlaybackBlocked?'主持播报尚未完成，但你可以直接投票。':'选择你认为最可疑的玩家。'):!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
   if(speech && mine.speechSession){const c=mine.speechSession;$('#turnHint').textContent=({speaking:'发言',recording:'录音',transcribing:'等待转写',confirming:'编辑确认'}[c.stage]||'发言')+'剩余 '+Math.max(0,Math.ceil((c.expiresAt-Date.now())/1000))+' 秒；未确认的草稿不会提交。';}
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
@@ -165,7 +165,7 @@ async function loadPrivate() {
 }
 
 function scheduleReconnect() { if (state.unloading || state.reconnectTimer || !state.roomId) return; state.reconnectTimer = setTimeout(() => { state.reconnectTimer = null; connectEvents(); }, state.reconnectDelay); state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30_000); }
-function connectEvents() { if (state.unloading || !state.roomId) return; state.source?.close(); const after = state.lastVersion ? `?after=${state.lastVersion}` : ''; state.source = new EventSource(`${api()}/api/rooms/${state.roomId}/events${after}`); state.source.onopen = () => { state.reconnectDelay = 1000; message('实时连接已恢复'); refresh(); }; state.source.onmessage = event => { const item = JSON.parse(event.data); state.lastVersion = Math.max(state.lastVersion, Number(item.version || 0)); if (state.events.has(item.eventId)) return; state.events.add(item.eventId);  refresh(); }; state.source.onerror = () => { state.source?.close(); state.source = null; message('实时连接断开，正在自动重连。'); scheduleReconnect(); }; }
+function connectEvents() { if (state.unloading || !state.roomId) return; state.source?.close(); const after = state.lastVersion ? `?after=${state.lastVersion}` : ''; state.source = new EventSource(`${api()}/api/rooms/${state.roomId}/events${after}`); state.source.onopen = () => { state.reconnectDelay = 1000; message('实时连接已恢复'); refresh(); }; state.source.onmessage = event => { const item = JSON.parse(event.data); state.lastVersion = Math.max(state.lastVersion, Number(item.version || 0)); state.hostNotify?.(); if (state.events.has(item.eventId)) return; state.events.add(item.eventId);  refresh(); }; state.source.onerror = () => { state.source?.close(); state.source = null; message('实时连接断开，正在自动重连。'); scheduleReconnect(); }; }
 async function refresh() { if (!state.roomId || state.refreshing) return; const roomId=state.roomId; state.refreshing=true; try { const body = await call(`/api/rooms/${roomId}/state`); if(roomId!==state.roomId)return; render(body.state); await loadPrivate(); } catch (error) { message(error.message); } finally {state.refreshing=false;} }
 $('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间号：${body.room_id}`); } catch (error) { message(error.message); } };
 $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(); if (!state.roomId) throw new Error('请填写房间号'); const body = await call(`/api/rooms/${state.roomId}/players`, { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家' }) }); state.playerId = body.player.playerId; save(); render(body.state); connectEvents(); message('已加入房间'); } catch (error) { message(error.message); } };
@@ -205,4 +205,4 @@ for (const id of ['confirmDraft','takeover','restoreControl','create','join','st
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }
 
-const hostPlayer=window.createHostPlayer?.({call,state,message,refresh});
+const hostPlayer=window.createHostPlayer?.({call,state,message,refresh}); state.hostNotify=()=>hostPlayer?.notify?.();

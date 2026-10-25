@@ -45,7 +45,10 @@ export class LinxTurnRuntime {
     recordTurn('selected',context);
     const active = () => !room.invalidated && room.gameId === gameId && room.phase !== 'LOBBY';
     try {
+      const controllerBeforeConnect = room.controllers.find(item => item.seatId === seat.seatId);
+      const reused = seat.controlSource === 'linx' && controllerBeforeConnect?.status === 'ready' && Boolean(controllerBeforeConnect.sessionId);
       if (seat.controlSource === 'linx') await this.manager.ensureConnected(room, seat);
+      if (reused) recordTurn('connection_reused', context);
       recordTurn('connection_ready',context);
       if (active() && hunterWindow && this.now() >= Date.parse(hunterWindow.expiresAt)) { expireHunterResponse(room,this.now()); recordTurn('finished',{...context,code:'HUNTER_WINDOW_EXPIRED'}); return; }
       if (!active() || !actionAvailable(room, seat)) return;
@@ -82,9 +85,13 @@ export class LinxTurnRuntime {
     } finally {
       clearTimeout(timer); clearInterval(poll);
       const c = room.controllers.find(c => c.seatId === seat.seatId), failed = c?.status === 'failed', code = c?.errorCode;
-      try { if (room.gameId === gameId || room.gameId === null) await this.manager.releaseSeat(room, seat); }
-      catch { if (c) { c.status = 'failed'; c.errorCode = 'LINX_RELEASE_FAILED'; } }
-      if (failed && c) { c.status = 'failed'; c.errorCode = code; }
+      // Keep a healthy Linx session alive across turns. Releasing here forced the
+      // next AI seat to repeat WebSocket, OTA and MCP binding setup.
+      if (failed && (room.gameId === gameId || room.gameId === null)) {
+        try { await this.manager.releaseSeat(room, seat); }
+        catch { if (c) { c.status = 'failed'; c.errorCode = 'LINX_RELEASE_FAILED'; } }
+        if (c) { c.status = 'failed'; c.errorCode = code || c.errorCode; }
+      }
       this.publish(room);
     }
   }

@@ -103,7 +103,7 @@ async function callTool(req, name, args, requiredToken, trace) {
     else if (name === 'submit_vote') submitVote(room, seat.seatId, target, actionId);
     else if (name === 'submit_last_words') submitLastWords(room, seat.seatId, args.text, actionId, args.window_id);
     else if (name === 'skip_last_words') skipLastWords(room, seat.seatId, actionId, args.window_id);
-    if (turn) completeTurn(room, turn.turnId);
+    if (turn) { completeTurn(room, turn.turnId); recordTurn('action_accepted', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, turnId: turn.turnId, eventId: room.events.at(-1)?.eventId }); }
     trace.eventIds = room.events.filter(e => e.version > trace.beforeVersion).map(e => e.eventId);
     audit.ok = true;
     publishNewEvents(room);

@@ -8,7 +8,6 @@ export function tickHumanSpeech(room, now = Date.now()) {
   let clock = room.speechClock;
   if (!clock || clock.gameId !== room.gameId || clock.round !== room.round || clock.seatId !== seat.seatId) {
     room.speechClock = null;
-    if (room.hostPlaybackBlocked) return;
     clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', expiresAt: now + 30000 };
   }
   if (now >= clock.expiresAt) {
@@ -22,7 +21,7 @@ export function tickHumanSpeech(room, now = Date.now()) {
 export function speechSession(room,seat,now=Date.now()) {
   tickHumanSpeech(room,now);
   const c=room.speechClock;
-  if(room.invalidated||room.hostPlaybackBlocked||room.phase!=='SPEECH'||room.currentSeatId!==seat.seatId||seat.controlSource!=='human'||!seat.alive||!c)throw Error('当前不是你的发言窗口');
+  if(room.invalidated||room.phase!=='SPEECH'||room.currentSeatId!==seat.seatId||seat.controlSource!=='human'||!seat.alive||!c)throw Error('当前不是你的发言窗口');
   return c;
 }
 export function startRecording(room,seat,now=Date.now()) {
