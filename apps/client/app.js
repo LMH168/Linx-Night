@@ -9,12 +9,15 @@ if (entryApi !== state.api || entryRoom !== state.roomId) {
   state.roomId = entryRoom;
   state.playerId = '';
   sessionStorage.removeItem('linx-player');
+  state.settlement = null;
+  state.settlementId = '';
+  sessionStorage.removeItem('linx-settlement');
 }
 $('#apiUrl').value = state.api; $('#roomId').value = state.roomId;
 const message = text => { $('#message').textContent = text; };
 const api = () => $('#apiUrl').value.replace(/\/$/, '');
 async function call(path, options = {}) { const headers = { 'content-type': 'application/json', ...(options.headers || {}) }; if (state.playerId) headers['x-player-id'] = state.playerId; const response = await fetch(`${api()}${path}`, { ...options, headers }); const body = await response.json(); if (!response.ok) throw new Error(body.error?.message || '请求失败'); return body; }
-function save() { hostPlayer?.stop(); stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
+function save() { hostPlayer?.stop(); stopVoice(); state.lastVersion = 0; state.events.clear(); clearTimeout(state.reconnectTimer); state.reconnectTimer = null; state.privateState = null; state.targetKey = null; state.room = null; state.settlement = null; state.settlementId = ''; sessionStorage.removeItem('linx-settlement'); state.api = api(); state.roomId = $('#roomId').value; sessionStorage.setItem('linx-api', state.api); sessionStorage.setItem('linx-room', state.roomId); if (state.playerId) sessionStorage.setItem('linx-player', state.playerId); }
 const roles = {werewolf:'狼人',seer:'预言家',witch:'女巫',hunter:'猎人',villager:'平民'};
 const defaultAiName = seatId => { const match = /^P(\d+)$/.exec(String(seatId || '')); return match ? `灵矽AI玩家${match[1]}` : '灵矽AI玩家'; };
 const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'狼人行动',NIGHT_SEER:'预言家行动',NIGHT_WITCH:'女巫行动',DAY_ANNOUNCEMENT:'天亮了',HUNTER_RESPONSE:'猎人响应',SPEECH:'依次发言',VOTE:'放逐投票',RESOLUTION:'结算中',GAME_OVER:'本局结束'};
@@ -176,7 +179,7 @@ function connectEvents() { if (state.unloading || !state.roomId) return; state.s
 async function refresh() { if (!state.roomId || state.refreshing) return; const roomId=state.roomId; state.refreshing=true; try { const body = await call(`/api/rooms/${roomId}/state`); if(roomId!==state.roomId)return; render(body.state); await loadPrivate(); } catch (error) { message(error.message); } finally {state.refreshing=false;} }
 $('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间号：${body.room_id}`); } catch (error) { message(error.message); } };
 $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(); if (!state.roomId) throw new Error('请填写房间号'); const body = await call(`/api/rooms/${state.roomId}/players`, { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家' }) }); state.playerId = body.player.playerId; save(); render(body.state); connectEvents(); message('已加入房间'); } catch (error) { message(error.message); } };
-$('#aiName').addEventListener('input',()=>{ $('#aiName').dataset.edited='true'; });
+$('#aiName').addEventListener?.('input',()=>{ $('#aiName').dataset.edited='true'; });
 $('#addAi').onclick = async () => { const name=$('#aiName').value.trim(); try { const body=await call(`/api/rooms/${state.roomId}/players`,{method:'POST',body:JSON.stringify({player_type:'ai',...(name?{display_name:name}:{})})}); $('#aiName').value=''; delete $('#aiName').dataset.edited; render(body.state); message('AI 玩家已加入房间。'); } catch(error) { message(error.message); } };
 $('#start').onclick = async () => { try { const body = await call(`/api/rooms/${state.roomId}/start`, { method: 'POST' }); render(body.state); message('已开始准备 AI 玩家连接，等待全部会话就绪。'); refresh(); } catch (error) { message(error.message); } };
 $('#retryTurn').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry-turn`,{method:'POST'}); render(body.state); } catch(error){message(error.message);} };
