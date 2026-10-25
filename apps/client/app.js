@@ -83,7 +83,7 @@ function renderActions() {
   const speech=mine.alive && !room.hostPlaybackBlocked && room.phase==='SPEECH' && room.currentSeatId===mine.seatId;
   const skill=mine.alive && ({werewolf:'NIGHT_WOLF',seer:'NIGHT_SEER',witch:'NIGHT_WITCH'}[mine.role]===room.phase);
   const hunter=mine.role==='hunter' && !mine.alive && mine.skills.hunterShotAvailable && Boolean(mine.hunterAction);
-  const vote=!room.hostPlaybackBlocked && mine.alive && room.phase==='VOTE';
+  const vote=mine.alive && room.phase==='VOTE';
   const voiceAllowed=speech||skill||hunter||vote;
   show('linxVoiceTools',voiceAllowed);show('actionDraftField',voiceAllowed&&!speech);show('confirmDraft',voiceAllowed&&!speech&&!!state.actionDraft);
   $('#actionDraftHint').textContent=state.actionDraft?'待确认：'+state.actionDraft.label:'识别不会自动行动；请检查动作和目标。';
@@ -106,7 +106,7 @@ function renderActions() {
   $('#linxRecord').disabled=state.voice.linxRecording || (room.phase==='SPEECH' && mine.speechSession && mine.speechSession.stage!=='speaking');
   $('#speech').disabled=state.busy || ['recording','transcribing'].includes(mine.speechSession?.stage);
   $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
-  $('#turnHint').textContent=room.hostPlaybackBlocked&&room.phase==='SPEECH'?'正在等待主持播报完成；请在下方启用主持声音。':speech?`发言剩余 ${Math.max(0,Math.ceil(((room.speechDeadline||Date.now()+30000)-Date.now())/1000))} 秒；到时自动结束，请及时提交。`:skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
+  $('#turnHint').textContent=room.hostPlaybackBlocked&&room.phase==='SPEECH'?'正在等待主持播报完成；请在下方启用主持声音。':speech?`发言剩余 ${Math.max(0,Math.ceil(((room.speechDeadline||Date.now()+30000)-Date.now())/1000))} 秒；到时自动结束，请及时提交。`:skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?(room.hostPlaybackBlocked?'主持播报尚未完成，但投票已开放，请选择目标并提交。':'选择你认为最可疑的玩家。'):!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
   if(speech && mine.speechSession){const c=mine.speechSession;$('#turnHint').textContent=({speaking:'发言',recording:'录音',transcribing:'等待转写',confirming:'编辑确认'}[c.stage]||'发言')+'剩余 '+Math.max(0,Math.ceil((c.expiresAt-Date.now())/1000))+' 秒；未确认的草稿不会提交。';}
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
@@ -181,3 +181,4 @@ for (const id of ['confirmDraft','takeover','restoreControl','create','join','st
 }
 
 const hostPlayer=window.createHostPlayer?.({call,state,message,refresh});
+
