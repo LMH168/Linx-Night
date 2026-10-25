@@ -83,7 +83,43 @@ export function submitSpeech(room, seatId, text, actionId) {
   if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
   const seat = requireAlive(room, seatId); if (typeof text !== 'string' || !text.trim()) throw new RuleError('speech must not be empty');
   recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: text.trim() }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
-  const next = aliveSeats(room).find(item => item.seatId > seat.seatId); const first = aliveSeats(room)[0]; if (next) transition(room, PHASES.SPEECH, { seatId: next.seatId }); else transition(room, PHASES.VOTE); return room;
+  if (seat.playerType === 'ai' && seat.controlSource === 'linx' && room.hostPlaybackEnabled) {
+    room.speechPlayback = { speechId: actionId, seatId, round: room.round, taskId: null, status: 'pending', attempts: 0, errorCode: null };
+    room.version += 1;
+    return room;
+  }
+  advanceSpeech(room, seat);
+  return room;
+}
+
+function advanceSpeech(room, seat) {
+  const next = aliveSeats(room).find(item => item.seatId > seat.seatId);
+  if (next) transition(room, PHASES.SPEECH, { seatId: next.seatId });
+  else transition(room, PHASES.VOTE);
+}
+
+export function completeSpeechPlayback(room, { speechId, taskId, status = 'completed' } = {}) {
+  const playback = room.speechPlayback;
+  if (!playback || !['pending', 'paused'].includes(playback.status) || playback.speechId !== speechId || (playback.taskId && playback.taskId !== taskId)) throw new RuleError('speech playback is not pending');
+  const seat = seatOf(room, playback.seatId);
+  playback.status = status; playback.taskId = taskId ?? playback.taskId; playback.completedAt = new Date().toISOString();
+  room.speechPlaybackHistory ??= []; room.speechPlaybackHistory.push({ ...playback });
+  room.speechPlayback = null; room.version += 1;
+  appendEvent(room, { type: 'game.speech_playback_completed', data: { speechId: playback.speechId, seatId: playback.seatId, taskId: playback.taskId, status } });
+  if (room.phase === PHASES.SPEECH && room.currentSeatId === playback.seatId) advanceSpeech(room, seat);
+  return room;
+}
+
+export function pauseSpeechPlayback(room, { speechId, taskId, errorCode = 'HOST_AUDIO_FAILED' } = {}) {
+  const playback = room.speechPlayback;
+  if (!playback || playback.status !== 'pending' || playback.speechId !== speechId || (playback.taskId && playback.taskId !== taskId)) throw new RuleError('speech playback is not pending');
+  playback.status = 'paused'; playback.taskId = taskId ?? playback.taskId; playback.errorCode = errorCode; playback.attempts = Math.max(2, playback.attempts || 0); room.version += 1; return room;
+}
+
+export function retrySpeechPlayback(room, { speechId, taskId } = {}) {
+  const playback = room.speechPlayback;
+  if (!playback || playback.status !== 'paused' || playback.speechId !== speechId || (playback.taskId && playback.taskId !== taskId)) throw new RuleError('speech playback is not paused');
+  playback.status = 'pending'; playback.errorCode = null; playback.attempts = 0; room.version += 1; return room;
 }
 
 export function submitVote(room, seatId, targetSeatId, voteId) {

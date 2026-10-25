@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { addPlayer, createRoom, publicState } from '../src/model.mjs';
+import { completeSpeechPlayback, submitSpeech } from '../src/engine.mjs';
+
+const room = createRoom({ hostPlayerId: 'host' });
+addPlayer(room, { playerId: 'host', displayName: '房主' });
+addPlayer(room, { playerId: 'ai', displayName: 'AI', playerType: 'ai' });
+room.seats[0].controlSource = 'human'; room.seats[1].controlSource = 'linx';
+room.seats.forEach(seat => { if (!seat.playerId) { seat.playerId = `p-${seat.seatId}`; seat.displayName = seat.seatId; seat.playerType = 'human'; seat.controlSource = 'human'; } });
+room.phase = 'SPEECH'; room.currentSeatId = 'P2'; room.gameId = 'game'; room.hostPlaybackEnabled = true;
+submitSpeech(room, 'P2', 'AI 发言', 'speech-ai');
+assert.equal(room.currentSeatId, 'P2');
+assert.equal(room.phase, 'SPEECH');
+assert.equal(publicState(room).speeches.length, 0);
+assert.equal(room.speechPlayback.status, 'pending');
+assert.equal(room.speechPlaybackHistory.length, 0);
+completeSpeechPlayback(room, { speechId: 'speech-ai', taskId: 'task-1' });
+assert.equal(room.currentSeatId, 'P3');
+assert.equal(room.speechPlayback, null);
+assert.equal(room.speechPlaybackHistory[0].status, 'completed');
+assert.equal(room.events.filter(event => event.type === 'game.speech_playback_completed').length, 1);
+
+const human = createRoom({ hostPlayerId: 'human' });
+addPlayer(human, { playerId: 'human', displayName: '真人' });
+for (let index = 2; index <= 9; index += 1) addPlayer(human, { playerId: `p${index}`, displayName: `P${index}` });
+human.phase = 'SPEECH'; human.currentSeatId = 'P1'; human.gameId = 'game'; human.hostPlaybackEnabled = true;
+submitSpeech(human, 'P1', '真人发言', 'speech-human');
+assert.equal(human.speechPlayback, null);
+assert.equal(human.currentSeatId, 'P2');
+console.log('speech playback gates AI speech and bypasses human TTS');
