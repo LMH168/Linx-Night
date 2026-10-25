@@ -145,9 +145,16 @@ export function expireHunterResponse(room, now = Date.now()) {
 }
 
 function resolveVotes(room) {
-  const votes = room.votes.filter(vote => vote.round === room.round); const counts = new Map(); for (const vote of votes) counts.set(vote.targetSeatId, (counts.get(vote.targetSeatId) ?? 0) + 1);
-  const max = Math.max(...counts.values()); const leaders = [...counts].filter(([, count]) => count === max).map(([seatId]) => seatId); appendEvent(room, { type: 'game.vote_resolved', data: { leaders } });
-  if (leaders.length === 1) eliminate(room, leaders[0], 'vote');
+  const round = room.round;
+  if (room.voteResolutions?.some(resolution => resolution.round === round)) throw new RuleError('vote already resolved');
+  const votes = room.votes.filter(vote => vote.round === round); const counts = new Map();
+  for (const vote of votes) counts.set(vote.targetSeatId, (counts.get(vote.targetSeatId) ?? 0) + 1);
+  const maxVotes = Math.max(...counts.values());
+  const entries = [...counts].map(([seatId, votes]) => ({ seatId, votes })).sort((a, b) => b.votes - a.votes || a.seatId.localeCompare(b.seatId));
+  const leaders = entries.filter(entry => entry.votes === maxVotes).map(entry => entry.seatId); const eliminatedSeatId = leaders.length === 1 ? leaders[0] : null;
+  const eventId = `vote_resolved_${round}_${room.events.length + 1}`; const resolution = { resolutionId: eventId, round, entries, totalVotes: votes.length, maxVotes, leaders, eliminatedSeatId };
+  room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution });
+  if (eliminatedSeatId) eliminate(room, eliminatedSeatId, 'vote');
   if (room.hunterResponse?.status === 'open') return room;
   const winner = checkWinner(room); if (winner) return winner; room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
 }
