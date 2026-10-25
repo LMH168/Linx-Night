@@ -1,4 +1,5 @@
 import { recordTurn } from './turn-diagnostics.mjs';
+import { voiceConfig } from './voice-config.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ota } from '../../linx/src/ota.mjs';
@@ -50,6 +51,11 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   return {
     requireHost: true,
     async prepare(room) {
+      if (room.hostPlaybackEnabled) {
+        const voices = voiceConfig(env);
+        room.publicVoices = { HOST: voices.host };
+        room.controllers.filter(c => c.seatId !== 'HOST').forEach((c,i) => { room.publicVoices[c.seatId] = voices.players[names[i]]; });
+      }
       if (!room.controllers.length) { room.controllerPhase = 'ready'; return room; }
       const count=room.controllers.filter(c=>c.seatId!=='HOST').length;
       const assigned = names.slice(0,count);

@@ -13,7 +13,7 @@ const post=(type,body,id='host')=>fetch(base+type,{method:'POST',headers:{'conte
 try{
  assert.equal((await post('speak',{event_id:phase.eventId},'unknown')).status,403);
  assert.equal((await post('speak',{event_id:privateEvent.eventId,text:'injected'})).status,400);assert.equal(calls.length,0);
- const response=await post('speak',{event_id:phase.eventId,text:'injected'});assert.equal(response.status,200);assert.equal(calls[0].text,'天亮了，开始依次发言。');
+ const response=await post('speak',{event_id:phase.eventId,text:'injected'});assert.equal(response.status,400);assert.equal(calls.length,0);
  assert.equal((await post('transcribe',{wav:wavFromPcm(Buffer.alloc(640)).toString('base64')})).status,200);assert.equal(room.speeches.length,0);
  assert.equal((await post('transcribe',{wav:'a'.repeat(1300001)})).status,400);
  room.currentSeatId='P2';assert.equal((await post('transcribe',{wav:'AAAA'})).status,400);

@@ -4,7 +4,7 @@ let resolveMic,stopped=0;const media=new Promise(r=>resolveMic=r);const context=
 vm.runInContext(await readFile(new URL('../apps/client/linx-voice.js',import.meta.url),'utf8'),context);
 const state={roomId:'room',room:{version:4}},calls=[];const voice=context.window.createLinxVoice({state,call:async(...a)=>{calls.push(a);return{};},context:()=>'',applyDraft:()=>{},message:()=>{}});
 const work=voice.record();voice.stop();resolveMic({getTracks:()=>[{stop(){stopped++;}}]});await work;assert.equal(stopped,1);assert.equal(calls.length,0);
-voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});voice.toggle();voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});assert.equal(calls.length,0);voice.stopPlayback();
+voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});voice.update({roomId:'room',version:4,events:[{eventId:'old',version:4,type:'game.speech_submitted'}]});assert.equal(calls.length,0);
 console.log('Browser delayed microphone cancellation and historical playback exclusion passed');
 // Successful capture creates a WAV draft request only; cancellation discards delayed STT.
 let lastRecorder,resolveText;class Recorder{constructor(){lastRecorder=this;this.state='inactive';}start(){this.state='recording';}stop(){this.state='inactive';this.ondataavailable?.({data:new Blob(['audio'])});this.onstop?.();}}

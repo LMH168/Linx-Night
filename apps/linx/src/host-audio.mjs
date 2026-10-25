@@ -1,6 +1,7 @@
 import {wavFromPcm} from './voice.mjs';
 // Host connection is already authenticated and bound. Only exact public text is returned.
-export function speakPublic(client,text,{signal,timeoutMs=60000}={}) {
+export function speakPublic(client,text,{signal,timeoutMs=60000,voiceId}={}) {
+ if(voiceId!==undefined && (typeof voiceId!=='string'||!voiceId.trim()||voiceId.length>128))return Promise.reject(new Error('VOICE_ID_INVALID'));
  if(client?.state!=='ready'||!text||text.length>1200)return Promise.reject(new Error('HOST_NOT_READY'));
  return new Promise((resolve,reject)=>{
   let spoken='',started=false,bytes=0,done=false;const chunks=[];
@@ -18,6 +19,6 @@ export function speakPublic(client,text,{signal,timeoutMs=60000}={}) {
   const timer=setTimeout(()=>finish(new Error('HOST_AUDIO_TIMEOUT')),timeoutMs);
   client.socket.on('message',message);client.socket.on('close',closed);client.socket.on('error',closed);signal?.addEventListener('abort',closed,{once:true});
   if(signal?.aborted)return closed();
-  client.socket.send(JSON.stringify({session_id:client.sessionId,type:'listen',state:'detect',text:'公开事件播报',text_response:text}),e=>{if(e)closed();});
+  client.socket.send(JSON.stringify({session_id:client.sessionId,type:'listen',state:'detect',text:'公开事件播报',text_response:text,...(voiceId?{agent_params:{voice:{id:voiceId}}}:{})}),e=>{if(e)closed();});
  });
 }

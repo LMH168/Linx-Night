@@ -40,20 +40,21 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         if(req.method==='GET'&&parts[4]==='audio')return json(res,200,{wav:hostPlayback.getAudio(room,url.searchParams.get('task_id')).toString('base64')});
         if(req.method==='POST'&&parts[4]==='played'){if(actor.playerId!==room.hostPlayerId)throw new Error('仅当前房主确认播放');const b=await readBody(req);hostPlayback.acknowledge(room,b.task_id);return json(res,200,hostPlayback.state(room));}
         if(req.method==='POST'&&parts[4]==='retry'){if(actor.playerId!==room.hostPlayerId)throw new Error('仅房主重试');await hostPlayback.retry(room);return json(res,200,hostPlayback.state(room));}
+        if(req.method==='POST'&&parts[4]==='skip'){if(actor.playerId!==room.hostPlayerId)throw new Error('仅房主跳过音频');const b=await readBody(req);hostPlayback.skip(room,b.task_id);return json(res,200,hostPlayback.state(room));}
         throw new Error('无效主持操作');
       }
       if (req.method === 'POST' && parts[3] === 'voice') {
         const actor=currentPlayer(req,room);if(actor.playerType!=='human')throw new Error('仅真人可使用网页语音');
-        if(!voice)throw new Error('未配置灵矽语音');
         const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
         if(kind==='transcribe') {
+          if(!voice)throw new Error('未配置灵矽语音');
           if(actor.controlSource!=='human' || !actionAvailable(room,actor))throw new Error('当前不能生成发言草稿');
           if(typeof body.wav!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.wav))throw new Error('无效录音');
           const round=room.round, phase=room.phase, epoch=actor.controlEpoch;const result=await voice({kind,wav:Buffer.from(body.wav,'base64'),signal:abort.signal});
           if(room.phase!==phase || room.round!==round || actor.controlEpoch!==epoch || !actionAvailable(room,actor) || actor.controlSource!=='human')throw new Error('发言回合已变更');
           return json(res,200,{text:result.text});
         }
-        if(kind==='speak') {const text=publicNarration(room,body.event_id);const result=await voice({kind,text,signal:abort.signal});return json(res,200,{event_id:body.event_id,wav:result.wav.toString('base64')});}
+        if(kind==='speak') {publicNarration(room,body.event_id);const task=hostPlayback?.state(room).task;if(!task||task.eventId!==body.event_id)throw new Error('公共音频任务不存在或已结束');return json(res,200,{event_id:body.event_id,wav:hostPlayback.getAudio(room,task.id).toString('base64')});}
         throw new Error('无效语音操作');
       }
       if (req.method === 'POST' && parts[3] === 'presence') { const seat=currentPlayer(req,room); heartbeat(room,seat); publishNewEvents(room); return json(res,200,{ok:true}); }
