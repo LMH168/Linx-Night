@@ -28,14 +28,14 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   if (projected.length >= wolves.length) {
     const targets = new Set(projected.slice(-wolves.length).map(action => action.targetSeatId));
     if (targets.size !== 1) throw new RuleError('werewolf targets must agree');
-    room.pendingNight = { wolfTarget: targetSeatId }; transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
+    room.pendingNight = { round: room.round, wolfTarget: targetSeatId, eligibleSeatIds: room.seats.filter(seat => seat.alive && [ROLES.SEER, ROLES.WITCH].includes(seat.role)).map(seat => seat.seatId) }; transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
   }
   return room;
 }
 
 export function seerCheck(room, seatId, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_SEER) throw new RuleError('seer action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new RuleError('actor is not the living seer');
+  const actor = seatOf(room, seatId); if (!actor || actor.role !== ROLES.SEER || !nightActorEligible(room, actor)) throw new RuleError('actor is not the eligible seer');
   const target = requireAlive(room, targetSeatId); recordAction(room, { actionId, turnId: room.round, actionType: 'seer_check', seatId, targetSeatId });
   const result = target.camp === CAMPS.WEREWOLF ? 'werewolf' : 'good'; actor.seerResults.push({ round: room.round, seatId: targetSeatId, result });
   transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return result;
@@ -43,14 +43,14 @@ export function seerCheck(room, seatId, targetSeatId, actionId) {
 
 export function skipSeerAction(room, seatId, actionId) {
   if (room.phase !== PHASES.NIGHT_SEER) throw new RuleError('seer action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.SEER) throw new RuleError('actor is not the living seer');
+  const actor = seatOf(room, seatId); if (!actor || actor.role !== ROLES.SEER || !nightActorEligible(room, actor)) throw new RuleError('actor is not the eligible seer');
   recordAction(room, { actionId, turnId: room.round, actionType: 'seer_skip', seatId });
   transition(room, PHASES.NIGHT_WITCH); skipAbsentRoles(room); return room;
 }
 
 export function witchAction(room, seatId, action, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WITCH) throw new RuleError('witch action is not allowed now');
-  const actor = seatOf(room, seatId); if (!actor?.alive || actor.role !== ROLES.WITCH) throw new RuleError('actor is not the living witch');
+  const actor = seatOf(room, seatId); if (!actor || actor.role !== ROLES.WITCH || !nightActorEligible(room, actor)) throw new RuleError('actor is not the eligible witch');
   if (!['save', 'poison', 'skip'].includes(action)) throw new RuleError('invalid witch action');
   if (commandKey(room, actionId)) throw new RuleError('duplicate action');
   if (action === 'poison') requireAlive(room, targetSeatId);
@@ -164,6 +164,9 @@ function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if 
 export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
 
 export function skipAbsentRoles(room) {
-  if (room.phase === PHASES.NIGHT_SEER && !aliveSeats(room).some(s => s.role === ROLES.SEER)) transition(room, PHASES.NIGHT_WITCH);
-  if (room.phase === PHASES.NIGHT_WITCH && !aliveSeats(room).some(s => s.role === ROLES.WITCH)) transition(room, PHASES.DAY_ANNOUNCEMENT);
+  if (room.phase === PHASES.NIGHT_SEER && !nightEligibleSeats(room, ROLES.SEER).length) transition(room, PHASES.NIGHT_WITCH);
+  if (room.phase === PHASES.NIGHT_WITCH && !nightEligibleSeats(room, ROLES.WITCH).length) transition(room, PHASES.DAY_ANNOUNCEMENT);
 }
+
+function nightEligibleSeats(room, role) { const ids = room.pendingNight?.eligibleSeatIds ?? []; return room.seats.filter(seat => seat.role === role && (seat.alive || ids.includes(seat.seatId))); }
+function nightActorEligible(room, seat) { const eligibleIds = room.pendingNight?.eligibleSeatIds; return Boolean(room.pendingNight && (room.pendingNight.round === undefined || room.pendingNight.round === room.round) && (seat.alive || eligibleIds?.includes(seat.seatId)) && !room.actions.some(action => action.turnId === room.round && action.seatId === seat.seatId && ['seer_check', 'seer_skip', 'witch_action'].includes(action.actionType))); }
