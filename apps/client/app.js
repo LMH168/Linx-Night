@@ -29,22 +29,24 @@ function render(room) {
   $('#phase').textContent = phases[room.phase] || '对局进行中';
   const humans = room.seats.filter(s => s.playerType === 'human').length;
   const ais = room.seats.filter(s => s.playerType === 'ai').length;
-  $('#counts').textContent = `真人 ${humans} / AI 玩家 ${ais} / 空位 ${9-humans-ais}`;
+  const host = room.hostPlayerId === state.playerId;
+  const emptySeats=9-humans-ais; $('#counts').textContent = `真人 ${humans} / AI 玩家 ${ais} / 空位 ${emptySeats}${emptySeats ? ` · 还需要添加 ${emptySeats} 个玩家` : ' · 已满员，可开始'}`;
   $('#seats').replaceChildren(...room.seats.map(seat => {
     const el = document.createElement('div');
-    el.className = `seat ${!seat.playerType?'empty':''} ${!seat.alive?'dead':''} ${room.currentSeatId===seat.seatId?'active':''}`;
+    const speaking=room.phase==='SPEECH' && room.currentSeatId===seat.seatId;
+    const voted=room.phase==='VOTE' && (room.submittedVoteSeatIds || []).includes(seat.seatId);
+    el.className = `seat ${!seat.playerType?'empty':''} ${!seat.alive?'dead':''} ${speaking?'active':''} ${voted?'voted':''}`; if(speaking) el.setAttribute?.('aria-current','true');
     const number = document.createElement('span'); number.className='seat-number'; number.textContent=seat.seatId;
     const copy = document.createElement('div'); copy.className='seat-copy';
     const name = document.createElement('strong'); name.textContent=seat.displayName || '等待入座';
-    const status = document.createElement('small'); status.textContent=!seat.playerType?'空位':`${seat.controlSource==='linx'?'灵矽 AI':seat.controlSource==='rule_bot'?(seat.playerType==='human'?'真人 · 规则托管':'规则机器人'):'真人'}${seat.connectionState==='disconnected'?' · 离线':''} · ${lobby?'已入座':seat.alive?'存活':'已出局'}${state.privateState?.seatId===seat.seatId?' · 你':''}`;
-    copy.replaceChildren(name,status); el.replaceChildren(number,copy); return el;
+    const status = document.createElement('small'); status.textContent=!seat.playerType?'空位':`${seat.controlSource==='linx'?'灵矽 AI':seat.controlSource==='rule_bot'?(seat.playerType==='human'?'真人 · 规则托管':'规则机器人'):'真人'}${seat.connectionState==='disconnected'?' · 离线':''} · ${speaking?'正在发言':voted?'已投票':room.phase==='VOTE'?'等待投票':lobby?'已入座':seat.alive?'存活':'已出局'}${state.privateState?.seatId===seat.seatId?' · 你':''}`;
+    if(lobby && host && seat.playerType==='ai'){const rename=document.createElement('button');rename.className='secondary seat-rename';rename.textContent='改名';rename.onclick=()=>renameAi(seat);copy.replaceChildren(name,status,rename);} else copy.replaceChildren(name,status); el.replaceChildren(number,copy); return el;
   }));
-  const host = room.hostPlayerId === state.playerId;
   const preparing = room.controllerPhase && room.controllerPhase !== 'idle' && room.controllerPhase !== 'released' && room.phase === 'LOBBY' && room.preparing !== false;
   const failed = room.controllerPhase === 'failed';
   const turnFailed = !lobby && (room.controllers || []).some(c => c.status === 'failed');
-  show('retryTurn',turnFailed && host); show('lobbyBar',lobby || preparing || turnFailed || (!lobby && room.phase !== 'GAME_OVER')); show('start',lobby && host && !preparing); show('retryControllers',preparing && failed && host); show('cancelControllers',preparing && host); show('endGame',!lobby && room.phase !== 'GAME_OVER' && host); $('#start').disabled=!lobby || !host || preparing;
-  $('#lobbyHint').textContent=turnFailed?'灵矽行动失败，已暂停该座位。房主可重试，不会自动换成规则机器人。':preparing?(failed?'AI 连接失败，请重试或取消。':'正在连接 AI 玩家，全部准备完成后才会开始。'):!lobby?'对局进行中；房主可提前结束本局。':host?'朋友到齐后即可开始，空位将由 Linx 会话准备。':'已入座，等待房主开始游戏。';
+  show('retryTurn',turnFailed && host); show('lobbyBar',lobby || preparing || turnFailed || (!lobby && room.phase !== 'GAME_OVER')); show('start',lobby && host && !preparing); show('retryControllers',preparing && failed && host); show('cancelControllers',preparing && host); show('endGame',!lobby && room.phase !== 'GAME_OVER' && host); show('aiConfig',lobby && host && !preparing && emptySeats>0); $('#start').disabled=!lobby || !host || preparing || emptySeats>0;
+  $('#lobbyHint').textContent=turnFailed?'灵矽行动失败，已暂停该座位。房主可重试，不会自动换成规则机器人。':preparing?(failed?'AI 连接失败，请重试或取消。':'正在连接 AI 玩家，全部准备完成后才会开始。'):!lobby?'对局进行中；房主可提前结束本局。':emptySeats>0?(host?'请添加 AI 或等待真人加入，满九席后才能开始。':'等待房主补齐九个座位。'):host?'九席已满，可以开始游戏。':'九席已满，等待房主开始游戏。';
   const controllers=room.controllers||[]; $('#controllerHint').hidden=!preparing && !turnFailed; $('#controllerHint').textContent=controllers.map(c=>`${c.seatId}: ${c.status}${c.errorCode?`（${c.errorCode}）`:''}`).join(' · ');
   show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER' || !!state.settlement);
   const winner=[...room.events].reverse().find(e=>e.data?.winner)?.data.winner;
@@ -54,6 +56,7 @@ function render(room) {
   show('emptyEvents',lines.length===0);
   renderPrivate(); renderActions();
 }
+async function renameAi(seat) { const name=globalThis.prompt('修改 AI 名称',seat.displayName || 'AI 玩家'); if (name === null) return; try { const body=await call(`/api/rooms/${state.roomId}/players/${seat.seatId}`,{method:'PATCH',body:JSON.stringify({display_name:name})}); render(body.state); message('AI 名称已更新。'); } catch(error) { message(error.message); } }
 function renderSettlement(report, winner) {
   if (!report) { $('#resultTitle').textContent=winner==='good'?'好人阵营获胜':winner==='werewolf'?'狼人阵营获胜':'对局已结束'; $('#resultMeta').textContent=''; $('#settlementDetails').replaceChildren(); show('downloadSettlement',false); return; }
   const endedEarly=report.settlementType==='HOST_ENDED' || report.settlementType==='CONTROLLER_CANCELLED' || report.settlementType==='SERVICE_FAILURE';
@@ -169,6 +172,7 @@ function connectEvents() { if (state.unloading || !state.roomId) return; state.s
 async function refresh() { if (!state.roomId || state.refreshing) return; const roomId=state.roomId; state.refreshing=true; try { const body = await call(`/api/rooms/${roomId}/state`); if(roomId!==state.roomId)return; render(body.state); await loadPrivate(); } catch (error) { message(error.message); } finally {state.refreshing=false;} }
 $('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间号：${body.room_id}`); } catch (error) { message(error.message); } };
 $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(); if (!state.roomId) throw new Error('请填写房间号'); const body = await call(`/api/rooms/${state.roomId}/players`, { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家' }) }); state.playerId = body.player.playerId; save(); render(body.state); connectEvents(); message('已加入房间'); } catch (error) { message(error.message); } };
+$('#addAi').onclick = async () => { const name=$('#aiName').value.trim(); if(!name){message('请输入 AI 名称');return;} try { const body=await call(`/api/rooms/${state.roomId}/players`,{method:'POST',body:JSON.stringify({player_type:'ai',display_name:name})}); $('#aiName').value=''; render(body.state); message('AI 玩家已加入房间。'); } catch(error) { message(error.message); } };
 $('#start').onclick = async () => { try { const body = await call(`/api/rooms/${state.roomId}/start`, { method: 'POST' }); render(body.state); message('已开始准备 AI 玩家连接，等待全部会话就绪。'); refresh(); } catch (error) { message(error.message); } };
 $('#retryTurn').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry-turn`,{method:'POST'}); render(body.state); } catch(error){message(error.message);} };
 $('#retryControllers').onclick = async () => { try { const body=await call(`/api/rooms/${state.roomId}/controllers/retry`,{method:'POST'}); render(body.state); message('已取消失败准备，可以重新点击开始游戏。'); } catch(error){message(error.message);} };
@@ -200,7 +204,7 @@ if (state.settlementId) loadSettlement().then(()=>render(state.room || {roomId:s
 setInterval(() => { if (!state.unloading) refresh(); }, 2000);
 
 $('#witchAction').onchange=renderActions;
-for (const id of ['confirmDraft','takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','endGame','speech','skill','vote','hunterShot','hunterSkip','announce']) {
+for (const id of ['confirmDraft','takeover','restoreControl','create','join','start','retryControllers','retryTurn','cancelControllers','endGame','addAi','speech','skill','vote','hunterShot','hunterSkip','announce']) {
   const handler=$(id).onclick;
   $(id).onclick=async()=>{if(state.busy)return;state.busy=true;$(id).disabled=true;try{await handler();}finally{state.busy=false;$(id).disabled=false;renderActions();}};
 }
