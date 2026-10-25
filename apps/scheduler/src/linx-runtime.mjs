@@ -40,6 +40,8 @@ export class LinxTurnRuntime {
     if (!current || !next) return;
     const controller = room.controllers.find(item => item.seatId === next.seatId);
     if (!controller) return;
+    const previous = room.speechPrewarm;
+    if (previous && previous.gameId === room.gameId && previous.round === room.round && previous.phase === room.phase && previous.currentSeatId === room.currentSeatId && previous.nextSeatId === next.seatId && previous.controllerEpoch === controller.controllerEpoch && ['connecting', 'ready', 'failed'].includes(previous.status)) return;
     this.prewarming ??= new Map();
     const marker = { gameId: room.gameId, round: room.round, phase: room.phase, currentSeatId: room.currentSeatId, nextSeatId: next.seatId, controllerEpoch: controller.controllerEpoch, status: 'connecting' };
     room.speechPrewarm = marker; this.prewarming.set(room.roomId, marker);

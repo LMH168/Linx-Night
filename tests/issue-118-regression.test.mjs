@@ -22,9 +22,10 @@ room.speechPlayback = { speechId: 'speech-2', seatId: 'P2', status: 'pending' };
 
 let resolveWarmup;
 let sent = 0;
+let connects = 0;
 const runtime = new LinxTurnRuntime({
   manager: {
-    ensureConnected: async () => new Promise(resolve => { resolveWarmup = resolve; }),
+    ensureConnected: async () => { connects += 1; return new Promise(resolve => { resolveWarmup = resolve; }); },
     sendTurn: async () => { sent += 1; },
   },
 });
@@ -34,6 +35,9 @@ await new Promise(resolve => setImmediate(resolve));
 assert.equal(room.speechPrewarm.status, 'connecting');
 assert.equal(room.turns.length, 0, '预热不能创建下一席行动租约');
 assert.equal(sent, 0, '预热不能发送下一席触发音频');
+runtime.tick(room);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(connects, 1, '同一上下文不能重复预热');
 
 room.currentSeatId = 'P3';
 resolveWarmup();
