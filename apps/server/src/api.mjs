@@ -8,7 +8,7 @@ import { heartbeat, expirePresence, setHumanControl } from '../../../packages/do
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { addPlayer, appendEvent, assignRoles, beginControllerPreparation, createRoom, fillAiSeats, invalidateRoomControllers, privateState, publicState, CONTROLLER_STATES } from '../../../packages/domain/src/model.mjs';
-import { announceDay, expireHunterResponse, seerCheck, skipHunterResponse, startGame, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { announceDay, expireHunterResponse, expireLastWords, seerCheck, skipHunterResponse, skipLastWords, startGame, submitLastWords, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 import { EventHub, eventStream } from './realtime.mjs';
 import { createHostCoordinator } from './host-coordinator.mjs';
 
@@ -92,6 +92,8 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'GET' && parts[3] === 'private-state') return json(res, 200, { private_state: privateState(room, currentPlayer(req, room).playerId) });
       if (req.method === 'GET' && parts[3] === 'speeches') return json(res, 200, { speeches: room.speeches, version: room.version });
       if (req.method === 'GET' && parts[3] === 'hunter-response') return json(res, 200, { hunter_response: publicState(room).hunterResponse });
+      if (req.method === 'GET' && parts[3] === 'last-words') return json(res, 200, { last_words: publicState(room).lastWords });
+      if (req.method === 'POST' && parts[3] === 'last-words') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipLastWords(room, actor.seatId, id, body.window_id); else submitLastWords(room, actor.seatId, body.text, id, body.window_id); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'GET' && parts[3] === 'events') return eventStream(res, events, room.roomId, { version: Number(url.searchParams.get('after') || 0), history: room.events });
       if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); if(room.hostPlaybackBlocked)throw new Error('请等待主持播报完成'); const speechClock=speechSession(room,actor);if(['recording','transcribing'].includes(speechClock.stage))throw Error('请先结束或取消录音转写'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'hunter-response') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipHunterResponse(room, actor.seatId, id, body.window_id); else if (body.action === 'shoot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else throw new Error('invalid hunter action'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
@@ -102,7 +104,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   });
   let hunterTimer;
   server.on('listening', () => { hunterTimer = setInterval(() => {
-    for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); tickHumanSpeech(room); publishNewEvents(room); }
+    for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
     for (const active of transcriptions) if(!active.valid())active.abort.abort();
   }, 250); hunterTimer.unref(); });
   server.on('close', () => {clearInterval(hunterTimer);for(const active of transcriptions)active.abort.abort();transcriptions.clear();});
@@ -110,4 +112,3 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
 }
 
 export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) { events.publish(room.roomId, event); if (['game.player_eliminated','game.hunter_response_opened','game.hunter_response_closed'].includes(event.type)) recordTurn(event.type,{roomId:room.roomId,gameId:room.gameId,eventId:event.eventId,seatId:event.data.seatId,windowId:event.data.windowId}); } room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); roomChanges.emit('changed', room); }
-

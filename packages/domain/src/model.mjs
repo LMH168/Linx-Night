@@ -9,6 +9,7 @@ export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASS
 export const PLAYER_TYPES = Object.freeze({ HUMAN: 'human', AI: 'ai' });
 export const CONNECTION_STATES = Object.freeze({ ONLINE: 'online', DISCONNECTED: 'disconnected', AI_CONTROLLED: 'ai_controlled' });
 export const CONTROLLER_STATES = Object.freeze({ PENDING: 'pending', CONNECTING: 'connecting', CONNECTED: 'connected', BINDING: 'binding', READY: 'ready', FAILED: 'failed', RECONNECTING: 'reconnecting', RELEASED: 'released' });
+export const SETTLEMENT_TYPES = Object.freeze({ NORMAL_WIN: 'NORMAL_WIN', HOST_ENDED: 'HOST_ENDED', CONTROLLER_CANCELLED: 'CONTROLLER_CANCELLED', SERVICE_FAILURE: 'SERVICE_FAILURE' });
 
 const roleCamp = role => role === ROLES.WEREWOLF ? CAMPS.WEREWOLF : CAMPS.GOOD;
 const roleList = [ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.WEREWOLF, ROLES.SEER, ROLES.WITCH, ROLES.HUNTER, ROLES.VILLAGER, ROLES.VILLAGER, ROLES.VILLAGER];
@@ -176,6 +177,17 @@ export function appendEvent(room, { eventId = id('evt'), type, data = {} } = {})
   const event = { eventId, version: room.version + 1, type, roomId: room.roomId, data: clone(data) }; room.events.push(event); room.version = event.version; return clone(event);
 }
 
+export function createSettlement(room, { settlementType, reason, winner = null, endedAt = new Date().toISOString() } = {}) {
+  if (room.settlement) throw new Error('settlement already exists');
+  if (!Object.values(SETTLEMENT_TYPES).includes(settlementType)) throw new Error('invalid settlement type');
+  const settlementId = id('settlement');
+  const publicEvents = (room.events ?? []).map(publicEvent).filter(Boolean);
+  const eliminations = publicEvents.filter(event => event.type === 'game.player_eliminated').map(event => ({ ...clone(event.data), eventId: event.eventId }));
+  const report = { settlementId, roomId: room.roomId, gameId: room.gameId, settlementType, reason: reason || settlementType, endedAt, finalVersion: null, winner, seats: room.seats.map(({ seatId, displayName, role, camp, alive }) => ({ seatId, displayName, role, camp, alive })), eliminations, speeches: clone(room.speeches ?? []), voteResolutions: clone(room.voteResolutions ?? []), publicEvents, trace: { eventIds: publicEvents.map(event => event.eventId), actionIds: (room.actions ?? []).map(action => action.actionId).filter(Boolean), requestIds: (room.actions ?? []).map(action => action.requestId).filter(Boolean) }, release: { controllers: 'pending', hostPlayback: 'pending', mcpBindings: 'pending' } };
+  room.settlement = report;
+  const event = appendEvent(room, { type: 'game.settlement_created', data: { settlementId, settlementType, reason: report.reason, endedAt, finalVersion: room.version + 1, winner } });
+  report.finalVersion = room.version; report.publicEvents = [...publicEvents, publicEvent(event)].filter(Boolean); report.trace.eventIds = report.publicEvents.map(item => item.eventId); return clone(report);
+}
+export function settlementReport(room) { return room.settlement ? clone(room.settlement) : null; }
 export async function saveSnapshot(room, filePath) { await mkdir(dirname(filePath), { recursive: true }); await writeFile(filePath, `${JSON.stringify(room, null, 2)}\n`, 'utf8'); }
 export async function loadSnapshot(filePath) { return JSON.parse(await readFile(filePath, 'utf8')); }
-
