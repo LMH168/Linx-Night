@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addPlayer, appendEvent, assignRoles, createRoom, fillAiSeats, loadSnapshot, privateState, publicState, saveSnapshot, CAMPS, PLAYER_TYPES, ROLES } from '../src/model.mjs';
+import { addPlayer, appendEvent, assignRoles, createRoom, createSettlement, fillAiSeats, loadSnapshot, privateState, publicState, saveSnapshot, CAMPS, PLAYER_TYPES, ROLES, SETTLEMENT_TYPES, settlementReport } from '../src/model.mjs';
 
 const room = createRoom({ roomId: 'room_test', hostPlayerId: 'p1' });
 addPlayer(room, { playerId: 'p1', displayName: '真人 1' });
@@ -24,6 +24,7 @@ assert.equal(mine.playerId, 'p1');
 assert.throws(() => privateState(room, 'missing'), /not found/);
 appendEvent(room, { eventId: 'evt_test', type: 'room.updated', data: { ok: true } });
 assert.throws(() => appendEvent(room, { eventId: 'evt_test', type: 'room.updated' }), /duplicate event/);
+const settlement = createSettlement(room, { settlementType: SETTLEMENT_TYPES.HOST_ENDED, reason: '房主提前结束本局' }); assert.equal(settlement.settlementType, SETTLEMENT_TYPES.HOST_ENDED); assert.equal(settlement.winner, null); assert.equal(settlement.seats[0].role, room.seats[0].role); assert.ok(settlement.publicEvents.every(event => !JSON.stringify(event).match(/token|session|device|agent|audio|modelReply/i))); assert.throws(() => createSettlement(room, { settlementType: SETTLEMENT_TYPES.HOST_ENDED }), /already exists/); assert.deepEqual(settlementReport(room), settlement); assert.equal(publicState(room).settlement.settlementType, SETTLEMENT_TYPES.HOST_ENDED); assert.equal(publicState(room).settlement.seats, undefined);
 const dir = await mkdtemp(join(tmpdir(), 'linx-night-'));
 const file = join(dir, 'room.json');
 await saveSnapshot(room, file);
