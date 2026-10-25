@@ -7,15 +7,29 @@ const room=createRoom({hostPlayerId:'host'});addPlayer(room,{playerId:'host',dis
 const phase=appendEvent(room,{type:'game.phase_changed',data:{phase:'SPEECH',private:'secret'}});
 const privateEvent=appendEvent(room,{type:'game.seer_checked',data:{result:'secret'}});
 assert.equal(publicNarration(room,phase.eventId),'天亮了，开始依次发言。');assert.throws(()=>publicNarration(room,privateEvent.eventId));
-const calls=[];const server=createApiServer({voice:async input=>{calls.push(input);return input.kind==='speak'?{wav:wavFromPcm(Buffer.alloc(640))}:{text:'草稿'};}}).server;
+let delayed=false,aborted=false;
+const calls=[];const server=createApiServer({voice:async input=>{calls.push(input);if(delayed)return new Promise((resolve,reject)=>input.signal.addEventListener('abort',()=>{aborted=true;reject(Error('cancelled'));},{once:true}));return input.kind==='speak'?{wav:wavFromPcm(Buffer.alloc(640))}:{text:'草稿'};}}).server;
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}/api/rooms/${room.roomId}/voice/`;
 const post=(type,body,id='host')=>fetch(base+type,{method:'POST',headers:{'content-type':'application/json','x-player-id':id},body:JSON.stringify(body)});
 try{
  assert.equal((await post('speak',{event_id:phase.eventId},'unknown')).status,403);
  assert.equal((await post('speak',{event_id:privateEvent.eventId,text:'injected'})).status,400);assert.equal(calls.length,0);
  const response=await post('speak',{event_id:phase.eventId,text:'injected'});assert.equal(response.status,400);assert.equal(calls.length,0);
- assert.equal((await post('transcribe',{wav:wavFromPcm(Buffer.alloc(640)).toString('base64')})).status,200);assert.equal(room.speeches.length,0);
+ const recording=await (await post('recording-start',{})).json();
+ assert.equal((await post('transcribe',{recording_id:recording.recordingId,wav:wavFromPcm(Buffer.alloc(640)).toString('base64')})).status,200);assert.equal(room.speeches.length,0);
+ assert.equal(room.speechClock.stage,'confirming');
+ assert.equal((await post('recording-start',{})).status,400);
  assert.equal((await post('transcribe',{wav:'a'.repeat(1300001)})).status,400);
  room.currentSeatId='P2';assert.equal((await post('transcribe',{wav:'AAAA'})).status,400);
+ room.currentSeatId='P1';room.round++;room.speechClock=null;delayed=true;
+ const next=await(await post('recording-start',{})).json();
+ const before=calls.length;
+ const pending=post('transcribe',{recording_id:next.recordingId,wav:wavFromPcm(Buffer.alloc(640)).toString('base64')});
+ for(let i=0;i<100&&calls.length===before;i++)await new Promise(r=>setTimeout(r,10));
+ assert.equal(calls.length,before+1);
+ assert.equal((await post('recording-cancel',{recording_id:next.recordingId})).status,200);
+ assert.equal((await pending).status,400);assert.equal(aborted,true);assert.equal(room.speeches.length,0);
+ const deadline=room.speechClock.expiresAt;
+ await post('recording-cancel',{recording_id:next.recordingId});assert.equal(room.speechClock.expiresAt,deadline);
  console.log('Voice API identity, phase, public event whitelist, request size and draft-only behavior passed');
 }finally{rooms.clear();server.closeAllConnections();await new Promise(r=>server.close(r));}

@@ -20,9 +20,9 @@ const phases = {LOBBY:'等待开局',ROLE_ASSIGNMENT:'分配身份',NIGHT_WOLF:'
 const descriptions = {werewolf:'与队友协商，在夜晚选择目标。',seer:'每晚查验一名玩家，寻找隐藏的狼人。',witch:'解药与毒药各一瓶，每晚只能选择一种。',hunter:'出局后可使用一次开枪技能。',villager:'倾听发言，用推理和投票帮助好人获胜。'};
 const show = (id, visible) => { $(id).hidden = !visible; };
 function render(room) {
-  linxVoice?.update(room);
+
   if(state.room && [state.room.gameId,state.room.round,state.room.phase,state.room.currentSeatId].join(':')!==[room.gameId,room.round,room.phase,room.currentSeatId].join(':'))state.actionStatus='';
-  state.room = room;
+  state.room = room; linxVoice?.update(room);
   const lobby = room.phase === 'LOBBY';
   show('entryCard',lobby || room.phase==='GAME_OVER');
   $('#roomLabel').textContent = room.roomId;
@@ -103,8 +103,11 @@ function renderActions() {
   }
   for(const id of ['speech','skill','hunterShot','hunterSkip','vote','announce']) $(id).disabled=state.busy || (needsTarget && ['skill','hunterShot','vote'].includes(id) && !$('#target').value);
   $('#skill').textContent={werewolf:'确认袭击目标',seer:'查验身份',witch:'确认用药选择'}[mine.role] || '确认行动';
+  $('#linxRecord').disabled=state.voice.linxRecording || (room.phase==='SPEECH' && mine.speechSession && mine.speechSession.stage!=='speaking');
+  $('#speech').disabled=state.busy || ['recording','transcribing'].includes(mine.speechSession?.stage);
   $('#actionTitle').textContent=speech?'轮到你发言':skill?'轮到你行动':hunter?'猎人开枪':vote?'选择放逐目标':announce?'天亮了':'请耐心等待';
   $('#turnHint').textContent=room.hostPlaybackBlocked&&room.phase==='SPEECH'?'正在等待主持播报完成；请在下方启用主持声音。':speech?`发言剩余 ${Math.max(0,Math.ceil(((room.speechDeadline||Date.now()+30000)-Date.now())/1000))} 秒；到时自动结束，请及时提交。`:skill?'请确认你的选择，再提交行动。':hunter?`猎人响应剩余 ${Math.max(0,Math.ceil((Date.parse(mine.hunterAction.expiresAt)-Date.now())/1000))} 秒：选择目标或跳过。`:room.phase==='HUNTER_RESPONSE'?'等待猎人确认开枪，其他玩家暂不能推进。':vote?'选择你认为最可疑的玩家。':!mine.alive?'你已出局，可以继续旁观对局。':room.phase==='SPEECH'?`正在等待 ${room.currentSeatId} 发言。`:`当前为${phases[room.phase] || '对局'}阶段，暂时无需操作。`;
+  if(speech && mine.speechSession){const c=mine.speechSession;$('#turnHint').textContent=({speaking:'发言',recording:'录音',transcribing:'等待转写',confirming:'编辑确认'}[c.stage]||'发言')+'剩余 '+Math.max(0,Math.ceil((c.expiresAt-Date.now())/1000))+' 秒；未确认的草稿不会提交。';}
 }
 function speechRecognitionConstructor() { return globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition; }
 function voiceContext() { return [state.roomId,state.room?.round,state.room?.phase,state.room?.currentSeatId,state.privateState?.hunterAction?.windowId,state.room?.seats.find(s=>s.seatId===state.privateState?.seatId)?.controlSource,state.playerId].join(':'); }
@@ -157,7 +160,7 @@ $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.room
 window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); clearTimeout(state.reconnectTimer); state.source?.close(); });
 for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};
 setInterval(()=>{if(!state.unloading && state.roomId && state.playerId)call('/api/rooms/'+state.roomId+'/presence',{method:'POST'}).catch(()=>{});},10000);
-const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,applyDraft:text=>{if(state.room.phase==='SPEECH'){$('#speechText').value=text;state.voice.draft=true;}else{$('#actionDraftText').value=text;buildActionDraft();}renderActions();}});
+const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,suspendPlayback:()=>hostPlayer?.suspend()||(()=>{}),applyDraft:text=>{if(state.room.phase==='SPEECH'){$('#speechText').value=text;state.voice.draft=true;}else{$('#actionDraftText').value=text;buildActionDraft();}renderActions();}});
 function buildActionDraft(){const draft=window.parseActionDraft?.($('#actionDraftText').value,state.room,state.privateState);state.actionDraft=draft?{...draft,context:voiceContext()}:null;renderActions();if(!draft)$('#actionDraftHint').textContent='无法明确识别，请使用原有目标和行动按钮。';}
 $('#parseAction').onclick=buildActionDraft;
 $('#actionDraftText').oninput=()=>{state.actionDraft=null;show('confirmDraft',false);};

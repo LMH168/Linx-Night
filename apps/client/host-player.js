@@ -29,5 +29,5 @@ window.createHostPlayer=({call,state,message,refresh})=>{
  document.getElementById('hostRetry').onclick=async()=>{try{await call(`/api/rooms/${state.roomId}/host/retry`,{method:'POST'});void poll();}catch(e){message(e.message);}};
  document.getElementById('hostSkip').onclick=async()=>{const id=taskId;stop();try{await call(`/api/rooms/${state.roomId}/host/skip`,{method:'POST',body:JSON.stringify({task_id:id})});await refresh?.();message('已跳过音频，请启用公共声音继续。');}catch(e){message(e.message);}};
  timer=setInterval(poll,1000);window.addEventListener('beforeunload',()=>{clearInterval(timer);stop();});
- return {stop};
+ return {stop,suspend(){const resume=enabled;stop();return()=>{if(resume&&!enabled){enabled=true;epoch++;document.getElementById('hostEnable').textContent='停止公共声音';void poll();}};}};
 };
