@@ -2,8 +2,9 @@ export function actionAvailable(room, seat) {
   if (room.preparing || room.invalidated) return false;
   if (room.phase === 'HUNTER_RESPONSE') return room.hunterResponse?.status === 'open' && room.hunterResponse.seatId === seat.seatId;
   if (!seat.alive) return false;
-  // Private night actions must not wait for public host audio. Day actions do.
-  if (room.hostPlaybackBlocked && (room.phase === 'SPEECH' || room.phase === 'VOTE')) return false;
+  // Speech is gated by the public host prompt; voting is an independent
+  // submission phase and must remain available while that prompt is pending.
+  if (room.hostPlaybackBlocked && room.phase === 'SPEECH') return false;
   if (room.phase === 'SPEECH') return room.currentSeatId === seat.seatId;
   if (room.phase === 'VOTE') return !room.votes.some(v => v.round === room.round && v.seatId === seat.seatId);
   if (room.phase === 'NIGHT_WOLF') return seat.role === 'werewolf' && !room.actions.some(a => a.turnId === room.round && a.actionType === 'wolf_target' && a.seatId === seat.seatId);
