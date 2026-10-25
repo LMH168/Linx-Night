@@ -6,5 +6,6 @@ const fs={access:async()=>{}};
 assert.equal((await checkConfig({env,fs})).ok,true);
 for(const patch of [{LINX_PROFILES:'a,a'},{LINX_PROFILES:'a'},{LINX_SEATS:'P99'},{LINX_VOICE_PROFILE:'player-a'},{LINX_MCP_ADMIN_TOKEN:'mismatch'},{MCP_AUTH_TOKEN:'admin'}])assert.equal((await checkConfig({env:{...env,...patch},fs})).ok,false);
 assert.equal((await checkConfig({env,fs:{access:async()=>{},readFile:async()=>Buffer.alloc(1)}})).ok,false);
+assert.ok((await checkConfig({env:{...env,LINX_VOTE_WAV:'bad-vote'},fs:{access:async path=>{if(path==='bad-vote')throw Error('missing');}}})).missing.some(key=>key.startsWith('LINX_VOTE_WAV')));
 const result=spawnSync(process.execPath,['scripts/check-config.mjs'],{env:{...process.env,LINX_AGENT_ID:'',ADMIN_TOKEN:''},encoding:'utf8'});assert.equal(result.status,1);assert.match(result.stderr,/配置不完整/);
 console.log('Configuration CLI execution, profile separation, credentials and WAV validation passed');

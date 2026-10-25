@@ -6,4 +6,8 @@ const created = await request('/api/rooms', { method: 'POST', body: JSON.stringi
 const joined = await request(`/api/rooms/${room.room_id}/players`, { method: 'POST', body: JSON.stringify({ player_id: 'human2', display_name: '玩家 2' }) }); assert.equal(joined.status, 201);
 const started = await request(`/api/rooms/${room.room_id}/start`, { method: 'POST', headers: { 'x-player-id': 'host' } }); assert.equal(started.status, 202); const startedBody = await started.json(); assert.equal(startedBody.state.seats.length, 9); assert.equal(startedBody.state.controllerPhase, 'connecting'); await new Promise(resolve => setImmediate(resolve)); const ready = await request(`/api/rooms/${room.room_id}/state`); const readyBody = await ready.json(); assert.equal(readyBody.state.phase, 'NIGHT_WOLF');
 const privateResponse = await request(`/api/rooms/${room.room_id}/private-state`, { headers: { 'x-player-id': 'human2' } }); assert.equal(privateResponse.status, 200); const privateBody = await privateResponse.json(); assert.ok(privateBody.private_state.role);
-const denied = await request(`/api/rooms/${room.room_id}/private-state`, { headers: { 'x-player-id': 'missing' } }); assert.equal(denied.status, 403); rooms.clear(); server.close(); console.log('api tests passed');
+const denied = await request(`/api/rooms/${room.room_id}/private-state`, { headers: { 'x-player-id': 'missing' } }); assert.equal(denied.status, 403);
+assert.equal((await request(`/api/rooms/${room.room_id}/end`, {method:'POST',headers:{'x-player-id':'human2'}})).status,403);
+assert.equal((await request(`/api/rooms/${room.room_id}/end`, {method:'POST',headers:{'x-player-id':'host'}})).status,200);
+assert.equal(rooms.has(room.room_id),false);
+rooms.clear(); server.close(); console.log('api tests passed');

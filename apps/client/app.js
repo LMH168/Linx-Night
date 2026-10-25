@@ -29,7 +29,7 @@ function render(room) {
   $('#phase').textContent = phases[room.phase] || '对局进行中';
   const humans = room.seats.filter(s => s.playerType === 'human').length;
   const ais = room.seats.filter(s => s.playerType === 'ai').length;
-  $('#counts').textContent = `真人 ${humans} / 机器人 ${ais} / 空位 ${9-humans-ais}`;
+  $('#counts').textContent = `真人 ${humans} / AI 玩家 ${ais} / 空位 ${9-humans-ais}`;
   $('#seats').replaceChildren(...room.seats.map(seat => {
     const el = document.createElement('div');
     el.className = `seat ${!seat.playerType?'empty':''} ${!seat.alive?'dead':''} ${room.currentSeatId===seat.seatId?'active':''}`;

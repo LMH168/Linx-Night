@@ -12,3 +12,8 @@ context.window.createHostPlayer({state,message(){},call:async(path)=>{if(path.en
 get('hostEnable').onclick();await new Promise(r=>setImmediate(r));currentAudio.onended();await new Promise(r=>setImmediate(r));
 await tick();assert.equal(attempts,2);assert.equal(fetches,1);
 console.log('Completed audio is not replayed when playback acknowledgement retries');
+
+context.window.createHostPlayer({state,message(){},call:async(path)=>{if(path.endsWith('/state'))return {task:{id:'natural-end',text:'test',status:'ready'}};if(path.includes('/audio'))return {wav:''};if(path.endsWith('/played')){attempts++;return {};}}});
+get('hostEnable').onclick();await new Promise(r=>setImmediate(r));
+currentAudio.ended=true;currentAudio.onpause();currentAudio.onended();await new Promise(r=>setImmediate(r));
+assert.equal(attempts,3);console.log('Natural-end pause before ended still acknowledges playback');

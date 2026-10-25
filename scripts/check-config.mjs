@@ -22,6 +22,7 @@ export async function checkConfig({ env = process.env, fs = { access, readFile }
     try { const wav=env[key] || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', file); await fs.access(wav); if(fs.readFile)parseTriggerWav(await fs.readFile(wav)); }
     catch { missing.push(`${key}: run scripts/linx-audio.ps1 (maximum 5 seconds)`); }
   }
+  if(env.LINX_VOTE_WAV)try{await fs.access(env.LINX_VOTE_WAV);if(fs.readFile)parseTriggerWav(await fs.readFile(env.LINX_VOTE_WAV));}catch{missing.push('LINX_VOTE_WAV: maximum 5 seconds');}
   return { ok: missing.length === 0, missing, profiles };
 }
 

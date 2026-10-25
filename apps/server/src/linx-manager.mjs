@@ -24,7 +24,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
-  let audio, hunterAudio;
+  const voteAudioPath = env.LINX_VOTE_WAV;
+  let audio, hunterAudio, voteAudio;
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
       const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, c.seatId==='HOST' ? env.LINX_HOST_PROFILE : names[i]]));
@@ -64,6 +65,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
       audio ??= await loadAudio(audioPath); parseTriggerWav(audio);
       hunterAudio ??= await loadAudio(hunterAudioPath); parseTriggerWav(hunterAudio);
+      if(voteAudioPath){voteAudio ??= await loadAudio(voteAudioPath);parseTriggerWav(voteAudio);}
       if (room.invalidated || room.gameId !== gameId) throw new Error('PREPARATION_CANCELLED');
       if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       for (const name of assigned) reservations.set(name, room.roomId);
@@ -92,7 +94,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
-      return client.send(room.phase === 'HUNTER_RESPONSE' ? hunterAudio : audio);
+      return client.send(room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio);
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);
