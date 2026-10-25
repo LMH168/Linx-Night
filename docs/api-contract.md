@@ -75,3 +75,13 @@ MCP 服务从 `X-Linx-Session-Id`、`X-Linx-Device-Id` 和 `X-Linx-Agent-Id` 建
 - 缺少窗口、错误窗口、超时、已结束、错误角色、死亡目标或重复行动均拒绝且不改状态。到期由 API 服务定时处理，不开放客户端强制超时入口。
 - 成功/跳过/到期仅生成一次 `game.hunter_response_closed`。技能随窗口关闭消耗；公开目标仅在开枪接受后出现。然后重新判断胜负，或恢复天亮后的发言、投票后的下一夜。
 - 服务重启丢失内存房间与窗口，不支持持久恢复。自动化：`npm run test:hunter`。Linx 自动触发开枪仍依赖后续回合驱动，当前支持工具提交或超时跳过。
+
+## 遗言窗口（#93）
+
+符合资格的出局玩家依次进入 `LAST_WORDS`：首轮夜间死亡和白天投票出局允许遗言，第二轮及以后夜间死亡不允许。猎人先完成开枪、跳过或超时，再进入遗言。窗口默认 30 秒，文本最多 200 个字符，每名玩家每局最多提交一次。
+
+- `GET /api/rooms/{room_id}/last-words` 查询当前窗口。
+- `POST /api/rooms/{room_id}/last-words`：提交 `{ "text": "...", "action_id": "...", "window_id": "..." }`，或跳过 `{ "action": "skip", "action_id": "...", "window_id": "..." }`。
+- MCP 遗言工具：`get_last_words_state`、`submit_last_words`、`skip_last_words`。工具只能操作当前会话对应座位和窗口。
+- 公共状态及 SSE 公开 `lastWords`、`lastWordsHistory`，以及 `game.last_words_opened/submitted/skipped/expired`；不公开私密 Agent 回复、录音或内部字段。
+- 重复 action、错误座位或窗口、迟到提交均拒绝且不改变快照；窗口只关闭一次，超时由服务端处理。

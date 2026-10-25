@@ -19,6 +19,7 @@
     "NIGHT_WITCH",
     "DAY_ANNOUNCEMENT",
     "HUNTER_RESPONSE",
+    "LAST_WORDS",
     "SPEECH",
     "VOTE",
     "RESOLUTION",
@@ -33,7 +34,11 @@
     "game.vote_resolved",
     "game.finished",
     "game.hunter_response_opened",
-    "game.hunter_response_closed"
+    "game.hunter_response_closed",
+    "game.last_words_opened",
+    "game.last_words_submitted",
+    "game.last_words_skipped",
+    "game.last_words_expired"
   ],
   "errors": [
     "BAD_REQUEST",

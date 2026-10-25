@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES } from './model.mjs';
 
+export const LAST_WORDS_TIMEOUT_MS = 30_000;
+export const MAX_LAST_WORDS_LENGTH = 200;
+
 export class RuleError extends Error {}
 
 const aliveSeats = room => room.seats.filter(seat => seat.alive);
@@ -70,6 +73,8 @@ export function announceDay(room) {
   appendEvent(room, { type: 'game.night_resolved', data: { round: room.round, deathSeatIds: [...deaths] } });
   for (const seatId of deaths) eliminate(room, seatId, 'night');
   if (room.hunterResponse?.status === 'open') return room;
+  if (room.lastWordsQueue?.length) room.lastWordsContinuation = PHASES.SPEECH;
+  if (openNextLastWords(room)) return room;
   const winner = checkWinner(room); if (winner) return winner;
   transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null }); return room;
 }
@@ -105,10 +110,65 @@ function openHunterResponse(room, hunter, cause) {
 function continueAfterHunter(room) {
   const response = room.hunterResponse; if (!response) return room;
   const before = response.phaseBefore;
+  room.hunterResponse = null;
+  if (before === PHASES.DAY_ANNOUNCEMENT) room.lastWordsContinuation = PHASES.SPEECH;
+  else if (before === PHASES.VOTE) room.lastWordsContinuation = PHASES.NIGHT_WOLF;
+  if (openNextLastWords(room)) return room;
   const winner = checkWinner(room); if (winner) return room;
   if (before === PHASES.DAY_ANNOUNCEMENT) transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
   else if (before === PHASES.VOTE) { room.round += 1; transition(room, PHASES.NIGHT_WOLF); }
   return room;
+}
+
+function qualifiesLastWords(room, seat, cause) {
+  return cause === 'vote' || (cause === 'night' && room.round === 0);
+}
+
+function queueLastWords(room, seatId, cause) {
+  const seat = seatOf(room, seatId); if (!seat || !qualifiesLastWords(room, seat, cause)) return;
+  room.lastWordsQueue ??= []; if (!room.lastWordsQueue.some(item => item.seatId === seatId)) room.lastWordsQueue.push({ seatId, round: room.round, cause });
+}
+
+function openNextLastWords(room, extra = null) {
+  if (extra) queueLastWords(room, extra.seatId, extra.cause);
+  if (room.lastWords?.status === 'open') return true;
+  const next = room.lastWordsQueue?.shift(); if (!next) return false;
+  const windowId = `last_words_${randomUUID()}`; const expiresAt = new Date(Date.now() + LAST_WORDS_TIMEOUT_MS).toISOString();
+  room.lastWords = { windowId, lastWordsId: windowId, seatId: next.seatId, round: next.round, cause: next.cause, status: 'open', expiresAt, text: null };
+  room.phase = PHASES.LAST_WORDS; room.currentSeatId = next.seatId; room.version += 1;
+  appendEvent(room, { type: 'game.last_words_opened', data: { windowId, seatId: next.seatId, round: next.round, cause: next.cause, expiresAt } }); return true;
+}
+
+function closeLastWords(room, status, text = null) {
+  const current = room.lastWords; if (!current || current.status !== 'open') throw new RuleError('last words window is not open');
+  current.status = status; current.text = text; room.version += 1;
+  const type = status === 'submitted' ? 'game.last_words_submitted' : status === 'skipped' ? 'game.last_words_skipped' : 'game.last_words_expired';
+  appendEvent(room, { type, data: { lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, ...(status === 'submitted' ? { text } : {}) } });
+  room.lastWordsHistory ??= []; room.lastWordsHistory.push({ lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, cause: current.cause, status, text });
+  room.lastWords = null; room.currentSeatId = null; return openNextLastWords(room) || continueAfterLastWords(room);
+}
+
+function continueAfterLastWords(room) {
+  const continuation = room.lastWordsContinuation; room.lastWordsContinuation = null;
+  if (continuation === PHASES.SPEECH) return transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
+  if (continuation === PHASES.NIGHT_WOLF) { room.round += 1; return transition(room, PHASES.NIGHT_WOLF); }
+  return room;
+}
+
+export function submitLastWords(room, seatId, text, actionId, windowId) {
+  if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.seatId !== seatId || room.lastWords.windowId !== windowId) throw new RuleError('last words window mismatch');
+  if (commandKey(room, actionId)) throw new RuleError('duplicate action'); if (typeof text !== 'string' || !text.trim() || text.trim().length > MAX_LAST_WORDS_LENGTH) throw new RuleError('last words must be 1-200 characters');
+  recordAction(room, { actionId, turnId: room.round, actionType: 'last_words', seatId }); return closeLastWords(room, 'submitted', text.trim());
+}
+
+export function skipLastWords(room, seatId, actionId, windowId) {
+  if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.seatId !== seatId || room.lastWords.windowId !== windowId) throw new RuleError('last words window mismatch');
+  if (commandKey(room, actionId)) throw new RuleError('duplicate action'); recordAction(room, { actionId, turnId: room.round, actionType: 'last_words_skip', seatId }); return closeLastWords(room, 'skipped');
+}
+
+export function expireLastWords(room, now = Date.now()) {
+  if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.status !== 'open' || now < Date.parse(room.lastWords.expiresAt)) return false;
+  closeLastWords(room, 'expired'); return true;
 }
 
 function requireHunterResponse(room, seatId, actionId, windowId, now) {
@@ -156,10 +216,13 @@ function resolveVotes(room) {
   room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution });
   if (eliminatedSeatId) eliminate(room, eliminatedSeatId, 'vote');
   if (room.hunterResponse?.status === 'open') return room;
-  const winner = checkWinner(room); if (winner) return winner; room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
+  room.lastWordsContinuation = PHASES.NIGHT_WOLF;
+  if (openNextLastWords(room)) return room;
+  const winner = checkWinner(room); if (winner) return winner;
+  room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
 }
 
-function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }
+function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); queueLastWords(room, seatId, cause); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }
 
 export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
 
