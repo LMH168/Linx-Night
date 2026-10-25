@@ -3,9 +3,11 @@ import { access, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseTriggerWav } from '../apps/linx/src/wav.mjs';
 import { profilePath } from '../apps/linx/src/profile.mjs';
+import { voiceConfig } from '../apps/server/src/voice-config.mjs';
 
 export async function checkConfig({ env = process.env, fs = { access, readFile } } = {}) {
   const missing = [];
+  try { voiceConfig(env); } catch(error) { missing.push(error.message); }
   for (const key of ['LINX_HOST_PROFILE','LINX_HOST_AGENT_ID','LINX_AGENT_ID', 'LINX_MCP_ADMIN_URL', 'LINX_MCP_ADMIN_TOKEN', 'MCP_AUTH_TOKEN', 'ADMIN_TOKEN']) if (!env[key]?.trim()) missing.push(key);
   const profiles = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(name => name.trim()).filter(Boolean);
   if(env.LINX_HOST_PROFILE && (profiles.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE))missing.push('LINX_HOST_PROFILE: must be independent');

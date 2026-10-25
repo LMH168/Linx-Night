@@ -154,7 +154,7 @@ $('#vote').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/
 $('#hunterShot').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'hunter_shot', target_seat_id: $('#target').value, window_id: state.privateState.hunterAction.windowId, action_id: `hunter_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#hunterSkip').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/hunter-response`, { method: 'POST', body: JSON.stringify({ action: 'skip', window_id: state.privateState.hunterAction.windowId, action_id: `hunter_skip_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
 $('#announce').onclick = async () => { try { await call(`/api/rooms/${state.roomId}/actions`, { method: 'POST', body: JSON.stringify({ type: 'announce_day', action_id: `announce_${Date.now()}` }) }); await refresh(); } catch (error) { message(error.message); } };
-window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); linxVoice?.stopPlayback(); clearTimeout(state.reconnectTimer); state.source?.close(); });
+window.addEventListener('beforeunload', () => { state.unloading = true; stopVoice(); clearTimeout(state.reconnectTimer); state.source?.close(); });
 for(const [id,mode] of [['takeover','rule_bot'],['restoreControl','human']]) $(id).onclick=async()=>{try{stopVoice();const body=await call('/api/rooms/'+state.roomId+'/control',{method:'POST',body:JSON.stringify({mode})});render(body.state);await loadPrivate();}catch(error){message(error.message);}};
 setInterval(()=>{if(!state.unloading && state.roomId && state.playerId)call('/api/rooms/'+state.roomId+'/presence',{method:'POST'}).catch(()=>{});},10000);
 const linxVoice=window.createLinxVoice?.({call,state,message,context:voiceContext,applyDraft:text=>{if(state.room.phase==='SPEECH'){$('#speechText').value=text;state.voice.draft=true;}else{$('#actionDraftText').value=text;buildActionDraft();}renderActions();}});
@@ -165,7 +165,6 @@ $('#confirmDraft').onclick=async()=>{const draft=state.actionDraft;if(!draft || 
 $('#linxRecord').onclick=()=>{stopVoice();state.voice.context=voiceContext();state.voice.linxRecording=true;linxVoice?.record();};
 $('#linxRecordCancel').onclick=()=>{stopVoice();$('#linxVoiceStatus').textContent='已取消录音或转写。';};
 $('#linxRecordStop').onclick=()=>linxVoice?.end();
-$('#publicVoice').onclick=()=>linxVoice?.toggle();
 $('#voiceStart').onclick = startVoice;
 $('#voiceCancel').onclick = clearVoiceDraft;
 if (state.roomId) { refresh(); connectEvents(); }

@@ -10,3 +10,8 @@ room.phase='HUNTER_RESPONSE';room.hunterResponse={seatId:'P2',status:'open'};ass
 host.cancel(room);assert.equal(host.audio.size,0);
 for(const mismatch of [false,true]){const socket=new EventEmitter();socket.send=(data,cb)=>{const m=JSON.parse(data);queueMicrotask(()=>{socket.emit('message',Buffer.from(JSON.stringify({type:'tts',state:'start'})),false);socket.emit('message',Buffer.from(JSON.stringify({type:'tts',state:'sentence_start',text:mismatch?'私密错误':m.text_response})),false);socket.emit('message',Buffer.alloc(640),true);socket.emit('message',Buffer.from(JSON.stringify({type:'tts',state:'stop'})),false);});cb?.();};const work=speakPublic({state:'ready',socket,sessionId:'secret'},'公开事实');if(mismatch)await assert.rejects(work);else assert.equal((await work).length,684);assert.equal(socket.listenerCount('message'),0);}
 console.log('Host queue once-only audio, playback gates, retry, hunter priority, cleanup and exact TTS passed');
+
+const voiceSocket=new EventEmitter();let sent;
+voiceSocket.send=(data,cb)=>{sent=JSON.parse(data);cb?.();queueMicrotask(()=>voiceSocket.emit('close'));};
+await assert.rejects(speakPublic({state:'ready',socket:voiceSocket},'指定正文',{voiceId:'distinct-voice'}));
+assert.equal(sent.agent_params.voice.id,'distinct-voice');assert.equal(sent.text_response,'指定正文');

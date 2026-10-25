@@ -1,7 +1,7 @@
 // Microphone audio goes only to the local service. No platform credentials here.
 window.createLinxVoice = ({call,state,message,context,applyDraft}) => {
-  let generation=0,recorder,stream,timer,request,audio,url,roomId,watermark=0,enabled=false,playing=false;
-  const queue=[];let playbackEpoch=0;
+  let generation=0,recorder,stream,timer,request,roomId;
+
   const status=text=>{document.getElementById('linxVoiceStatus').textContent=text;};
   function stop() {
     generation++;clearTimeout(timer);request?.abort();request=null;
@@ -9,9 +9,8 @@ window.createLinxVoice = ({call,state,message,context,applyDraft}) => {
     stream?.getTracks().forEach(t=>t.stop());stream=null;
     document.getElementById('linxRecordStop').hidden=true;
   }
-  function stopPlayback(){playbackEpoch++;enabled=false;queue.length=0;request?.abort();audio?.pause();audio=null;if(url)URL.revokeObjectURL(url);url=null;document.getElementById('publicVoice').textContent='启用公共播报';}
   async function record() {
-    stop();stopPlayback();const run=generation, key=context();
+    stop();const run=generation, key=context();
     if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){status('浏览器不支持录音，请使用文字。');return;}
     try{
       const input=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
@@ -39,22 +38,10 @@ window.createLinxVoice = ({call,state,message,context,applyDraft}) => {
       recorder.start();status('正在录音，最多 30 秒；完成后点击结束录音。');document.getElementById('linxRecordStop').hidden=false;timer=setTimeout(()=>recorder?.stop(),29000);
     }catch{status('无法使用麦克风，请检查权限或直接输入。');stop();}
   }
-  async function play() {
-    if(playing || !enabled)return;playing=true;
-    const epoch=playbackEpoch;
-    try{while(enabled && epoch===playbackEpoch && queue.length){const event=queue.shift(),currentRoom=roomId;request=new AbortController();const result=await call('/api/rooms/'+currentRoom+'/voice/speak',{method:'POST',signal:request.signal,body:JSON.stringify({event_id:event.eventId})});
-      if(!enabled || epoch!==playbackEpoch || currentRoom!==roomId)break;
-      const bytes=Uint8Array.from(atob(result.wav),c=>c.charCodeAt(0));url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));audio=new Audio(url);
-      await new Promise((resolve,reject)=>{audio.onended=resolve;audio.onpause=resolve;audio.onerror=reject;audio.play().catch(reject);});URL.revokeObjectURL(url);url=null;
-    }}catch{if(epoch===playbackEpoch){stopPlayback();message('公共播报未完成，文字记录仍可查看。');}}finally{playing=false;if(enabled && queue.length)void play();}
-  }
   return {
-    record,stop,stopPlayback,
+    record,stop,
+
     end(){clearTimeout(timer);if(recorder?.state==='recording')recorder.stop();},
-    toggle(){if(enabled){stopPlayback();return;}enabled=true;watermark=state.room?.version||0;document.getElementById('publicVoice').textContent='停止公共播报';message('已启用，仅播放之后的新公开事件。');},
-    update(room){if(roomId!==room.roomId){stop();stopPlayback();roomId=room.roomId;watermark=room.version;return;}
-      const fresh=room.events.filter(e=>e.version>watermark);watermark=Math.max(watermark,room.version);
-      if(enabled){queue.push(...fresh.filter(e=>['game.speech_submitted','game.player_eliminated','game.vote_resolved'].includes(e.type) || (e.type==='game.phase_changed' && ['NIGHT_WOLF','NIGHT_SEER','NIGHT_WITCH','SPEECH','VOTE','HUNTER_RESPONSE','GAME_OVER'].includes(e.data?.phase))));if(queue.length>20){stopPlayback();message('播报积压，已停止；请查看文字记录。');}else void play();}
-    }
+    update(room){if(roomId!==room.roomId){stop();roomId=room.roomId;}}
   };
 };
