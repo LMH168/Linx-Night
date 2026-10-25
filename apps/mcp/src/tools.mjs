@@ -12,6 +12,9 @@ const definitions = [
   ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: target, window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
   ['skip_hunter_response', '猎人放弃本次开枪；必须提供当前响应窗口 ID', { window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
   ['submit_vote', '提交投票目标', { target_player_id: target }],
+  ['get_last_words_state', '获取当前遗言窗口状态', {}],
+  ['submit_last_words', '提交当前座位的遗言', { text, window_id: { ...text, description: '当前遗言窗口 ID' } }],
+  ['skip_last_words', '跳过当前遗言窗口', { window_id: { ...text, description: '当前遗言窗口 ID' } }],
 ];
 export const toolMap = new Map(definitions.map(([name, description, properties]) => {
   const required = Object.keys(properties).filter(key => name !== 'submit_witch_action' || key !== 'target_player_id');

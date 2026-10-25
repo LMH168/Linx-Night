@@ -67,7 +67,7 @@ try {
   selected = 's1'; await reject('submit_vote', { target_player_id: 'P4', action_id: 'vote-1' });
   setup('VOTE'); for (const seat of room.seats.filter(s => s.seatId !== 'P2')) submitVote(room, seat.seatId, 'P3', `fixture-${seat.seatId}`);
   await call('submit_vote', { target_player_id: 'P3' });
-  assert.equal(room.phase, 'NIGHT_WOLF'); assert.equal(room.seats[2].alive, false);
+  assert.equal(room.phase, 'LAST_WORDS'); assert.equal(room.seats[2].alive, false);
   assert.equal(room.events.filter(e => e.type === 'game.vote_resolved').length, 1);
   setup('NIGHT_WOLF', 3); assert.equal((await call('submit_wolf_target', { target_player_id: 'P9' })).result.isError, false);
   selected = 's2'; await reject('submit_wolf_target', { target_player_id: 'P9' });
