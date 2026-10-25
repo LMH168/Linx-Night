@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { LinxTurnRuntime } from '../apps/scheduler/src/linx-runtime.mjs';
+import { createRoom, addPlayer } from '../packages/domain/src/model.mjs';
+
+const room = createRoom({ hostPlayerId: 'host' });
+for (let i = 1; i <= 3; i += 1) addPlayer(room, { playerId: i === 1 ? 'host' : `ai${i}`, displayName: `P${i}`, playerType: i === 1 ? 'human' : 'ai' });
+room.gameId = 'game'; room.phase = 'SPEECH'; room.round = 0; room.currentSeatId = 'P2'; room.requireActionLease = true; room.invalidated = false;
+room.seats[1].controlSource = 'linx'; room.seats[2].controlSource = 'linx';
+room.controllers = [{ seatId: 'P2', status: 'ready', controllerEpoch: 1 }, { seatId: 'P3', status: 'ready', controllerEpoch: 1 }];
+room.speechPlayback = { speechId: 'speech-2', seatId: 'P2', status: 'pending' };
+let connected = 0; let sent = 0;
+const runtime = new LinxTurnRuntime({ manager: { async ensureConnected() { connected += 1; }, async sendTurn() { sent += 1; } } });
+runtime.tick(room);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(connected, 1);
+assert.equal(sent, 0);
+assert.equal(room.currentSeatId, 'P2');
+assert.equal(room.speechPrewarm.nextSeatId, 'P3');
+assert.equal(room.turns.length, 0);
+console.log('speech prewarm connects the next seat without creating an action turn');

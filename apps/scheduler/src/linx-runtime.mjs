@@ -29,8 +29,27 @@ export class LinxTurnRuntime {
     // Host playback gates public day turns only; private night turns are independent.
     // This runtime drives Linx seats only; human seats act from the web client.
     const seat = room.seats.find(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
+    if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
     if (!seat) return Promise.resolve();
     return this.track(room, () => this.play(room, seat));
+  }
+  prewarmNext(room) {
+    if (this.prewarming?.has(room.roomId) || !room.currentSeatId) return;
+    const current = room.seats.find(seat => seat.seatId === room.currentSeatId);
+    const next = room.seats.filter(seat => seat.alive && seat.seatId > room.currentSeatId).find(seat => seat.controlSource === 'linx');
+    if (!current || !next) return;
+    const controller = room.controllers.find(item => item.seatId === next.seatId);
+    if (!controller) return;
+    this.prewarming ??= new Map();
+    const marker = { gameId: room.gameId, round: room.round, phase: room.phase, currentSeatId: room.currentSeatId, nextSeatId: next.seatId, controllerEpoch: controller.controllerEpoch, status: 'connecting' };
+    room.speechPrewarm = marker; this.prewarming.set(room.roomId, marker);
+    const work = Promise.resolve().then(async () => {
+      recordTurn('speech_prewarm_started', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
+      await this.manager.ensureConnected(room, next);
+      const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && room.speechPlayback?.status === 'pending' && room.invalidated === false;
+      if (!valid) { marker.status = 'stale'; recordTurn('stale_result_rejected', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId }); return; }
+      marker.status = 'ready'; recordTurn('speech_prewarm_ready', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
+    }).catch(error => { marker.status = 'failed'; marker.errorCode = error.message; recordTurn('speech_prewarm_failed', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId, code: error.message }); }).finally(() => { this.prewarming.delete(room.roomId); this.publish(room); });
   }
   track(room, task) {
     room.turnRunning = true;
