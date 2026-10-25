@@ -11,6 +11,7 @@ try {
     $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
     $phrases = @{
         turn = '查私密状态，执行当前行动。'
+        vote-turn = '查私密状态，选存活玩家，调用投票工具。'
         hunter = '你已死亡，查私密状态，开枪或放弃。'
         query = '请查询当前游戏状态和你自己的身份。'
         speech = '先查询当前状态，轮到你时调用工具提交一段公开发言。'

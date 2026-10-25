@@ -24,7 +24,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
-  let audio, hunterAudio;
+  const voteAudioPath = env.LINX_VOTE_WAV;
+  let audio, hunterAudio, voteAudio;
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
       const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, c.seatId==='HOST' ? env.LINX_HOST_PROFILE : names[i]]));
@@ -57,17 +58,27 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
         if(names.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE||env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)throw new Error('主持身份与 Agent 必须独立');
         assigned.push(env.LINX_HOST_PROFILE);
       }
-      if (assigned.length !== room.controllers.length || new Set(assigned).size !== assigned.length || assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
+      if (assigned.length !== room.controllers.length) throw Object.assign(new Error('not enough activated profiles configured'), {code:'PROFILE_POOL_INSUFFICIENT'});
+      if (new Set(assigned).size !== assigned.length) throw Object.assign(new Error('duplicate profiles configured'), {code:'PROFILE_POOL_DUPLICATE'});
+      if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile reserved by another room'), {code:'PROFILE_IN_USE'});
       const gameId = room.gameId;
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
       audio ??= await loadAudio(audioPath); parseTriggerWav(audio);
       hunterAudio ??= await loadAudio(hunterAudioPath); parseTriggerWav(hunterAudio);
+      if(voteAudioPath){voteAudio ??= await loadAudio(voteAudioPath);parseTriggerWav(voteAudio);}
       if (room.invalidated || room.gameId !== gameId) throw new Error('PREPARATION_CANCELLED');
       if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile unavailable'), {code:'PROFILE_IN_USE'});
       for (const name of assigned) reservations.set(name, room.roomId);
       const adapter = adapterFor(room);
       const results=await Promise.allSettled(room.controllers.map(c => adapter.connect(room, c.seatId)));
-      const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
+      const failure=results.find(r=>r.status==='rejected');
+      if(failure) {
+        // Failed preparation must not leave successful peers or the whole pool reserved.
+        await adapter.releaseAll(room).catch(() => {});
+        if (adapters.get(room.roomId) === adapter) adapters.delete(room.roomId);
+        for (const [name, owner] of reservations) if (owner === room.roomId) reservations.delete(name);
+        throw failure.reason;
+      }
       if (room.invalidated || adapters.get(room.roomId) !== adapter) throw new Error('PREPARATION_CANCELLED');
       room.controllerPhase = 'ready'; return room;
     },
@@ -83,7 +94,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
-      return client.send(room.phase === 'HUNTER_RESPONSE' ? hunterAudio : audio);
+      return client.send(room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio);
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);

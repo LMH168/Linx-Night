@@ -11,6 +11,10 @@ const room=createRoom({roomId:'streamable-test',hostPlayerId:'human'});
 addPlayer(room,{playerId:'human',displayName:'测试'});rooms.set(room.roomId,room);
 const session=registerSession({roomId:room.roomId,seatId:'P1',playerId:'human'});
 try {
+  const schema=url.replace('/mcp','/v1/schema');
+  assert.equal((await fetch(schema)).status,401);
+  const discovered=await (await fetch(schema,{headers:{authorization:'test-secret'}})).json();
+  assert.equal(discovered.tools.length,11);assert.deepEqual(discovered.data.tools,discovered.tools);
   assert.equal((await send({jsonrpc:'2.0',id:0,method:'initialize'},{authorization:'Bearer invalid'})).status,401);
   for(const version of ['2025-03-26','2025-06-18','2025-11-25']) {
     const response=await send({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:version,capabilities:{},clientInfo:{name:'integration-client',version:'1.0'}}});
@@ -28,7 +32,7 @@ try {
   const own=await (await send(call,{...negotiated,'x-linx-session-id':session})).json();
   assert.equal(JSON.parse(own.result.content[0].text).seatId,'P1');
   assert.equal((await send(call,{'mcp-protocol-version':'invalid'})).status,400);
-  assert.equal((await fetch(url,{headers:{...headers,...negotiated}})).status,405);
+  const stream=await fetch(url,{headers:{...headers,...negotiated}}); assert.equal(stream.status,200); assert.match(stream.headers.get('content-type'),/text\/event-stream/); stream.body?.cancel();
   assert.equal((await fetch(url,{method:'DELETE',headers})).status,405);
   console.log('Streamable HTTP negotiation, notification, discovery, authorization and tool call passed');
 } finally {sessions.delete(session);rooms.delete(room.roomId);server.closeAllConnections();await new Promise(r=>server.close(r));}

@@ -1,0 +1,2468 @@
+{
+  "timeline": [
+    {
+      "at": "2026-10-25T02:27:17.141Z",
+      "type": "selected",
+      "seatId": "P2",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:18.26Z",
+      "type": "connection_ready",
+      "seatId": "P2",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:18.261Z",
+      "type": "lease_created",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:18.261Z",
+      "type": "input_start",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:23.799Z",
+      "type": "input_stop",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:24.349Z",
+      "type": "stt",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:32.542Z",
+      "type": "accepted",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:32.542Z",
+      "type": "input_failure",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:27:32.543Z",
+      "type": "closed",
+      "seatId": "P2",
+      "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:32.545Z",
+      "type": "selected",
+      "seatId": "P3",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:33.434Z",
+      "type": "connection_ready",
+      "seatId": "P3",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:33.434Z",
+      "type": "lease_created",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:33.434Z",
+      "type": "input_start",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:38.967Z",
+      "type": "input_stop",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:39.468Z",
+      "type": "stt",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:46.09Z",
+      "type": "accepted",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:46.091Z",
+      "type": "input_failure",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:27:46.092Z",
+      "type": "closed",
+      "seatId": "P3",
+      "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:46.093Z",
+      "type": "selected",
+      "seatId": "P4",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:47.509Z",
+      "type": "connection_ready",
+      "seatId": "P4",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:47.509Z",
+      "type": "lease_created",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:47.509Z",
+      "type": "input_start",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:53.058Z",
+      "type": "input_stop",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:27:53.562Z",
+      "type": "stt",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:01.607Z",
+      "type": "accepted",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:01.608Z",
+      "type": "input_failure",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:28:01.609Z",
+      "type": "closed",
+      "seatId": "P4",
+      "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:01.61Z",
+      "type": "selected",
+      "seatId": "P5",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:02.745Z",
+      "type": "connection_ready",
+      "seatId": "P5",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:02.746Z",
+      "type": "lease_created",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:02.746Z",
+      "type": "input_start",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:08.251Z",
+      "type": "input_stop",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:08.911Z",
+      "type": "stt",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:16.237Z",
+      "type": "accepted",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:16.238Z",
+      "type": "input_failure",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:28:16.24Z",
+      "type": "closed",
+      "seatId": "P5",
+      "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:16.242Z",
+      "type": "selected",
+      "seatId": "P6",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:17.879Z",
+      "type": "connection_ready",
+      "seatId": "P6",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:17.879Z",
+      "type": "lease_created",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:17.88Z",
+      "type": "input_start",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:23.435Z",
+      "type": "input_stop",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:23.929Z",
+      "type": "stt",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:30.53Z",
+      "type": "accepted",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:30.53Z",
+      "type": "input_failure",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:28:30.532Z",
+      "type": "closed",
+      "seatId": "P6",
+      "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:30.533Z",
+      "type": "selected",
+      "seatId": "P7",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:31.436Z",
+      "type": "connection_ready",
+      "seatId": "P7",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:31.436Z",
+      "type": "lease_created",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:31.437Z",
+      "type": "input_start",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:36.969Z",
+      "type": "input_stop",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:37.448Z",
+      "type": "stt",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:44.879Z",
+      "type": "accepted",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:44.88Z",
+      "type": "input_failure",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:28:44.881Z",
+      "type": "closed",
+      "seatId": "P7",
+      "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:44.882Z",
+      "type": "selected",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:45.994Z",
+      "type": "connection_ready",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:45.994Z",
+      "type": "lease_created",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:45.995Z",
+      "type": "input_start",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:51.522Z",
+      "type": "input_stop",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:51.98Z",
+      "type": "stt",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:58.074Z",
+      "type": "accepted",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:58.076Z",
+      "type": "input_failure",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:28:58.077Z",
+      "type": "closed",
+      "seatId": "P8",
+      "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:58.079Z",
+      "type": "selected",
+      "seatId": "P9",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:59.185Z",
+      "type": "connection_ready",
+      "seatId": "P9",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:59.185Z",
+      "type": "lease_created",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:28:59.185Z",
+      "type": "input_start",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:04.74Z",
+      "type": "input_stop",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:05.251Z",
+      "type": "stt",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:11.791Z",
+      "type": "game.player_eliminated",
+      "seatId": "P3",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:11.819Z",
+      "type": "accepted",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:11.82Z",
+      "type": "input_failure",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:29:11.821Z",
+      "type": "closed",
+      "seatId": "P9",
+      "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:11.823Z",
+      "type": "selected",
+      "seatId": "P5",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:12.913Z",
+      "type": "connection_ready",
+      "seatId": "P5",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:12.913Z",
+      "type": "lease_created",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:12.914Z",
+      "type": "input_start",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:17.15Z",
+      "type": "input_stop",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:17.611Z",
+      "type": "stt",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:24.637Z",
+      "type": "accepted",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:24.638Z",
+      "type": "input_failure",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:29:24.639Z",
+      "type": "closed",
+      "seatId": "P5",
+      "turnId": "turn_0f121cc3-f3c4-453c-a014-1f1c09e70f89",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:24.64Z",
+      "type": "selected",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:25.494Z",
+      "type": "connection_ready",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:25.494Z",
+      "type": "lease_created",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:25.495Z",
+      "type": "input_start",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:29.726Z",
+      "type": "input_stop",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:29:30.308Z",
+      "type": "stt",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:30:25.496Z",
+      "type": "finished",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": "TURN_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:30:25.497Z",
+      "type": "input_failure",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:30:25.499Z",
+      "type": "closed",
+      "seatId": "P8",
+      "turnId": "turn_79c5daec-d0ce-4ae7-8035-c9c3864397ca",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:10.009Z",
+      "type": "selected",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:10.009Z",
+      "type": "connection_ready",
+      "seatId": "P8",
+      "turnId": null,
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:10.009Z",
+      "type": "lease_created",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:10.01Z",
+      "type": "input_start",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:14.325Z",
+      "type": "input_stop",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:31:14.975Z",
+      "type": "stt",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": null
+    },
+    {
+      "at": "2026-10-25T02:32:10.013Z",
+      "type": "finished",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": "TURN_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:32:10.014Z",
+      "type": "input_failure",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": "ACTION_INTERRUPTED_OR_TIMEOUT"
+    },
+    {
+      "at": "2026-10-25T02:32:10.015Z",
+      "type": "closed",
+      "seatId": "P8",
+      "turnId": "turn_49aa725c-93e1-4477-9629-00e22ca058ab",
+      "code": null
+    }
+  ],
+  "state": {
+    "phase": "NIGHT_WOLF",
+    "round": 1,
+    "version": 503,
+    "currentSeatId": null,
+    "hostPlaybackBlocked": false,
+    "controllers": [
+      {
+        "seatId": "P2",
+        "status": "released",
+        "retryCount": 1,
+        "boundAt": "2026-10-25T02:27:18.26Z",
+        "lastSeenAt": "2026-10-25T02:27:32.544Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P3",
+        "status": "released",
+        "retryCount": 2,
+        "boundAt": "2026-10-25T02:27:33.433Z",
+        "lastSeenAt": "2026-10-25T02:27:46.092Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P4",
+        "status": "released",
+        "retryCount": 2,
+        "boundAt": "2026-10-25T02:27:47.508Z",
+        "lastSeenAt": "2026-10-25T02:28:01.609Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P5",
+        "status": "released",
+        "retryCount": 3,
+        "boundAt": "2026-10-25T02:29:12.913Z",
+        "lastSeenAt": "2026-10-25T02:29:24.64Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P6",
+        "status": "released",
+        "retryCount": 2,
+        "boundAt": "2026-10-25T02:28:17.879Z",
+        "lastSeenAt": "2026-10-25T02:28:30.532Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P7",
+        "status": "released",
+        "retryCount": 2,
+        "boundAt": "2026-10-25T02:28:31.436Z",
+        "lastSeenAt": "2026-10-25T02:28:44.881Z",
+        "errorCode": null
+      },
+      {
+        "seatId": "P8",
+        "status": "failed",
+        "retryCount": 4,
+        "boundAt": "2026-10-25T02:31:10.008Z",
+        "lastSeenAt": "2026-10-25T02:32:10.016Z",
+        "errorCode": "TURN_TIMEOUT"
+      },
+      {
+        "seatId": "P9",
+        "status": "released",
+        "retryCount": 2,
+        "boundAt": "2026-10-25T02:28:59.184Z",
+        "lastSeenAt": "2026-10-25T02:29:11.822Z",
+        "errorCode": null
+      }
+    ],
+    "turns": [],
+    "events": [
+      {
+        "eventId": "evt_ebe6d115-208f-47d3-802f-69ca63878030",
+        "version": 11,
+        "type": "controller.created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "gameId": "game_4f7328f7-6573-483e-b7a2-667173090e78",
+          "controllerEpoch": 1,
+          "seatIds": [
+            "P2",
+            "P3",
+            "P4",
+            "P5",
+            "P6",
+            "P7",
+            "P8",
+            "P9",
+            "HOST"
+          ]
+        }
+      },
+      {
+        "eventId": "evt_414b7cd2-bd77-4bf2-8582-5cb9b90e90ec",
+        "version": 57,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_c856fc67-58ae-4b44-8b25-488b5862da09",
+        "version": 58,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_f9bfaa58-de29-4807-91d1-362d9b8848e2",
+        "version": 59,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_762cdf42-fda2-4299-8250-fc3ba0ff9785",
+        "version": 60,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_0967d111-7f94-4928-bfd2-0b89fcbc0f7d",
+        "version": 61,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_23ddf9b1-22fd-46c6-9d0e-de35b3902cbb",
+        "version": 62,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_ff394c67-0a31-4f21-8514-541c6457bf99",
+        "version": 63,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_64855c93-5446-4937-96c1-921d6680a9d0",
+        "version": 64,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_5de10ce9-c1c7-4237-b2ca-80c12a0055ab",
+        "version": 65,
+        "type": "controller.updated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {}
+      },
+      {
+        "eventId": "evt_bba6a60f-9dea-4ef5-9093-fb32fec42d28",
+        "version": 66,
+        "type": "game.ready",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "gameId": "game_4f7328f7-6573-483e-b7a2-667173090e78",
+          "controllerEpoch": 1
+        }
+      },
+      {
+        "eventId": "evt_651a8ecf-337c-45c4-b012-2366e9430b40",
+        "version": 69,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_3136fa50-de87-49ea-8fb1-8ada64b05016",
+        "version": 70,
+        "type": "host.phase_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_75df05b4-03ff-4d8b-bdd7-f8244cb11be9",
+        "version": 73,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_f0b58045-6506-4d05-9f3b-c474c3bc9460",
+        "version": 77,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_a520fd91-ef29-4899-84cb-7fd7da5f17c2"
+        }
+      },
+      {
+        "eventId": "evt_3483a458-9674-46d3-b2cc-d988e9a1a294",
+        "version": 79,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_f0182ace-51ff-4d53-9a92-1d79d1e46bc4",
+        "version": 83,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_e5afeaf8-ac68-4797-baf2-17e5045c465f",
+        "version": 85,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_72128e90-fb7d-4bf2-adf8-4ac7d35407ac"
+        }
+      },
+      {
+        "eventId": "evt_7add8098-e245-4349-a8ee-9f1e9a0bcce6",
+        "version": 87,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_bc13276c-d041-4947-a325-58c70351aad9",
+        "version": 91,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_37949507-f314-4a3c-8660-249f3aa93c74",
+        "version": 93,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_bea788eb-6dfc-46a0-ae49-280df99f330e"
+        }
+      },
+      {
+        "eventId": "evt_5a186b13-615d-4012-a6d1-1a28c63f6706",
+        "version": 95,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_SEER"
+        }
+      },
+      {
+        "eventId": "evt_5adc117f-03b6-4f71-abd0-34a3e050b4d7",
+        "version": 97,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_38dff8bd-8254-46ed-9a9a-eb0d64451c51",
+        "version": 98,
+        "type": "host.phase_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_SEER",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_a763031d-d4c2-4da9-9a78-43f12b034700",
+        "version": 103,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_SEER"
+        }
+      },
+      {
+        "eventId": "evt_dc43af46-12a6-4149-8a53-cf5e6602534b",
+        "version": 107,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_9d0ab0eb-d7ed-4b00-b4af-426308a2e465"
+        }
+      },
+      {
+        "eventId": "evt_7aee275a-fa47-41ff-a184-636e44659dff",
+        "version": 109,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WITCH"
+        }
+      },
+      {
+        "eventId": "evt_ced58476-e55e-441d-9e52-b05de2ba28e8",
+        "version": 111,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_SEER"
+        }
+      },
+      {
+        "eventId": "evt_9c2ee084-3fa2-43a7-8931-88cc32f3f982",
+        "version": 112,
+        "type": "host.phase_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WITCH",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_64534492-ac88-4517-af16-955cb5f2c964",
+        "version": 119,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "skill_1792895039701"
+        }
+      },
+      {
+        "eventId": "evt_44c1ffdb-0cf0-4770-80b3-089b9f06c05a",
+        "version": 121,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "DAY_ANNOUNCEMENT"
+        }
+      },
+      {
+        "eventId": "evt_6cd1f9b7-8136-4c06-b2ce-e388a60ba376",
+        "version": 122,
+        "type": "host.phase_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "DAY_ANNOUNCEMENT",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_aaaf943f-9fd1-4ca4-b005-1727bf8e7296",
+        "version": 123,
+        "type": "game.night_resolved",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "round": 0,
+          "deathSeatIds": []
+        }
+      },
+      {
+        "eventId": "evt_2cec8bb8-0749-472c-8822-8d492d9cb14a",
+        "version": 125,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P1"
+        }
+      },
+      {
+        "eventId": "evt_ab6758d2-d9ae-44f1-b2fc-30cd246b7de4",
+        "version": 126,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P1"
+        }
+      },
+      {
+        "eventId": "evt_11692adb-da24-4d88-976c-29474c8dbb64",
+        "version": 134,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "speech_1792895075595"
+        }
+      },
+      {
+        "eventId": "evt_26c955e4-ad7a-4798-b864-2c1bbc19ec11",
+        "version": 136,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "speech_1792895075595",
+          "seatId": "P1"
+        }
+      },
+      {
+        "eventId": "evt_34713ead-b984-4202-92be-2ac0af05e1cf",
+        "version": 138,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P2"
+        }
+      },
+      {
+        "eventId": "evt_6fe669f2-f3fb-4eb7-83e5-eb86e2683d31",
+        "version": 139,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P2"
+        }
+      },
+      {
+        "eventId": "evt_e9f99f77-1208-4dce-9485-acbb2dff5de4",
+        "version": 144,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_86217ded-deb4-4853-84bb-4b689669cd6a",
+          "seatId": "P2",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_f0227a0f-d3be-40ac-9a6d-933b1e05957b",
+        "version": 146,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_3c2a6d04-0d83-462a-b6bc-d9c68d33d411"
+        }
+      },
+      {
+        "eventId": "evt_4e5bc32d-a759-4941-9cea-548cef337b40",
+        "version": 148,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_3c2a6d04-0d83-462a-b6bc-d9c68d33d411",
+          "seatId": "P2"
+        }
+      },
+      {
+        "eventId": "evt_7ca5aea8-f190-4486-adb2-e5353fc9e272",
+        "version": 150,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P3"
+        }
+      },
+      {
+        "eventId": "evt_51609bcf-04ed-4c64-8146-767bd46eb4a4",
+        "version": 152,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_86217ded-deb4-4853-84bb-4b689669cd6a",
+          "seatId": "P2",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_3b4c078c-4a16-4df3-9009-b4c61a146393",
+        "version": 153,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P3"
+        }
+      },
+      {
+        "eventId": "evt_7b965ce7-60b6-4113-9a68-06cbdad21841",
+        "version": 167,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_bcefe2ec-403b-4894-af17-a30e80768715",
+          "seatId": "P3",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_7e5e4fb8-2cb3-4431-83c2-68da208c1479",
+        "version": 169,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_e20105fd-c748-4298-bdf5-8de3e9ba6cc9"
+        }
+      },
+      {
+        "eventId": "evt_c144d10b-7907-4b37-b85e-ddb47bd43986",
+        "version": 171,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_e20105fd-c748-4298-bdf5-8de3e9ba6cc9",
+          "seatId": "P3"
+        }
+      },
+      {
+        "eventId": "evt_24a9fb77-5011-4a68-8634-4ea359ee0f0f",
+        "version": 173,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P4"
+        }
+      },
+      {
+        "eventId": "evt_564fb59c-9b6a-4f9d-b1f9-9c26e4dac37b",
+        "version": 175,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_bcefe2ec-403b-4894-af17-a30e80768715",
+          "seatId": "P3",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_ad78c0b9-6ab5-4aac-90dc-8de69f191e1e",
+        "version": 176,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P4"
+        }
+      },
+      {
+        "eventId": "evt_d53d938a-a438-4e23-845f-f76559cf8891",
+        "version": 191,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_92f68442-83ff-4174-9434-dcae59a83797",
+          "seatId": "P4",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_48684291-d5ed-4ccf-b9ec-65b35602b706",
+        "version": 193,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_56d902ac-8a33-4b9e-ad95-8b75f0eae911"
+        }
+      },
+      {
+        "eventId": "evt_fbd3bc2f-7e1c-4ed7-9a2a-1c1c4db3c9c8",
+        "version": 195,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_56d902ac-8a33-4b9e-ad95-8b75f0eae911",
+          "seatId": "P4"
+        }
+      },
+      {
+        "eventId": "evt_7e8f203b-ad02-44da-bed3-69951ee8c34d",
+        "version": 197,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P5"
+        }
+      },
+      {
+        "eventId": "evt_aef9f38c-f7bb-4785-81e9-8e710b15a4f1",
+        "version": 199,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_92f68442-83ff-4174-9434-dcae59a83797",
+          "seatId": "P4",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_67394856-fa65-4c93-afac-6074a0ca6677",
+        "version": 200,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P5"
+        }
+      },
+      {
+        "eventId": "evt_dbac9543-1b6a-49e1-bf53-87e31e8531e1",
+        "version": 214,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_1478f911-1ec3-41b7-af59-c946875de7a5",
+          "seatId": "P5",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_a159a4d9-df6f-49ee-9a16-089bbba66cc6",
+        "version": 216,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_e1d671f9-8b97-4a78-95fe-52d3581a9f73"
+        }
+      },
+      {
+        "eventId": "evt_2c2c1911-648f-469d-8656-8106603e991e",
+        "version": 218,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_e1d671f9-8b97-4a78-95fe-52d3581a9f73",
+          "seatId": "P5"
+        }
+      },
+      {
+        "eventId": "evt_f9d0fedc-09ae-4216-9857-be1bb7d74708",
+        "version": 220,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P6"
+        }
+      },
+      {
+        "eventId": "evt_73c4fae0-04bb-4752-bfbc-3135fbe50223",
+        "version": 222,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_1478f911-1ec3-41b7-af59-c946875de7a5",
+          "seatId": "P5",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_b966a590-f9f3-44b0-9cc8-3f7b4e6edef9",
+        "version": 223,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P6"
+        }
+      },
+      {
+        "eventId": "evt_a323b0b7-e287-4e5f-9b41-641cc1d6a89f",
+        "version": 237,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_6142e4fb-7e39-4ce5-9d7c-07fc166ef155",
+          "seatId": "P6",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_5ffa9fc8-a5e0-4ac8-896e-20eab54b4c62",
+        "version": 239,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_3bf23e54-3edb-418f-9d19-a28a068e4e7e"
+        }
+      },
+      {
+        "eventId": "evt_ab288af7-4ffc-4dd8-b848-6c8aa46a7c5a",
+        "version": 241,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_3bf23e54-3edb-418f-9d19-a28a068e4e7e",
+          "seatId": "P6"
+        }
+      },
+      {
+        "eventId": "evt_2c150482-22fe-4912-8a5b-8dfe3f31e8a0",
+        "version": 243,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P7"
+        }
+      },
+      {
+        "eventId": "evt_5f11b8b1-5ea1-4532-a680-c8d86ad329b6",
+        "version": 245,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_6142e4fb-7e39-4ce5-9d7c-07fc166ef155",
+          "seatId": "P6",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_d7f1008a-4e5f-4ef3-ad67-581528b558b1",
+        "version": 246,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P7"
+        }
+      },
+      {
+        "eventId": "evt_8c9ac5c5-b0d0-4107-b0a3-5e8634aa5a5d",
+        "version": 261,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_900a8cc5-fb1d-4e8c-b515-ef8baa665735",
+          "seatId": "P7",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_5c63ed5f-2ce2-49e8-a216-b0ca9fb2a7a0",
+        "version": 263,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_dafc12ca-cde2-4fe5-9d10-f9831a389544"
+        }
+      },
+      {
+        "eventId": "evt_14173425-b1d9-4de1-9243-0aca9a1a8adc",
+        "version": 265,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_dafc12ca-cde2-4fe5-9d10-f9831a389544",
+          "seatId": "P7"
+        }
+      },
+      {
+        "eventId": "evt_b9c47564-aa9d-4910-8f61-a5210013c619",
+        "version": 267,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P8"
+        }
+      },
+      {
+        "eventId": "evt_5cf1be2d-9732-410c-a202-0b8c77d11f75",
+        "version": 269,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_900a8cc5-fb1d-4e8c-b515-ef8baa665735",
+          "seatId": "P7",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_1e6aa36e-6caa-4ffd-9f84-de2789e4b03e",
+        "version": 270,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P8"
+        }
+      },
+      {
+        "eventId": "evt_18af3dd5-fde3-440f-9ed5-293f5a5f40f2",
+        "version": 284,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_06b04667-a35f-43df-819a-138e01ce8a96",
+          "seatId": "P8",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_1827e1b2-30d8-4219-9059-2819c0f77375",
+        "version": 286,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_20d7d445-ed9c-40c3-8678-aa906927c8f0"
+        }
+      },
+      {
+        "eventId": "evt_cd6c7a23-78b2-483b-9418-ad4a73daf1bc",
+        "version": 288,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_20d7d445-ed9c-40c3-8678-aa906927c8f0",
+          "seatId": "P8"
+        }
+      },
+      {
+        "eventId": "evt_f827a8cc-5e28-46c9-8654-7a65c44d3cb2",
+        "version": 290,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P9"
+        }
+      },
+      {
+        "eventId": "evt_d680c13e-ece0-43c1-82fe-9fad5d100073",
+        "version": 292,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_06b04667-a35f-43df-819a-138e01ce8a96",
+          "seatId": "P8",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_9bfb061c-8807-4815-8848-3003a213b201",
+        "version": 293,
+        "type": "host.speech_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "SPEECH",
+          "seatId": "P9"
+        }
+      },
+      {
+        "eventId": "evt_2d07182f-5014-4a01-8c1f-ef93d38cce9a",
+        "version": 308,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_ec2d7e55-4fc6-4dfc-ae5e-9b014a5e0233",
+          "seatId": "P9",
+          "phase": "SPEECH",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_f2df6891-4d47-407a-87b6-b3eec6956f8a",
+        "version": 310,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_d0f906de-3a54-4fd6-9ea2-f6b82b86789a"
+        }
+      },
+      {
+        "eventId": "evt_d4363686-5e6a-4933-9b7b-f8a7d54d4e12",
+        "version": 312,
+        "type": "game.speech_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "speechId": "mcp_d0f906de-3a54-4fd6-9ea2-f6b82b86789a",
+          "seatId": "P9"
+        }
+      },
+      {
+        "eventId": "evt_849191d0-9cd4-491a-b052-72948e37d8f6",
+        "version": 314,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_b0f7d0e4-e057-46dc-b2fa-8a114c463074",
+        "version": 316,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_ec2d7e55-4fc6-4dfc-ae5e-9b014a5e0233",
+          "seatId": "P9",
+          "phase": "SPEECH"
+        }
+      },
+      {
+        "eventId": "evt_ab7d119e-4865-43d9-8fcc-a25ebf8004c6",
+        "version": 317,
+        "type": "host.vote_opened",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "VOTE",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_4962a1a4-095c-4f41-b040-629d0fb62cf7",
+        "version": 331,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+          "seatId": "P2",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_dfcdfff4-2152-4cc5-ba64-1fef6063cf92",
+        "version": 333,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "vote_1792895250950",
+          "seatId": "P1"
+        }
+      },
+      {
+        "eventId": "evt_52aef7d2-da44-49ed-94a5-7b5f65c87e2a",
+        "version": 335,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_97af11dc-8dbb-4814-8057-4f8565b33611",
+          "seatId": "P2"
+        }
+      },
+      {
+        "eventId": "evt_0064fb71-e244-4676-be7d-c9f94ff4984d",
+        "version": 337,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_e4297b22-884e-4260-94b6-27bf67a80ccf",
+          "seatId": "P2",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_6a7b6472-a42c-42be-a829-717f9ef77bf0",
+        "version": 348,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+          "seatId": "P3",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_32b140f0-8304-4e45-8db3-7b96f279d2d4",
+        "version": 350,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_a6e3b3af-54e6-4d57-81ce-e2b9ae25b455",
+          "seatId": "P3"
+        }
+      },
+      {
+        "eventId": "evt_25f8a4a7-60d0-47dc-afb7-fecd83e88c19",
+        "version": 352,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_bc8aa1a8-9466-44d6-a099-64393ffc0a13",
+          "seatId": "P3",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_df0c505c-d890-4712-b0f7-612f11296c1e",
+        "version": 363,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+          "seatId": "P4",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_c8788406-bb3c-4c9e-bf26-bd53c7df7ade",
+        "version": 365,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_a31cc5d9-1fad-4bb5-8bd9-040369ce507b",
+          "seatId": "P4"
+        }
+      },
+      {
+        "eventId": "evt_e89f4bba-5b83-4705-a30f-7c147ffebe31",
+        "version": 367,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_ffdd8938-a8f0-4248-99bd-2678721d1dad",
+          "seatId": "P4",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_bda314d9-a1f4-4158-9191-26746ea6f9de",
+        "version": 378,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+          "seatId": "P5",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_3c7d9bcd-fea9-4752-b5c7-2c93b7d02c3b",
+        "version": 380,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_ba529088-453f-46a6-98ac-0df2c6b3c965",
+          "seatId": "P5"
+        }
+      },
+      {
+        "eventId": "evt_d5d12b6d-1aa3-4246-a969-baaff1805b91",
+        "version": 382,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_2961ffd1-5cef-4bb1-812e-de9f2e650aa6",
+          "seatId": "P5",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_2b10d34a-1393-4d17-bd15-2b87491c386d",
+        "version": 393,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+          "seatId": "P6",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_82294dd1-244b-4af4-8c82-c83c83595b8d",
+        "version": 395,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_3cf68cc5-7a0e-490e-85fa-4a65781228a6",
+          "seatId": "P6"
+        }
+      },
+      {
+        "eventId": "evt_0fc35f1a-1fa5-423d-b642-bb6d7200c893",
+        "version": 397,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_9b221953-2d90-4266-9ae0-83bb05fd33d6",
+          "seatId": "P6",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_6982efae-a68d-41c0-a8c2-e46f0fc6d835",
+        "version": 408,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+          "seatId": "P7",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_130810da-6077-41a1-9b54-3e239083fbfb",
+        "version": 410,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_59230eb5-52d5-4b4f-94c3-a5c60a94680e",
+          "seatId": "P7"
+        }
+      },
+      {
+        "eventId": "evt_b8faf4e4-f4ca-4ccc-8aa4-9b56c08639f6",
+        "version": 412,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_10f9b31e-7de5-4956-970f-0d916d322ba8",
+          "seatId": "P7",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_1a933594-b01a-4582-b776-c89384385d8b",
+        "version": 423,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+          "seatId": "P8",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_f0735d85-e22b-4005-a2bb-738075e2d91b",
+        "version": 425,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_302101f0-c63c-4eb2-bdfb-96ee42050bcd",
+          "seatId": "P8"
+        }
+      },
+      {
+        "eventId": "evt_47f814b4-b5c8-4385-b799-f17802487f3c",
+        "version": 427,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_4f2aa5f5-f240-4d83-a929-70f30747513c",
+          "seatId": "P8",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_aae58fb9-0f7a-4ca4-b6aa-0fae6d5d98fa",
+        "version": 438,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+          "seatId": "P9",
+          "phase": "VOTE",
+          "controlSource": "linx"
+        }
+      },
+      {
+        "eventId": "evt_c9842cfa-8a87-4cc5-9314-7ca8d47b5204",
+        "version": 440,
+        "type": "game.vote_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "voteId": "mcp_6e589c4b-742b-48fb-b9d6-1e6f3f9b6b77",
+          "seatId": "P9"
+        }
+      },
+      {
+        "eventId": "evt_56cb89b1-df97-4bcf-9294-304c409c5a52",
+        "version": 441,
+        "type": "game.vote_resolved",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "leaders": [
+            "P3"
+          ]
+        }
+      },
+      {
+        "eventId": "evt_c3c721ab-735c-4c9c-b977-77537e143f81",
+        "version": 443,
+        "type": "game.player_eliminated",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "seatId": "P3",
+          "cause": "vote"
+        }
+      },
+      {
+        "eventId": "evt_e1e48d6b-eafc-4796-9db8-508373f3ad19",
+        "version": 445,
+        "type": "game.phase_changed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_efbdf336-b466-4784-833a-f513951d7f3c",
+        "version": 447,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "turnId": "turn_6746766c-d8d7-4561-bcb3-45cdeae0638c",
+          "seatId": "P9",
+          "phase": "VOTE"
+        }
+      },
+      {
+        "eventId": "evt_7a0ab60a-82f0-4ae4-8d82-fcd1f9d8a508",
+        "version": 448,
+        "type": "host.deaths_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "seatId": "P3",
+          "cause": "vote"
+        }
+      },
+      {
+        "eventId": "evt_9bea70ee-c01b-4df2-9e74-2ff198ee8302",
+        "version": 449,
+        "type": "host.phase_announced",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF",
+          "seatId": null
+        }
+      },
+      {
+        "eventId": "evt_e265cf92-4d5b-44a0-b0f9-2c5a00ccd94e",
+        "version": 461,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_3e27591b-af46-4780-bd3c-7f39925ea0a0",
+        "version": 469,
+        "type": "game.action_submitted",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "actionId": "mcp_83f792f5-31ba-40f9-a00d-1b59b8f5e5af"
+        }
+      },
+      {
+        "eventId": "evt_5e7ce06d-bb10-4cb0-bf66-a02a39eb50ea",
+        "version": 471,
+        "type": "game.turn_completed",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_9622ffc2-a0a5-4040-b933-cb168ab36208",
+        "version": 482,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_6970c79c-02fc-4e17-966f-c2a03369e4c0",
+        "version": 486,
+        "type": "game.turn_expired",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_4b983024-a3b1-49c0-8a54-a097bffce410",
+        "version": 498,
+        "type": "game.turn_created",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      },
+      {
+        "eventId": "evt_85b0036e-5144-4f12-86bf-27773585e4ed",
+        "version": 500,
+        "type": "game.turn_expired",
+        "roomId": "room_ddb73d99-a7b2-49f5-8c1c-ac940f9210ab",
+        "data": {
+          "phase": "NIGHT_WOLF"
+        }
+      }
+    ]
+  },
+  "capturedAt": "2026-10-25T02:32:32.6803356Z",
+  "requests": [
+    {
+      "at": "2026-10-25T02:26:41.147Z",
+      "requestId": "9115fe14-4c23-4cbe-afa2-69c28d2e7e28",
+      "tool": "get_my_private_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 284,
+      "afterVersion": 284,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:26:41.733Z",
+      "requestId": "a4435dfe-5d3f-4571-afee-c9aa425c8a79",
+      "tool": "get_public_game_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 284,
+      "afterVersion": 284,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:26:50.34Z",
+      "requestId": "85580021-e207-4bbf-9e16-f92ce6978231",
+      "tool": "submit_speech",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": "mcp_20d7d445-ed9c-40c3-8678-aa906927c8f0",
+      "beforeVersion": 284,
+      "afterVersion": 293,
+      "eventIds": [
+        "evt_1827e1b2-30d8-4219-9059-2819c0f77375",
+        "evt_cd6c7a23-78b2-483b-9418-ad4a73daf1bc",
+        "evt_f827a8cc-5e28-46c9-8654-7a65c44d3cb2",
+        "evt_d680c13e-ece0-43c1-82fe-9fad5d100073"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:27:02.874Z",
+      "requestId": "6d4df876-a5c9-4870-8bea-3b9265477959",
+      "tool": "get_my_private_state",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 308,
+      "afterVersion": 308,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:03.448Z",
+      "requestId": "3ac227dd-ab47-4936-9875-74f62bb26647",
+      "tool": "get_public_game_state",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 308,
+      "afterVersion": 308,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:10.688Z",
+      "requestId": "c90c5b51-49fd-4589-8dfa-26dad23220f5",
+      "tool": "submit_speech",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": "mcp_d0f906de-3a54-4fd6-9ea2-f6b82b86789a",
+      "beforeVersion": 308,
+      "afterVersion": 317,
+      "eventIds": [
+        "evt_f2df6891-4d47-407a-87b6-b3eec6956f8a",
+        "evt_d4363686-5e6a-4933-9b7b-f8a7d54d4e12",
+        "evt_849191d0-9cd4-491a-b052-72948e37d8f6",
+        "evt_b0f7d0e4-e057-46dc-b2fa-8a114c463074"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:27:26.125Z",
+      "requestId": "03ac4db3-5204-459a-9a12-33401926b617",
+      "tool": "get_my_private_state",
+      "seatId": "P2",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 331,
+      "afterVersion": 331,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:27.506Z",
+      "requestId": "c953372c-419d-4b21-a398-5bbb7d37a37d",
+      "tool": "get_public_game_state",
+      "seatId": "P2",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 331,
+      "afterVersion": 331,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:32.542Z",
+      "requestId": "af43cde9-d3d3-4ec9-9810-b3af1d2dde2d",
+      "tool": "submit_vote",
+      "seatId": "P2",
+      "resultCode": "OK",
+      "actionId": "mcp_97af11dc-8dbb-4814-8057-4f8565b33611",
+      "beforeVersion": 333,
+      "afterVersion": 337,
+      "eventIds": [
+        "evt_52aef7d2-da44-49ed-94a5-7b5f65c87e2a",
+        "evt_0064fb71-e244-4676-be7d-c9f94ff4984d"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:27:41.154Z",
+      "requestId": "4c417d97-d8b6-4ad0-be9c-8c8aabc3efec",
+      "tool": "get_my_private_state",
+      "seatId": "P3",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 348,
+      "afterVersion": 348,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:41.734Z",
+      "requestId": "5a2f5969-6095-4769-852a-31579b91cc67",
+      "tool": "get_public_game_state",
+      "seatId": "P3",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 348,
+      "afterVersion": 348,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:46.084Z",
+      "requestId": "de97f2a4-8011-4553-8885-947ea6ac4160",
+      "tool": "submit_vote",
+      "seatId": "P3",
+      "resultCode": "OK",
+      "actionId": "mcp_a6e3b3af-54e6-4d57-81ce-e2b9ae25b455",
+      "beforeVersion": 348,
+      "afterVersion": 352,
+      "eventIds": [
+        "evt_32b140f0-8304-4e45-8db3-7b96f279d2d4",
+        "evt_25f8a4a7-60d0-47dc-afb7-fecd83e88c19"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:27:55.461Z",
+      "requestId": "ba1453cd-17ec-48fa-9af6-0cb92948dec2",
+      "tool": "get_my_private_state",
+      "seatId": "P4",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 363,
+      "afterVersion": 363,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:27:56.034Z",
+      "requestId": "59c0775e-62c0-4c92-aef7-060161636c79",
+      "tool": "get_public_game_state",
+      "seatId": "P4",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 363,
+      "afterVersion": 363,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:01.567Z",
+      "requestId": "30044a61-c602-4367-b69b-7a184266aba6",
+      "tool": "submit_vote",
+      "seatId": "P4",
+      "resultCode": "OK",
+      "actionId": "mcp_a31cc5d9-1fad-4bb5-8bd9-040369ce507b",
+      "beforeVersion": 363,
+      "afterVersion": 367,
+      "eventIds": [
+        "evt_c8788406-bb3c-4c9e-bf26-bd53c7df7ade",
+        "evt_e89f4bba-5b83-4705-a30f-7c147ffebe31"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:28:10.542Z",
+      "requestId": "a3ea5d9b-f08b-4ab1-bf47-5e18b6c349ee",
+      "tool": "get_my_private_state",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 378,
+      "afterVersion": 378,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:11.141Z",
+      "requestId": "c266eb84-ccea-4962-a799-97e2eda19438",
+      "tool": "get_public_game_state",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 378,
+      "afterVersion": 378,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:16.214Z",
+      "requestId": "9a7c78a4-7455-4f1b-82d6-997d4c4ea160",
+      "tool": "submit_vote",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": "mcp_ba529088-453f-46a6-98ac-0df2c6b3c965",
+      "beforeVersion": 378,
+      "afterVersion": 382,
+      "eventIds": [
+        "evt_3c7d9bcd-fea9-4752-b5c7-2c93b7d02c3b",
+        "evt_d5d12b6d-1aa3-4246-a969-baaff1805b91"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:28:25.688Z",
+      "requestId": "b840fcd1-b47f-4fd3-8ee6-9aed2eaed087",
+      "tool": "get_my_private_state",
+      "seatId": "P6",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 393,
+      "afterVersion": 393,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:26.268Z",
+      "requestId": "803eaa5e-fdce-4165-b502-e85001dca701",
+      "tool": "get_public_game_state",
+      "seatId": "P6",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 393,
+      "afterVersion": 393,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:30.5Z",
+      "requestId": "0143a6c9-0492-4141-b927-5158df0b0337",
+      "tool": "submit_vote",
+      "seatId": "P6",
+      "resultCode": "OK",
+      "actionId": "mcp_3cf68cc5-7a0e-490e-85fa-4a65781228a6",
+      "beforeVersion": 393,
+      "afterVersion": 397,
+      "eventIds": [
+        "evt_82294dd1-244b-4af4-8c82-c83c83595b8d",
+        "evt_0fc35f1a-1fa5-423d-b642-bb6d7200c893"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:28:40.304Z",
+      "requestId": "986f8ed1-101b-448b-ac2d-ade65af39ede",
+      "tool": "get_my_private_state",
+      "seatId": "P7",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 408,
+      "afterVersion": 408,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:40.866Z",
+      "requestId": "4f1a15e5-1e68-45d5-b071-699b04319bdf",
+      "tool": "get_public_game_state",
+      "seatId": "P7",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 408,
+      "afterVersion": 408,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:44.879Z",
+      "requestId": "d580abc6-252c-440e-a372-79f96584bdc7",
+      "tool": "submit_vote",
+      "seatId": "P7",
+      "resultCode": "OK",
+      "actionId": "mcp_59230eb5-52d5-4b4f-94c3-a5c60a94680e",
+      "beforeVersion": 408,
+      "afterVersion": 412,
+      "eventIds": [
+        "evt_130810da-6077-41a1-9b54-3e239083fbfb",
+        "evt_b8faf4e4-f4ca-4ccc-8aa4-9b56c08639f6"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:28:53.948Z",
+      "requestId": "13f7fd69-6de9-496a-890e-943b91c6ffa5",
+      "tool": "get_my_private_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 423,
+      "afterVersion": 423,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:54.522Z",
+      "requestId": "c531e493-0032-4a91-a1ab-e81a496caddd",
+      "tool": "get_public_game_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 423,
+      "afterVersion": 423,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:28:58.051Z",
+      "requestId": "3b85225a-77db-42cf-aa39-55c0d5903d5b",
+      "tool": "submit_vote",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": "mcp_302101f0-c63c-4eb2-bdfb-96ee42050bcd",
+      "beforeVersion": 423,
+      "afterVersion": 427,
+      "eventIds": [
+        "evt_f0735d85-e22b-4005-a2bb-738075e2d91b",
+        "evt_47f814b4-b5c8-4385-b799-f17802487f3c"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:29:06.991Z",
+      "requestId": "54d346b3-29ce-42ab-a14c-3d283ec6f715",
+      "tool": "get_my_private_state",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 438,
+      "afterVersion": 438,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:29:07.599Z",
+      "requestId": "e21c41b8-9161-4499-b841-0510fb846e72",
+      "tool": "get_public_game_state",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 438,
+      "afterVersion": 438,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:29:11.792Z",
+      "requestId": "f743d81d-f3b4-4989-95fb-ddfe4b93f07b",
+      "tool": "submit_vote",
+      "seatId": "P9",
+      "resultCode": "OK",
+      "actionId": "mcp_6e589c4b-742b-48fb-b9d6-1e6f3f9b6b77",
+      "beforeVersion": 438,
+      "afterVersion": 449,
+      "eventIds": [
+        "evt_c9842cfa-8a87-4cc5-9314-7ca8d47b5204",
+        "evt_56cb89b1-df97-4bcf-9294-304c409c5a52",
+        "evt_c3c721ab-735c-4c9c-b977-77537e143f81",
+        "evt_e1e48d6b-eafc-4796-9db8-508373f3ad19",
+        "evt_efbdf336-b466-4784-833a-f513951d7f3c"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:29:19.17Z",
+      "requestId": "acda61e1-e9e2-4f20-92bc-b3d0803a03b3",
+      "tool": "get_my_private_state",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 464,
+      "afterVersion": 464,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:29:19.703Z",
+      "requestId": "620c200b-fa28-4c78-9b8b-cd01bc9e156a",
+      "tool": "get_public_game_state",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 464,
+      "afterVersion": 464,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:29:24.611Z",
+      "requestId": "1678b718-8b8d-43d3-9247-bee6f4624c02",
+      "tool": "submit_wolf_target",
+      "seatId": "P5",
+      "resultCode": "OK",
+      "actionId": "mcp_83f792f5-31ba-40f9-a00d-1b59b8f5e5af",
+      "beforeVersion": 467,
+      "afterVersion": 471,
+      "eventIds": [
+        "evt_3e27591b-af46-4780-bd3c-7f39925ea0a0",
+        "evt_5e7ce06d-bb10-4cb0-bf66-a02a39eb50ea"
+      ]
+    },
+    {
+      "at": "2026-10-25T02:29:32.077Z",
+      "requestId": "f355b552-41cd-4a99-8e54-f4bb29b4758f",
+      "tool": "get_my_private_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 484,
+      "afterVersion": 484,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:29:32.635Z",
+      "requestId": "e85ff10e-d676-4766-8e59-13648bbaaa35",
+      "tool": "get_public_game_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 484,
+      "afterVersion": 484,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:31:16.803Z",
+      "requestId": "f168a9ea-917e-4f4e-8523-3c7b6795a808",
+      "tool": "get_my_private_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 498,
+      "afterVersion": 498,
+      "eventIds": []
+    },
+    {
+      "at": "2026-10-25T02:31:17.368Z",
+      "requestId": "e819969b-6ad4-4bbc-a921-cb0e0fc764cc",
+      "tool": "get_public_game_state",
+      "seatId": "P8",
+      "resultCode": "OK",
+      "actionId": null,
+      "beforeVersion": 498,
+      "afterVersion": 498,
+      "eventIds": []
+    }
+  ]
+}

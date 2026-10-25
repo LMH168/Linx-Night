@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {createRoom,addPlayer,fillAiSeats,publicState,assignRoles} from '../packages/domain/src/model.mjs';
+import {announceDay} from '../packages/domain/src/engine.mjs';
+import {tickHumanSpeech} from '../apps/server/src/human-speech.mjs';
+import {publicNarration} from '../apps/server/src/voice.mjs';
+const room=createRoom();addPlayer(room,{displayName:'human'});fillAiSeats(room);assignRoles(room);
+room.gameId='test';room.phase='SPEECH';room.currentSeatId='P1';room.hostPlaybackBlocked=true;
+tickHumanSpeech(room,1000);assert.equal(room.speechClock,null);
+room.hostPlaybackBlocked=false;tickHumanSpeech(room,2000);
+assert.equal(publicState(room).speechDeadline,32000);
+tickHumanSpeech(room,31999);assert.equal(room.currentSeatId,'P1');
+tickHumanSpeech(room,32000);assert.equal(room.currentSeatId,'P2');assert.equal(room.speeches.length,1);
+tickHumanSpeech(room,33000);assert.equal(room.speeches.length,1);
+room.phase='DAY_ANNOUNCEMENT';room.pendingNight={wolfTarget:'P3',witch:{action:'save'}};
+announceDay(room);const event=publicState(room).events.find(e=>e.type==='game.night_resolved');
+assert.deepEqual(event.data.deathSeatIds,[]);assert.match(publicNarration(room,event.eventId),/平安夜/);
+assert.ok(!JSON.stringify(event).includes('save'));
+console.log('Human speech deadline, one-time timeout, host gate and public peaceful-night result passed');

@@ -22,3 +22,13 @@
 API：GET /api/rooms/:id/host/state；GET /api/rooms/:id/host/audio?task_id=...；POST /api/rooms/:id/host/played（task_id）；POST /api/rooms/:id/host/retry。仅房间真人访问，当前本机房主负责确认播放与重试。多人播放同步属于后续范围。
 
 当前验证为模拟协议/队列/网页事件及九控制器准备。真实主持指定播报和八席身份待激活后验收，不因代码合并声称真实可用。
+
+## 2026-10-25 联调修复
+
+真人发言在当前主持队列播放完毕后开始计时，最多 30 秒，超时保存一次结束记录并交给下一席。页面刷新不重置倒计时。夜间私密行动不被公共主持播放阻塞。
+
+播放器自然结束时可能先触发 pause 再触发 ended；此时必须确认完成，避免重复首条播报。主动停止仍不确认。播放确认网络失败只重试确认，不重新播放音频。网页提供原生播放进度供排查。
+
+可选 LINX_VOTE_WAV 指向不超过 5 秒的投票专用通知，不指定目标，由 AI 自主投票。scripts/linx-audio.ps1 生成 vote-turn.wav；配置缺失时保留通用通知。更新 apps/mcp/prompts/player.md 后仍需在控制台保存 Agent 人设；仓库文件不会自动改动平台配置。
+
+真实验收结果见 evidence/eight-player-host/report.md；该报告优先于上面的历史未验收说明。AI 玩家发言声音与真人录音仍属于 #79。
