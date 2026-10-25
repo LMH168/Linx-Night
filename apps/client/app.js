@@ -26,6 +26,11 @@ const show = (id, visible) => { $(id).hidden = !visible; };
 function render(room) {
 
   if(state.room && [state.room.gameId,state.room.round,state.room.phase,state.room.currentSeatId].join(':')!==[room.gameId,room.round,room.phase,room.currentSeatId].join(':'))state.actionStatus='';
+  if (state.settlement && (state.settlement.roomId !== room.roomId || room.phase !== 'GAME_OVER')) {
+    state.settlement = null;
+    state.settlementId = '';
+    sessionStorage.removeItem('linx-settlement');
+  }
   state.room = room; linxVoice?.update(room);
   const lobby = room.phase === 'LOBBY';
   show('entryCard',lobby || room.phase==='GAME_OVER');
@@ -52,7 +57,7 @@ function render(room) {
   show('retryTurn',turnFailed && host); show('lobbyBar',lobby || preparing || turnFailed || (!lobby && room.phase !== 'GAME_OVER')); show('start',lobby && host && !preparing); show('retryControllers',preparing && failed && host); show('cancelControllers',preparing && host); show('endGame',!lobby && room.phase !== 'GAME_OVER' && host); show('aiConfig',lobby && host && !preparing && emptySeats>0); $('#start').disabled=!lobby || !host || preparing || emptySeats>0;
   $('#lobbyHint').textContent=turnFailed?'灵矽行动失败，已暂停该座位。房主可重试，不会自动换成规则机器人。':preparing?(failed?'AI 连接失败，请重试或取消。':'正在连接 AI 玩家，全部准备完成后才会开始。'):!lobby?'对局进行中；房主可提前结束本局。':emptySeats>0?(host?'请添加 AI 或等待真人加入，满九席后才能开始。':'等待房主补齐九个座位。'):host?'九席已满，可以开始游戏。':'九席已满，等待房主开始游戏。';
   const controllers=room.controllers||[]; $('#controllerHint').hidden=!preparing && !turnFailed; $('#controllerHint').textContent=controllers.map(c=>`${c.seatId}: ${c.status}${c.errorCode?`（${c.errorCode}）`:''}`).join(' · ');
-  const nextAiSeat=room.seats.find(seat=>!seat.playerType); if (nextAiSeat && $('#aiName') && !$('#aiName').matches(':focus') && !$('#aiName').dataset.edited) $('#aiName').value=defaultAiName(nextAiSeat.seatId);
+const nextAiSeat=room.seats.find(seat=>!seat.playerType); if (nextAiSeat && $('#aiName') && !$('#aiName').matches?.(':focus') && !$('#aiName').dataset?.edited) $('#aiName').value=defaultAiName(nextAiSeat.seatId);
   show('eventCard',!lobby); show('resultCard',room.phase==='GAME_OVER' || !!state.settlement);
   const winner=[...room.events].reverse().find(e=>e.data?.winner)?.data.winner;
   renderSettlement(state.settlement, winner);
@@ -79,7 +84,7 @@ function renderSettlement(report, winner) {
 }
 async function loadSettlement(id = state.settlementId) {
   if (!id) return null;
-  try { const body=await call(`/api/settlements/${id}`); state.settlement=body.settlement; state.settlementId=id; sessionStorage.setItem('linx-settlement',id); return state.settlement; }
+  try { const body=await call(`/api/settlements/${id}`); if (state.roomId && body.settlement?.roomId !== state.roomId) { state.settlement=null; state.settlementId=''; sessionStorage.removeItem('linx-settlement'); return null; } state.settlement=body.settlement; state.settlementId=id; sessionStorage.setItem('linx-settlement',id); return state.settlement; }
   catch (error) { message(error.message); return null; }
 }
 function formatVoteResolution(data) {
