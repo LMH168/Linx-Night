@@ -85,10 +85,11 @@ export class LinxClient {
       this.socket.send(data, error => { abort.signal.removeEventListener('abort', cancelled); error ? reject(new Error('SEND_FAILED')) : resolve(); });
     });
     try {
+      const startedAt = Date.now();
       this.event('input_start', { attemptId, samples: audio.length / 2 }); await send(control('start'));
       for (const frame of frames(audio)) { abort.signal.throwIfAborted(); await send(frame); await delay(20, undefined, { signal: abort.signal }); }
       this.pending.sent = true; await send(control('stop')); this.event('input_stop', { attemptId });
-      await completion; this.event('turn_finished', { attemptId, gameAccepted: 'unverified' });
+      await completion; this.event('turn_finished', { attemptId, gameAccepted: 'unverified', durationMs: Date.now() - startedAt });
       return { attemptId, gameAccepted: 'unverified' };
     } catch (error) {
       const code = abort.signal.aborted ? 'ACTION_INTERRUPTED_OR_TIMEOUT' : (/^[A-Z_]+$/.test(error.message) ? error.message : 'SEND_FAILED');

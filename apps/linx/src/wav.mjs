@@ -31,3 +31,4 @@ export function parseTriggerWav(buffer) {
   if (audio.length > 32000 * 5) throw new Error('行动触发音频不得超过 5 秒，请重新生成短音频');
   return audio;
 }
+export function wavDurationMs(buffer) { return Math.round(parseWav(buffer).length / 32); }
