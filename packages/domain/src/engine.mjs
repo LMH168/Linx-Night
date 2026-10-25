@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES } from './model.mjs';
+import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES, SETTLEMENT_TYPES, createSettlement } from './model.mjs';
 
 export class RuleError extends Error {}
 
@@ -161,7 +161,7 @@ function resolveVotes(room) {
 
 function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }
 
-export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
+export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '好人阵营获胜', winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '狼人阵营获胜', winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
 
 export function skipAbsentRoles(room) {
   if (room.phase === PHASES.NIGHT_SEER && !nightEligibleSeats(room, ROLES.SEER).length) transition(room, PHASES.NIGHT_WITCH);
