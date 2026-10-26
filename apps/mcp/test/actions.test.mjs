@@ -69,6 +69,9 @@ try {
   await call('submit_vote', { target_player_id: 'P3' });
   assert.equal(room.phase, 'LAST_WORDS'); assert.equal(room.seats[2].alive, false);
   assert.equal(room.events.filter(e => e.type === 'game.vote_resolved').length, 1);
+  setup('NIGHT_WOLF',3);const teamBefore=structuredClone(room);
+  const teamError=JSON.parse((await call('submit_wolf_target',{target_player_id:'P4'})).result.content[0].text);
+  assert.equal(teamError.recovery.code,'INVALID_WOLF_TARGET');assert.ok(!teamError.recovery.targetSeatIds.includes('P4'));assert.deepEqual(room,teamBefore);
   setup('NIGHT_WOLF', 3); assert.equal((await call('submit_wolf_target', { target_player_id: 'P9' })).result.isError, false);
   // A teammate can submit between the agent's state read and its write.
   selected = 's4';

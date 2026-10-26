@@ -118,9 +118,13 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (name === 'submit_wolf_target' && error.message === 'werewolf targets must agree' && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
       const state = privateState(room, seat.playerId);
       const lease = state.currentTurn;
-      if (state.wolfProposal && (!room.requireActionLease || (lease?.turnId === args.turn_id && lease.expiresAt > Date.now()))) {
+      const proposal = room.seats.find(s => s.seatId === state.wolfProposal);
+      if (proposal?.alive && proposal.camp !== 'werewolf' && (!room.requireActionLease || (lease?.turnId === args.turn_id && lease.expiresAt > Date.now()))) {
         recovery = { code: 'WOLF_TARGET_CONFLICT', retryable: true, tool: 'submit_wolf_target', arguments: { target_player_id: state.wolfProposal, ...(lease ? { turn_id: lease.turnId } : {}), ...(args.action_id ? { action_id: args.action_id } : {}) }, instruction: '目标已由队友确定。本次提交未接受、租约未消耗。立即使用 arguments 重试 submit_wolf_target；成功后停止。若租约失效，重新查询 get_my_private_state，不得继续使用旧租约。' };
       }
+    }
+    if (name === 'submit_wolf_target' && ['werewolves cannot target teammates','werewolves cannot target themselves'].includes(error.message) && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
+      recovery = { code: 'INVALID_WOLF_TARGET', instruction: '不能选择自己或狼人队友。本次未提交成功；立即查询 get_my_private_state，若有合法 wolfProposal 则跟随，否则从合法目标中重新选择，并携带当前租约提交。', targetSeatIds: room.seats.filter(s => s.alive && s.camp !== 'werewolf').map(s => s.seatId) };
     }
     return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId, ...(recovery ? { recovery } : {}) }) }], isError: true };
   } finally {

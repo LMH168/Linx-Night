@@ -135,7 +135,7 @@ function renderActions() {
   const needsTarget=hunter || vote || (skill && (mine.role!=='witch' || $('#witchAction').value==='poison'));
   show('targetField',needsTarget);
   if(needsTarget) {
-    const targets=room.seats.filter(s=>s.alive && !(skill && mine.role==='werewolf' && s.seatId===mine.seatId));
+    const targets=room.seats.filter(s=>s.alive && !(skill && mine.role==='werewolf' && [mine.seatId,...(mine.werewolfTeammates||[])].includes(s.seatId)));
     const key=targets.map(s=>s.seatId+':'+s.displayName).join('|');
     if(state.targetKey!==key){const previous=$('#target').value;$('#target').replaceChildren(...targets.map(s=>new Option(`${s.seatId} · ${s.displayName}`,s.seatId)));if(targets.some(s=>s.seatId===previous)) $('#target').value=previous;state.targetKey=key;}
   }

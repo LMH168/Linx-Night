@@ -16,3 +16,9 @@ const duplicateWitchRoom = setup(); const duplicateWolves = duplicateWitchRoom.s
 const voteStatsRoom = setup(); voteStatsRoom.phase = PHASES.VOTE; const candidates = voteStatsRoom.seats.filter(s => s.role === ROLES.VILLAGER); voteStatsRoom.seats.filter(s => s.alive).forEach((seat, index) => submitVote(voteStatsRoom, seat.seatId, index < 5 ? candidates[0].seatId : candidates[1].seatId, `stats_vote_${index}`)); const resolution = voteStatsRoom.voteResolutions[0]; assert.deepEqual(resolution.entries, [{ seatId: candidates[0].seatId, votes: 5 }, { seatId: candidates[1].seatId, votes: 4 }]); assert.equal(resolution.totalVotes, 9); assert.equal(resolution.eliminatedSeatId, candidates[0].seatId); const resolvedEvent = voteStatsRoom.events.find(event => event.type === 'game.vote_resolved'); assert.equal(resolvedEvent.data.voteId, undefined); assert.equal(resolvedEvent.data.seatId, undefined);
 const tieRoom = setup(); tieRoom.phase = PHASES.VOTE; tieRoom.seats[8].alive = false; tieRoom.seats.filter(s => s.alive).forEach((seat, index) => submitVote(tieRoom, seat.seatId, index % 2 ? candidates[1].seatId : candidates[0].seatId, `tie_vote_${index}`)); assert.equal(tieRoom.voteResolutions[0].leaders.length, 2); assert.equal(tieRoom.voteResolutions[0].eliminatedSeatId, null); assert.equal(tieRoom.events.filter(event => event.type === 'game.vote_resolved').length, 1);
 console.log('game engine tests passed');
+
+const teamRoom=setup();startGame(teamRoom);const teamBefore=structuredClone(teamRoom);
+assert.throws(()=>wolfTarget(teamRoom,'P1','P2','team-attack'),/cannot target teammates/);
+assert.deepEqual(teamRoom,teamBefore);
+for(const id of ['P1','P2','P3'])wolfTarget(teamRoom,id,'P7','legal-'+id);
+assert.equal(teamRoom.phase,PHASES.NIGHT_SEER);

@@ -21,7 +21,9 @@ export function startGame(room) {
 export function wolfTarget(room, seatId, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WOLF) throw new RuleError('wolf action is not allowed now');
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new RuleError('actor is not a living werewolf');
-  requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new RuleError('werewolves cannot target themselves');
+  const target = requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new RuleError('werewolves cannot target themselves');
+  // A teammate cannot follow an attack against itself; never lock that proposal.
+  if (target.camp === CAMPS.WEREWOLF) throw new RuleError('werewolves cannot target teammates');
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
   if (submitted.some(a => a.seatId === seatId)) throw new RuleError('seat already submitted');
   if (submitted.length && submitted[0].targetSeatId !== targetSeatId) throw new RuleError('werewolf targets must agree');
