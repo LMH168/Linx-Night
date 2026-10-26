@@ -1,0 +1,278 @@
+{
+  "status": "local-implementation-platform-validation-pending",
+  "cutoff": {
+    "localMain": "d334fd031f7d94c232bad85daa37a093d942811e",
+    "remoteMain": "eaf969a7d936d36601bd26c432bef65fd8bed60e"
+  },
+  "tests": [
+    {
+      "test": "apps/client/test/interaction.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/client/test/static.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/linx/test/client.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/linx/test/session-adapter.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/linx/test/voice.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/mcp/test/actions.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/mcp/test/controllers.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/mcp/test/diagnostics.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/mcp/test/server.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/mcp/test/streamable.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "apps/scheduler/test/scheduler.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/api.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/controllers.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "apps/server/test/host-coordinator.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/linx-manager.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/linx-runtime-manager.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/privacy.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/realtime.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/room-config.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "apps/server/test/settlement.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "packages/domain/test/engine.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "packages/domain/test/hunter.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "packages/domain/test/model.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "packages/domain/test/speech-playback.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "packages/domain/test/vote-state.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/action-draft.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/browser-voice.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/config.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/full-mixed.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/host-api.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/host-browser.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/host-controllers.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/host-playback.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/human-speech.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/hunter-integration.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/hunter-lab.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/hunter-runtime.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/issue-106-ai-speech-latency.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/issue-118-regression.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/latency-streaming.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/linx-lab.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/linx-program-lab.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/mcp-discovery.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/mixed-e2e.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/nine-controllers.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/player-control.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/public-queue.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/runtime-lifecycle.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/select-voices.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/speech-prewarm.test.mjs",
+      "status": "passed"
+    },
+    {
+      "test": "tests/turn-runtime.test.mjs",
+      "status": "failed-also-on-cutoff"
+    },
+    {
+      "test": "tests/voice-api.test.mjs",
+      "status": "passed"
+    }
+  ],
+  "baselineFailures": [
+    {
+      "test": "apps/mcp/test/streamable.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "apps/server/test/controllers.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "packages/domain/test/hunter.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/full-mixed.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/hunter-integration.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/hunter-runtime.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/linx-lab.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/mixed-e2e.test.mjs",
+      "exitCode": 1
+    },
+    {
+      "test": "tests/turn-runtime.test.mjs",
+      "exitCode": 1
+    }
+  ],
+  "realPlatform": {
+    "status": "not-run",
+    "reason": "dedicated activated experiment profile unavailable",
+    "browserFirstChunkToPlayMedianMs": null,
+    "baselineFiveSamples": false,
+    "streamingFiveSamples": false,
+    "textTriggerTenAcceptedLeases": false,
+    "abortReuseVerified": false
+  },
+  "generatedTriggerMs": {
+    "turn": 1684,
+    "speech": 1712,
+    "vote-turn": 1727,
+    "hunter": 1893
+  },
+  "finalTargetedTests": {
+    "total": 21,
+    "passed": 21
+  },
+  "syntax": {
+    "files": 105,
+    "failed": 0
+  }
+}
