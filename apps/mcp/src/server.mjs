@@ -1,4 +1,4 @@
-import { turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
+import { recordTurn, turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -72,6 +72,7 @@ async function callTool(req, name, args, requiredToken, trace) {
   const context = sessionContext(req, requiredToken);
   const room = roomFor(context);
   const seat = context.role === 'host' ? null : seatFor(room, context);
+  recordTurn('mcp_request_received',{roomId:room.roomId,gameId:room.gameId,seatId:context.seatId});
   Object.assign(trace, { roomId: room.roomId, seatId: context.seatId, beforeVersion: room.version, eventIds: [] });
   const tool = toolMap.get(name);
   if (!tool) throw Object.assign(new Error('unknown tool'), { code: -32601 });
@@ -127,6 +128,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     const url = new URL(req.url, 'http://localhost');
     let message;
     let failure;
+    const receivedAt=performance.now();
     const trace = { requestId: randomUUID() };
     const recordFailure = body => {
       if (body.error) {
@@ -137,6 +139,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     const reply = (status, body) => { recordFailure(body); return json(res, status, body); };
     res.on('finish', () => {
       if (!['/mcp', '/mcp/message'].includes(url.pathname)) return;
+      if(trace.roomId)recordTurn('mcp_response_finished',{roomId:trace.roomId,seatId:trace.seatId,durationMs:performance.now()-receivedAt});
       const authenticated = !requiredToken || authToken(req) === requiredToken;
       const identity = authenticated ? Object.fromEntries(['session', 'device', 'agent'].map(key => [key + 'Id', req.headers[`x-linx-${key}-id`]?.slice(0, 256)])) : {};
       diagnostics.push({ at: new Date().toISOString(), path: url.pathname, httpMethod: req.method, method: typeof message?.method === 'string' ? message.method.slice(0, 128) : undefined, tool: typeof message?.params?.name === 'string' ? message.params.name.slice(0, 128) : undefined, status: res.statusCode, authenticated, ...identity, ...trace, failure: failure || trace.failure });
