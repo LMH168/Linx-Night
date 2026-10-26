@@ -6,7 +6,7 @@ const definitions = [
   ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
   ['get_recent_speeches', '获取最近公开发言', {}],
   ['submit_speech', '仅在轮到自己时提交公开发言', { text }],
-  ['submit_wolf_target', '提交狼人目标', { target_player_id: target }],
+  ['submit_wolf_target', '提交狼人目标。私密状态 wolfProposal 非空时必须跟随该目标；冲突错误中 recovery.arguments 是最新有效目标，立即按其重试本工具，成功后停止。不能只口头回复或等待。', { target_player_id: target }],
   ['submit_seer_check', '提交预言家查验目标', { target_player_id: target }],
   ['submit_witch_action', '提交女巫行动；poison 必须提供目标，save/skip 不需要目标', { action: { type: 'string', enum: ['save', 'poison', 'skip'] }, target_player_id: target }],
   ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: target, window_id: { ...text, description: '当前猎人响应窗口 ID' } }],

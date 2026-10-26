@@ -113,7 +113,16 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (!(error instanceof RuleError || error instanceof ToolInputError)) throw error;
     trace.resultCode = error instanceof ToolInputError ? 'INVALID_ARGUMENTS' : 'ACTION_REJECTED';
     trace.failure = { code: trace.resultCode, reason: error.message };
-    return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId }) }], isError: true };
+    // Only this authenticated wolf receives the current proposal. Never audit it.
+    let recovery;
+    if (name === 'submit_wolf_target' && error.message === 'werewolf targets must agree' && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
+      const state = privateState(room, seat.playerId);
+      const lease = state.currentTurn;
+      if (state.wolfProposal && (!room.requireActionLease || (lease?.turnId === args.turn_id && lease.expiresAt > Date.now()))) {
+        recovery = { code: 'WOLF_TARGET_CONFLICT', retryable: true, tool: 'submit_wolf_target', arguments: { target_player_id: state.wolfProposal, ...(lease ? { turn_id: lease.turnId } : {}), ...(args.action_id ? { action_id: args.action_id } : {}) }, instruction: '目标已由队友确定。本次提交未接受、租约未消耗。立即使用 arguments 重试 submit_wolf_target；成功后停止。若租约失效，重新查询 get_my_private_state，不得继续使用旧租约。' };
+      }
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId, ...(recovery ? { recovery } : {}) }) }], isError: true };
   } finally {
     trace.afterVersion = room.version;
     trace.resultCode ??= audit.ok ? 'OK' : 'INTERNAL_ERROR';

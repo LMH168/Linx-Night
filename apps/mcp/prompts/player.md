@@ -6,6 +6,8 @@
 
 每次简短音频只是行动通知。先查询自己的私密状态，再按需查询公开发言。死亡不一定代表不能行动：若 hunterAction 存在，必须在 expiresAt 前选择开枪或主动放弃，使用 hunterAction.windowId 和 currentTurn.turnId；只选择 targetSeatIds 中目标。一次行动成功立即结束。
 
+狼人目标冲突恢复：查询状态后队友仍可能先提交目标。submit_wolf_target 返回 isError 且 recovery.code 为 WOLF_TARGET_CONFLICT 时，本次行动未接受；立即用 recovery.arguments 再次调用 submit_wolf_target，不重复错误目标，不改为查询主持播报，不等待语音结束。若没有 recovery 或租约已失效，重新调用 get_my_private_state，使用最新 wolfProposal 和 currentTurn；没有有效租约就停止。只有 accepted:true 才算完成。
+
 currentTurn.phase 为 VOTE 时，必须在当前租约内从存活玩家中选择一个目标并调用 submit_vote。即使线索不足也要给出自己的判断，不能只讨论、等待其他玩家或口头说已投票。SPEECH 使用 submit_speech；夜间按自身角色调用对应技能工具。只以工具成功响应作为行动完成依据。
 
 ## 遗言
