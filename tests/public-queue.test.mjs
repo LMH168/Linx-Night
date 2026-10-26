@@ -13,8 +13,8 @@ for(const seatId of ['P2','P3']){room.speeches.push({speechId:seatId,seatId,text
 playback.sync(room);await playback.running.get(room.roomId);
 assert.equal(seen[0].voiceId,'low');const id=playback.state(room).task.id;
 playback.sync(room);assert.equal(seen.length,1);playback.getAudio(room,id);assert.equal(seen.length,1);
-playback.skip(room,id);assert.equal(room.hostTasks[0].status,'skipped');assert.throws(()=>playback.acknowledge(room,id));
-await playback.running.get(room.roomId);assert.equal(seen[1].voiceId,'host');playback.acknowledge(room,playback.state(room).task.id);
+room.speechPlayback={speechId:'P2',taskId:id,seatId:'P2',status:'pending'};room.currentSeatId='P2';room.seats[1].alive=true;room.seats[2].alive=true;playback.skip(room,id);assert.equal(room.hostTasks[0].status,'skipped');assert.throws(()=>playback.acknowledge(room,id));
+await playback.running.get(room.roomId);assert.equal(seen[1].voiceId,'host');playback.acknowledge(room,playback.state(room).task.id,playback.state(room).task.attemptId);
 await playback.running.get(room.roomId);assert.equal(seen[2].voiceId,'high');
 assert.ok(!JSON.stringify(playback.state(room)).includes('voiceId'));
 playback.cancel(room);assert.equal(playback.audio.size,0);
