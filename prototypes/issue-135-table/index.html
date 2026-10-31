@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#07100c" />
+<title>暮林山舍 · 九席（性能原型）</title>
+<style>
+  :root {
+    --gold: #d4b27a;
+    --ink: #050b08;
+    --paper: rgba(239, 229, 207, .86);
+    --muted: rgba(239, 229, 207, .5);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; }
+  body {
+    font: 13px/1.5 Georgia, "Songti SC", "Noto Serif SC", serif;
+    color: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage { position: fixed; inset: 0; }
+  #scene { display: block; width: 100%; height: 100%; }
+  /* 静态暗角：不叠 backdrop-filter，避免合成器每帧重算模糊 */
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 46%, transparent 40%, rgba(0, 0, 0, .55) 100%);
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: .05; mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .panel {
+    position: fixed; z-index: 2;
+    border: 1px solid rgba(212, 178, 122, .22);
+    background: rgba(5, 11, 8, .82);
+    padding: 12px 14px;
+    letter-spacing: .04em;
+  }
+  #stats { top: 16px; left: 16px; min-width: 214px; }
+  #stats h1 { margin: 0 0 8px; font-size: 11px; font-weight: 400; letter-spacing: .22em; color: var(--gold); }
+  #stats dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0; }
+  #stats dt { color: var(--muted); font-size: 11px; }
+  #stats dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; font-size: 11px; }
+  .good { color: #7fc08a; }
+  .warn { color: #d8a65c; }
+
+  #controls { bottom: 16px; left: 16px; display: flex; flex-wrap: wrap; gap: 8px; max-width: min(560px, calc(100vw - 32px)); }
+  button {
+    font: inherit; font-size: 11px; letter-spacing: .1em;
+    color: var(--paper); background: transparent;
+    border: 1px solid rgba(212, 178, 122, .32);
+    padding: 7px 11px; cursor: pointer;
+    transition: background .18s, border-color .18s, color .18s;
+  }
+  button:hover { background: rgba(212, 178, 122, .12); border-color: var(--gold); }
+  button[aria-pressed="true"] { background: rgba(212, 178, 122, .18); border-color: var(--gold); color: #fff3dc; }
+  .caption {
+    position: fixed; z-index: 2; right: 16px; bottom: 18px; text-align: right;
+    font-size: 10px; letter-spacing: .18em; color: var(--muted);
+  }
+  .caption strong { display: block; color: var(--gold); font-weight: 400; font-size: 12px; letter-spacing: .22em; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="stage"><canvas id="scene"></canvas></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <section class="panel" id="stats" aria-live="off">
+    <h1>PERF · 实时读数</h1>
+    <dl>
+      <dt>draw calls</dt><dd id="s-calls">–</dd>
+      <dt>triangles</dt><dd id="s-tris">–</dd>
+      <dt>实际渲染</dt><dd id="s-rendered">–</dd>
+      <dt>跳过空帧</dt><dd id="s-skipped">–</dd>
+      <dt>帧时间</dt><dd id="s-frame">–</dd>
+      <dt>DPR</dt><dd id="s-dpr">–</dd>
+      <dt>光源</dt><dd id="s-lights">–</dd>
+      <dt>缩放事件</dt><dd id="s-resizes">–</dd>
+    </dl>
+  </section>
+
+  <div id="controls" class="panel" role="group" aria-label="场景控制">
+    <button id="btn-day" aria-pressed="true">白天</button>
+    <button id="btn-vote">投票</button>
+    <button id="btn-guard">守卫夜</button>
+    <button id="btn-result">结算</button>
+    <button id="btn-mode" aria-pressed="true">按需渲染：开</button>
+    <button id="btn-dpr" aria-pressed="true">DPR 上限 2</button>
+    <button id="btn-dead">随机一人出局</button>
+  </div>
+
+  <div class="caption" aria-hidden="true">
+    <strong>暮林山舍</strong>
+    九席 · 零实时点光源 · 静态时零绘制
+  </div>
+
+<script type="module">
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ------------------------------------------------------------------ *
+ * 0. 预算与常量
+ * ------------------------------------------------------------------ */
+const BUDGET = {
+  maxLights: 2,          // 设计文档 #135 §4.7：实时阴影光源 ≤2；本原型用 0 投影
+  drawCalls: 60,
+  triangles: 120000,
+};
+
+const PALETTE = {
+  day:   { sky: 0x16241c, fog: 0x16241c, hemi: 0x9ab8c4, ground: 0x0d1712, moon: 1.15, lamp: 0xffca8a, amb: 0.68 },
+  vote:  { sky: 0x120f14, fog: 0x140f13, hemi: 0x8f9bb6, ground: 0x0d0c11, moon: 0.95, lamp: 0xffb066, amb: 0.52 },
+  night: { sky: 0x070d10, fog: 0x070d10, hemi: 0x5d7f93, ground: 0x070c09, moon: 0.62, lamp: 0xff9d4d, amb: 0.34 },
+  result:{ sky: 0x1a1512, fog: 0x191410, hemi: 0xa8a08e, ground: 0x100d0a, moon: 1.05, lamp: 0xffc78e, amb: 0.58 },
+};
+
+const SEATS = 9;
+const SEAT_RX = 5.35;
+const SEAT_RZ = 3.35;
+
+/* ------------------------------------------------------------------ *
+ * 1. 程序化贴图：零外部资源，全部在内存里生成
+ *    烘焙进贴图的光照不产生任何逐帧开销
+ * ------------------------------------------------------------------ */
+function makeCanvas(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  return { canvas, ctx: canvas.getContext('2d') };
+}
+
+function woodTexture(size = 512) {
+  const { canvas, ctx } = makeCanvas(size);
+  const g = ctx.createRadialGradient(size * 0.36, size * 0.34, size * 0.02, size * 0.5, size * 0.5, size * 0.78);
+  g.addColorStop(0.00, '#8a6440');
+  g.addColorStop(0.34, '#6a4a2e');
+  g.addColorStop(0.72, '#422c1b');
+  g.addColorStop(1.00, '#2a1b11');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+
+  // 木纹
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.globalAlpha = 0.28;
+  for (let i = 0; i < 46; i++) {
+    const r = 18 + i * (size / 108) + Math.sin(i * 2.4) * 3.2;
+    ctx.beginPath();
+    ctx.strokeStyle = i % 3 === 0 ? 'rgba(28,17,9,.55)' : 'rgba(150,112,70,.28)';
+    ctx.lineWidth = i % 3 === 0 ? 1.6 : 0.8;
+    for (let a = 0; a <= Math.PI * 2.001; a += 0.16) {
+      const wob = 1 + Math.sin(a * 5 + i) * 0.012;
+      const x = Math.cos(a) * r * wob;
+      const y = Math.sin(a) * r * wob;
+      a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 烘焙的暖光：桌心被烛火照亮的渐变（真实光源省掉，效果保留）
+  const warm = ctx.createRadialGradient(size * 0.5, size * 0.44, 4, size * 0.5, size * 0.5, size * 0.62);
+  warm.addColorStop(0, 'rgba(255,196,120,.62)');
+  warm.addColorStop(0.45, 'rgba(240,168,96,.20)');
+  warm.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = warm;
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalCompositeOperation = 'source-over';
+
+  // 细颗粒
+  const img = ctx.getImageData(0, 0, size, size);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    d[i] += n; d[i + 1] += n; d[i + 2] += n;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function glowTexture(size = 128) {
+  const { canvas, ctx } = makeCanvas(size);
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0.00, 'rgba(255,236,206,1)');
+  g.addColorStop(0.22, 'rgba(255,186,110,.78)');
+  g.addColorStop(0.55, 'rgba(255,150,70,.22)');
+  g.addColorStop(1.00, 'rgba(255,120,40,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function contactShadowTexture(size = 256) {
+  const { canvas, ctx } = makeCanvas(size);
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(0,0,0,.72)');
+  g.addColorStop(0.55, 'rgba(0,0,0,.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function forestTexture(w = 1024, h = 512) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#08120f');
+  sky.addColorStop(0.62, '#0c1a14');
+  sky.addColorStop(1, '#050b08');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+
+  // 三层树影，越远越淡
+  const layers = [
+    { n: 26, alpha: 0.30, hMin: 0.34, hMax: 0.52, color: '#0d1d17' },
+    { n: 20, alpha: 0.52, hMin: 0.46, hMax: 0.70, color: '#081410' },
+    { n: 15, alpha: 0.82, hMin: 0.60, hMax: 0.92, color: '#040a07' },
+  ];
+  for (const layer of layers) {
+    ctx.save();
+    ctx.globalAlpha = layer.alpha;
+    for (let i = 0; i < layer.n; i++) {
+      const x = (i + Math.random() * 0.7) * (w / layer.n);
+      const th = h * (layer.hMin + Math.random() * (layer.hMax - layer.hMin));
+      const tw = 10 + Math.random() * 16;
+      ctx.fillStyle = layer.color;
+      // 三角形树冠
+      ctx.beginPath();
+      ctx.moveTo(x, h * 0.94);
+      ctx.lineTo(x - tw, h * 0.94 - th * 0.45);
+      ctx.lineTo(x - tw * 0.55, h * 0.94 - th * 0.5);
+      ctx.lineTo(x - tw * 0.8, h * 0.94 - th * 0.8);
+      ctx.lineTo(x, h * 0.94 - th);
+      ctx.lineTo(x + tw * 0.8, h * 0.94 - th * 0.8);
+      ctx.lineTo(x + tw * 0.55, h * 0.94 - th * 0.5);
+      ctx.lineTo(x + tw, h * 0.94 - th * 0.45);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 雾带
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) {
+    const y = h * (0.5 + i * 0.09);
+    const g = ctx.createLinearGradient(0, y - 40, 0, y + 40);
+    g.addColorStop(0, 'rgba(120,160,150,0)');
+    g.addColorStop(0.5, `rgba(120,160,150,${0.03 + i * 0.008})`);
+    g.addColorStop(1, 'rgba(120,160,150,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y - 40, w, 80);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2. 渲染器：单 canvas、单 context、DPR 有上限
+ * ------------------------------------------------------------------ */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+renderer.shadowMap.enabled = false; // 全部靠烘焙，零阴影贴图开销
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(PALETTE.day.fog, 0.021);
+
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
+
+/* ------------------------------------------------------------------ *
+ * 3. 光照：1 个半球光 + 1 个方向光，零 PointLight
+ * ------------------------------------------------------------------ */
+const hemi = new THREE.HemisphereLight(PALETTE.day.hemi, PALETTE.day.ground, 0.72);
+scene.add(hemi);
+
+const moon = new THREE.DirectionalLight(0xc4dced, PALETTE.day.moon);
+moon.position.set(7, 12, 14);
+moon.castShadow = false;
+scene.add(moon);
+
+/* ------------------------------------------------------------------ *
+ * 4. 长桌：一个合并网格 = 1 次 draw call
+ * ------------------------------------------------------------------ */
+const woodTex = woodTexture(512);
+const tableGroup = new THREE.Group();
+scene.add(tableGroup);
+
+const pieceGeometries = [];
+const pushBox = (w, h, d, x, y, z) => {
+  const g = new THREE.BoxGeometry(w, h, d);
+  g.translate(x, y, z);
+  pieceGeometries.push(g);
+};
+
+// 桌面
+pushBox(9.2, 0.26, 4.3, 0, 1.06, 0);
+// 桌沿
+pushBox(9.5, 0.16, 4.6, 0, 0.94, 0);
+// 四条腿
+for (const sx of [-1, 1]) {
+  for (const sz of [-1, 1]) {
+    pushBox(0.24, 0.92, 0.24, sx * 4.1, 0.46, sz * 1.75);
+  }
+}
+// 两条横撑
+pushBox(8.2, 0.12, 0.12, 0, 0.34, -1.75);
+pushBox(8.2, 0.12, 0.12, 0, 0.34, 1.75);
+
+const tableGeometry = mergeGeometries(pieceGeometries, false);
+pieceGeometries.forEach((g) => g.dispose());
+
+const tableMesh = new THREE.Mesh(
+  tableGeometry,
+  new THREE.MeshStandardMaterial({ map: woodTex, color: 0xffffff, roughness: 0.86, metalness: 0.04 }),
+);
+tableGroup.add(tableMesh);
+
+/* ------------------------------------------------------------------ *
+ * 5. 九把椅子：椅子合并成一个几何体 → InstancedMesh 一次绘完
+ * ------------------------------------------------------------------ */
+const chairParts = [];
+const addPart = (w, h, d, x, y, z) => {
+  const g = new THREE.BoxGeometry(w, h, d);
+  g.translate(x, y, z);
+  chairParts.push(g);
+};
+addPart(0.92, 0.1, 0.92, 0, 0.52, 0);          // 座面
+addPart(0.92, 1.05, 0.1, 0, 1.06, -0.42);      // 靠背
+addPart(0.78, 0.5, 0.1, 0, 1.62, -0.42);       // 靠背顶
+for (const sx of [-1, 1]) {
+  for (const sz of [-1, 1]) {
+    addPart(0.09, 0.52, 0.09, sx * 0.4, 0.26, sz * 0.4); // 四条腿
+  }
+}
+const chairGeometry = mergeGeometries(chairParts, false);
+chairParts.forEach((g) => g.dispose());
+
+const chairMaterial = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 0.94, metalness: 0.02 });
+
+const seatPositions = [];
+for (let i = 0; i < SEATS; i++) {
+  const a = (i / SEATS) * Math.PI * 2 - Math.PI / 2;
+  seatPositions.push(new THREE.Vector3(SEAT_RX * Math.cos(a), 0, SEAT_RZ * Math.sin(a)));
+}
+
+const chairs = new THREE.InstancedMesh(chairGeometry, chairMaterial, SEATS);
+chairs.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+const dummy = new THREE.Object3D();
+seatPositions.forEach((pos, i) => {
+  dummy.position.copy(pos);
+  dummy.rotation.set(0, Math.atan2(pos.x, pos.z) + Math.PI, 0);
+  dummy.scale.setScalar(1);
+  dummy.updateMatrix();
+  chairs.setMatrixAt(i, dummy.matrix);
+});
+chairs.instanceMatrix.needsUpdate = true;
+scene.add(chairs);
+
+/* ------------------------------------------------------------------ *
+ * 6. 灯笼：几何体是“不受光的自发光材质”，光晕用一组 Points
+ *    → 9 盏灯 = 2 次 draw call，0 个实时光源
+ * ------------------------------------------------------------------ */
+const lanternGeometry = new THREE.SphereGeometry(0.138, 12, 10);
+const lanternMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.day.lamp });
+const lanterns = new THREE.InstancedMesh(lanternGeometry, lanternMaterial, SEATS);
+lanterns.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+const lanternPositions = [];
+const lanternPoles = [];
+seatPositions.forEach((pos, i) => {
+  const outward = pos.clone().normalize();
+  const p = pos.clone().add(outward.multiplyScalar(-0.52));
+  p.y = 2.02;
+  lanternPositions.push(p);
+});
+
+// 灯杆（与椅子一起就可以省掉，这里保留一根细杆让灯笼“有支撑”）
+const poleGeometry = new THREE.CylinderGeometry(0.022, 0.022, 1.5, 5);
+poleGeometry.translate(0, 0.75, 0);
+const poles = new THREE.InstancedMesh(poleGeometry, new THREE.MeshStandardMaterial({ color: 0x2a1f16, roughness: 0.8 }), SEATS);
+poles.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+lanternPositions.forEach((p, i) => {
+  dummy.position.copy(p);
+  dummy.rotation.set(0, 0, 0);
+  dummy.scale.setScalar(1);
+  dummy.updateMatrix();
+  lanterns.setMatrixAt(i, dummy.matrix);
+
+  dummy.position.set(p.x, 0.5, p.z);
+  dummy.updateMatrix();
+  poles.setMatrixAt(i, dummy.matrix);
+});
+lanterns.instanceMatrix.needsUpdate = true;
+poles.instanceMatrix.needsUpdate = true;
+scene.add(lanterns, poles);
+
+// 光晕：单个 Points 对象，9 个顶点，逐顶点颜色控制明灭
+const glowGeometry = new THREE.BufferGeometry();
+const glowPositions = new Float32Array(SEATS * 3);
+const glowColors = new Float32Array(SEATS * 3);
+lanternPositions.forEach((p, i) => {
+  glowPositions[i * 3] = p.x;
+  glowPositions[i * 3 + 1] = p.y;
+  glowPositions[i * 3 + 2] = p.z;
+  glowColors[i * 3] = 1;
+  glowColors[i * 3 + 1] = 0.72;
+  glowColors[i * 3 + 2] = 0.44;
+});
+glowGeometry.setAttribute('position', new THREE.BufferAttribute(glowPositions, 3));
+glowGeometry.setAttribute('color', new THREE.BufferAttribute(glowColors, 3));
+
+const glowMaterial = new THREE.PointsMaterial({
+  map: glowTexture(128),
+  size: 2.35,
+  sizeAttenuation: true,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  vertexColors: true,
+  opacity: 0.95,
+});
+const glowPoints = new THREE.Points(glowGeometry, glowMaterial);
+scene.add(glowPoints);
+
+/* ------------------------------------------------------------------ *
+ * 7. 环境：地面、接触阴影、两片远景森林
+ * ------------------------------------------------------------------ */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(70, 70),
+  new THREE.MeshStandardMaterial({ color: 0x0b1511, roughness: 1, metalness: 0 }),
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = 0;
+scene.add(floor);
+
+const shadowDecal = new THREE.Mesh(
+  new THREE.PlaneGeometry(15, 9),
+  new THREE.MeshBasicMaterial({ map: contactShadowTexture(256), transparent: true, depthWrite: false, opacity: 0.85 }),
+);
+shadowDecal.rotation.x = -Math.PI / 2;
+shadowDecal.position.set(0, 0.012, 0);
+scene.add(shadowDecal);
+
+const forestTex = forestTexture(1024, 512);
+const backdrop1 = new THREE.Mesh(
+  new THREE.PlaneGeometry(78, 30),
+  new THREE.MeshBasicMaterial({ map: forestTex, transparent: true, depthWrite: false, opacity: 0.92 }),
+);
+backdrop1.position.set(0, 9, -26);
+scene.add(backdrop1);
+
+const backdrop2 = backdrop1.clone();
+backdrop2.scale.set(1.35, 1.35, 1);
+backdrop2.position.set(3, 11, -40);
+(backdrop2.material = backdrop1.material.clone()).opacity = 0.55;
+scene.add(backdrop2);
+
+/* ------------------------------------------------------------------ *
+ * 8. 镜头：四个预设机位，补间时才绘制
+ * ------------------------------------------------------------------ */
+const SHOTS = {
+  day:    { pos: [8.6, 5.4, 16.2], target: [0, 1.5, 0.4], fov: 38 },
+  vote:   { pos: [4.2, 6.6, 13.4], target: [0, 1.4, 0.2], fov: 34 },
+  guard:  { pos: [10.4, 3.2, 13.8], target: [0, 1.9, 0.6], fov: 42 },
+  result: { pos: [5.6, 7.4, 19.2], target: [0, 1.6, 0.2], fov: 44 },
+};
+
+const camState = {
+  from: { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 40 },
+  to:   { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 40 },
+  t: 1,
+  duration: 900,
+  started: 0,
+};
+
+function readShot(name) {
+  const s = SHOTS[name] || SHOTS.day;
+  return { pos: new THREE.Vector3().fromArray(s.pos), target: new THREE.Vector3().fromArray(s.target), fov: s.fov };
+}
+
+function snapToShot(name) {
+  const s = readShot(name);
+  camera.position.copy(s.pos);
+  camera.fov = s.fov;
+  camera.lookAt(s.target);
+  camera.updateProjectionMatrix();
+  camState.to = s;
+  camState.t = 1;
+}
+
+function moveToShot(name, immediate = false) {
+  if (immediate) {
+    snapToShot(name);
+    requestRender();
+    return;
+  }
+  const s = readShot(name);
+  camState.from.pos.copy(camera.position);
+  camState.from.fov = camera.fov;
+  camState.from.target.copy(camState.to.target);
+  camState.to = s;
+  camState.t = 0;
+  camState.started = performance.now();
+  requestRender();
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. 按需渲染：静止时不绘制任何一帧
+ * ------------------------------------------------------------------ */
+let dirty = true;
+let onDemand = true;
+let framesRendered = 0;
+let framesSkipped = 0;
+let resizeCount = 0;
+let lastFrameTime = 0;
+
+function requestRender() {
+  dirty = true;
+}
+
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+function updateCamera(now) {
+  if (camState.t >= 1) return false;
+  const k = Math.min(1, (now - camState.started) / camState.duration);
+  const e = easeInOut(k);
+  camera.position.lerpVectors(camState.from.pos, camState.to.pos, e);
+  const target = new THREE.Vector3().lerpVectors(camState.from.target, camState.to.target, e);
+  camera.fov = camState.from.fov + (camState.to.fov - camState.from.fov) * e;
+  camera.lookAt(target);
+  camera.updateProjectionMatrix();
+  camState.t = k >= 1 ? 1 : k;
+  return true;
+}
+
+function applyPhase(name) {
+  const p = PALETTE[name] || PALETTE.day;
+  scene.background = new THREE.Color(p.sky);
+  scene.fog.color.setHex(p.fog);
+  hemi.color.setHex(p.hemi);
+  hemi.groundColor.setHex(p.ground);
+  hemi.intensity = p.amb;
+  moon.intensity = p.moon;
+  lanternMaterial.color.setHex(p.lamp);
+  requestRender();
+}
+
+/* ------------------------------------------------------------------ *
+ * 10. 状态：出局座位 = 关掉那一盏灯（改顶点色，零 draw call 变化）
+ * ------------------------------------------------------------------ */
+const alive = new Array(SEATS).fill(true);
+function refreshLanterns() {
+  const attr = glowGeometry.getAttribute('color');
+  const base = new THREE.Color(PALETTE[phaseName] ? PALETTE[phaseName].lamp : 0xff9d4d);
+  for (let i = 0; i < SEATS; i++) {
+    const k = alive[i] ? 1 : 0;
+    attr.setXYZ(i, base.r * k, base.g * k * 0.72, base.b * k * 0.44);
+  }
+  attr.needsUpdate = true;
+  requestRender();
+}
+
+/* ------------------------------------------------------------------ *
+ * 11. 主循环
+ * ------------------------------------------------------------------ */
+let phaseName = 'day';
+
+function tick(now) {
+  if (updateCamera(now)) dirty = true;
+
+  if (!onDemand) dirty = true; // “常驻渲染”对照模式
+
+  if (dirty) {
+    renderer.render(scene, camera);
+    framesRendered++;
+    lastFrameTime = now;
+    dirty = false;
+  } else {
+    framesSkipped++;
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ------------------------------------------------------------------ *
+ * 12. 尺寸：只在真正变化时重建 drawing buffer
+ * ------------------------------------------------------------------ */
+function resize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  resizeCount++;
+  requestRender();
+}
+
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(resize, 120);
+}, { passive: true });
+
+/* ------------------------------------------------------------------ *
+ * 13. HUD & 交互
+ * ------------------------------------------------------------------ */
+const el = (id) => document.getElementById(id);
+const statNodes = {
+  calls: el('s-calls'),
+  tris: el('s-tris'),
+  rendered: el('s-rendered'),
+  skipped: el('s-skipped'),
+  frame: el('s-frame'),
+  dpr: el('s-dpr'),
+  lights: el('s-lights'),
+  resizes: el('s-resizes'),
+};
+
+function updateStats() {
+  const info = renderer.info.render;
+  statNodes.calls.textContent = String(info.calls);
+  statNodes.tris.textContent = info.triangles.toLocaleString('en-US');
+  statNodes.rendered.textContent = framesRendered.toLocaleString('en-US');
+  statNodes.skipped.textContent = framesSkipped.toLocaleString('en-US');
+  statNodes.frame.textContent = lastFrameTime ? `${(performance.now() - lastFrameTime).toFixed(0)} ms 前` : '–';
+  statNodes.dpr.textContent = renderer.getPixelRatio().toFixed(2);
+  const lightCount = scene.children.filter((c) => c.isLight).length;
+  statNodes.lights.textContent = `${lightCount} / ≤${BUDGET.maxLights}`;
+  statNodes.lights.className = lightCount <= BUDGET.maxLights ? 'good' : 'warn';
+  statNodes.calls.className = info.calls <= BUDGET.drawCalls ? 'good' : 'warn';
+  statNodes.tris.className = info.triangles <= BUDGET.triangles ? 'good' : 'warn';
+  statNodes.resizes.textContent = String(resizeCount);
+}
+
+let statsTimer = window.setInterval(updateStats, 400);
+
+function setPressed(button, on) {
+  button.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+const PHASE_SHOT = { day: 'day', vote: 'vote', night: 'guard', result: 'result' };
+
+const phaseButtons = [
+  ['btn-day', 'day'],
+  ['btn-vote', 'vote'],
+  ['btn-guard', 'night'],
+  ['btn-result', 'result'],
+];
+phaseButtons.forEach(([id, name]) => {
+  el(id).addEventListener('click', () => {
+    phaseName = name;
+    applyPhase(name);
+    moveToShot(PHASE_SHOT[name] || name);
+    phaseButtons.forEach(([bid]) => setPressed(el(bid), bid === id));
+    refreshLanterns();
+  });
+});
+
+el('btn-mode').addEventListener('click', (e) => {
+  onDemand = !onDemand;
+  setPressed(e.currentTarget, onDemand);
+  e.currentTarget.textContent = `按需渲染：${onDemand ? '开' : '关'}`;
+  framesRendered = 0;
+  framesSkipped = 0;
+  requestRender();
+});
+
+el('btn-dpr').addEventListener('click', (e) => {
+  const capped = renderer.getPixelRatio() <= 1;
+  const next = capped ? Math.min(window.devicePixelRatio, 2) : 1;
+  renderer.setPixelRatio(next);
+  resize();
+  e.currentTarget.textContent = `DPR 上限 ${next <= 1 ? 1 : 2}`;
+  setPressed(e.currentTarget, next > 1);
+});
+
+el('btn-dead').addEventListener('click', () => {
+  const living = alive.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
+  if (living.length <= 3) {
+    alive.fill(true);
+  } else {
+    alive[living[Math.floor(Math.random() * living.length)]] = false;
+  }
+  refreshLanterns();
+});
+
+/* ------------------------------------------------------------------ *
+ * 14. 启动
+ * ------------------------------------------------------------------ */
+resize();
+snapToShot('day');
+applyPhase('day');
+refreshLanterns();
+updateStats();
+requestAnimationFrame(tick);
+
+// 供自动化测量读取
+window.__perf = {
+  budget: BUDGET,
+  info: () => ({ ...renderer.info.render, lights: scene.children.filter((c) => c.isLight).length }),
+  stats: () => ({ framesRendered, framesSkipped, resizeCount, dpr: renderer.getPixelRatio() }),
+  setPhase: (name) => {
+    phaseName = name;
+    applyPhase(name);
+    moveToShot(PHASE_SHOT[name] || name, true);
+    refreshLanterns();
+    updateStats();
+  },
+};
+</script>
+</body>
+</html>
