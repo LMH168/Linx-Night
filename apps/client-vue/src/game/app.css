@@ -224,3 +224,20 @@ a { color: inherit; }
   .game-ui.desktop.result-screen .role-card { flex: 0 0 120px; }
   .game-ui.desktop.result-screen .corner-note { position: static; margin-top: 14px; }
 }
+
+/* Launch character codex trigger */
+.launch-codex { position: fixed; right: 44px; bottom: 76px; z-index: 3; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border: 1px solid rgba(212,178,122,.3); border-radius: 3px; color: rgba(236,226,203,.68); background: rgba(6,12,9,.58); backdrop-filter: blur(14px); transition: border-color .2s ease, background .2s ease, color .2s ease, opacity .2s ease; }
+.launch-codex svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; color: var(--g-gold); }
+.launch-codex .codex-copy { display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.launch-codex b { font-family: var(--g-serif); font-size: 12px; font-weight: 400; letter-spacing: .2em; color: rgba(243,236,221,.86); }
+.launch-codex small { font-size: 6px; letter-spacing: .2em; color: rgba(236,226,203,.34); }
+.launch-codex .codex-count { min-width: 18px; padding-left: 7px; border-left: 1px solid rgba(212,178,122,.18); font-family: var(--g-serif); font-size: 11px; color: rgba(231,201,145,.52); text-align: center; }
+.launch-codex:hover:not(:disabled) { border-color: rgba(231,201,145,.7); color: var(--g-gold-bright); background: rgba(13,21,15,.78); }
+.launch-codex:disabled { opacity: .32; cursor: wait; }
+.launch-screen.is-codex-open .launch-top, .launch-screen.is-codex-open .launch-copy, .launch-screen.is-codex-open .launch-foot, .launch-screen.is-codex-open .launch-codex { opacity: 0; visibility: hidden; pointer-events: none; }
+.launch-screen.is-codex-open .launch-cinematic { z-index: 5; opacity: 1; pointer-events: auto; }
+.launch-screen.is-codex-open .launch-scrim { opacity: 0; }
+@media (max-width: 760px) {
+  .launch-codex { right: 20px; bottom: 64px; }
+  .launch-codex .codex-copy small { display: none; }
+}
