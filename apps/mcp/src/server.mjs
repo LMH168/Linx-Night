@@ -1,4 +1,4 @@
-import { turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
+import { recordTurn, turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -72,6 +72,7 @@ async function callTool(req, name, args, requiredToken, trace) {
   const context = sessionContext(req, requiredToken);
   const room = roomFor(context);
   const seat = context.role === 'host' ? null : seatFor(room, context);
+  recordTurn('mcp_request_received',{roomId:room.roomId,gameId:room.gameId,seatId:context.seatId});
   Object.assign(trace, { roomId: room.roomId, seatId: context.seatId, beforeVersion: room.version, eventIds: [] });
   const tool = toolMap.get(name);
   if (!tool) throw Object.assign(new Error('unknown tool'), { code: -32601 });
@@ -82,7 +83,19 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
     if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: room.lastWords, history: room.lastWordsHistory ?? [], version: room.version }); }
     if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }
-    if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
+    if (name === 'get_my_private_state') {
+      const state = privateState(room, seat.playerId);
+      const turn = state.currentTurn;
+      if (turn?.phase === 'VOTE' && turn.expiresAt > Date.now()) {
+        state.requiredAction = {
+          tool: 'submit_vote',
+          arguments: { turn_id: turn.turnId },
+          targetSeatIds: room.seats.filter(s => s.alive && s.playerId).map(s => s.seatId),
+          instruction: '现在必须调用 submit_vote。自行从 targetSeatIds 选择一名玩家，将其座位号填入 target_player_id，并携带 arguments.turn_id。即使线索不足也必须选择；不能只查询、口头投票或等待其他玩家。只有 accepted:true 才算提交成功。',
+        };
+      }
+      audit.ok = true; return resultText(state);
+    }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {
@@ -112,7 +125,20 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (!(error instanceof RuleError || error instanceof ToolInputError)) throw error;
     trace.resultCode = error instanceof ToolInputError ? 'INVALID_ARGUMENTS' : 'ACTION_REJECTED';
     trace.failure = { code: trace.resultCode, reason: error.message };
-    return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId }) }], isError: true };
+    // Only this authenticated wolf receives the current proposal. Never audit it.
+    let recovery;
+    if (name === 'submit_wolf_target' && error.message === 'werewolf targets must agree' && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
+      const state = privateState(room, seat.playerId);
+      const lease = state.currentTurn;
+      const proposal = room.seats.find(s => s.seatId === state.wolfProposal);
+      if (proposal?.alive && proposal.camp !== 'werewolf' && (!room.requireActionLease || (lease?.turnId === args.turn_id && lease.expiresAt > Date.now()))) {
+        recovery = { code: 'WOLF_TARGET_CONFLICT', retryable: true, tool: 'submit_wolf_target', arguments: { target_player_id: state.wolfProposal, ...(lease ? { turn_id: lease.turnId } : {}), ...(args.action_id ? { action_id: args.action_id } : {}) }, instruction: '目标已由队友确定。本次提交未接受、租约未消耗。立即使用 arguments 重试 submit_wolf_target；成功后停止。若租约失效，重新查询 get_my_private_state，不得继续使用旧租约。' };
+      }
+    }
+    if (name === 'submit_wolf_target' && ['werewolves cannot target teammates','werewolves cannot target themselves'].includes(error.message) && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
+      recovery = { code: 'INVALID_WOLF_TARGET', instruction: '不能选择自己或狼人队友。本次未提交成功；立即查询 get_my_private_state，若有合法 wolfProposal 则跟随，否则从合法目标中重新选择，并携带当前租约提交。', targetSeatIds: room.seats.filter(s => s.alive && s.camp !== 'werewolf').map(s => s.seatId) };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ code: trace.resultCode, message: error.message, requestId: trace.requestId, ...(recovery ? { recovery } : {}) }) }], isError: true };
   } finally {
     trace.afterVersion = room.version;
     trace.resultCode ??= audit.ok ? 'OK' : 'INTERNAL_ERROR';
@@ -127,6 +153,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     const url = new URL(req.url, 'http://localhost');
     let message;
     let failure;
+    const receivedAt=performance.now();
     const trace = { requestId: randomUUID() };
     const recordFailure = body => {
       if (body.error) {
@@ -137,6 +164,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     const reply = (status, body) => { recordFailure(body); return json(res, status, body); };
     res.on('finish', () => {
       if (!['/mcp', '/mcp/message'].includes(url.pathname)) return;
+      if(trace.roomId)recordTurn('mcp_response_finished',{roomId:trace.roomId,seatId:trace.seatId,durationMs:performance.now()-receivedAt});
       const authenticated = !requiredToken || authToken(req) === requiredToken;
       const identity = authenticated ? Object.fromEntries(['session', 'device', 'agent'].map(key => [key + 'Id', req.headers[`x-linx-${key}-id`]?.slice(0, 256)])) : {};
       diagnostics.push({ at: new Date().toISOString(), path: url.pathname, httpMethod: req.method, method: typeof message?.method === 'string' ? message.method.slice(0, 128) : undefined, tool: typeof message?.params?.name === 'string' ? message.params.name.slice(0, 128) : undefined, status: res.statusCode, authenticated, ...identity, ...trace, failure: failure || trace.failure });

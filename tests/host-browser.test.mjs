@@ -1,19 +1,27 @@
 import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
-const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,{});return elements.get(id);};let played=0,currentAudio,tick;
-const state={roomId:'room'};const context=vm.createContext({window:{addEventListener(){}},document:{getElementById:get},setInterval:fn=>{tick=fn;return 1;},clearInterval(){},AbortController,Uint8Array,Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},atob:()=>'',Audio:class{constructor(){currentAudio=this;}play(){return Promise.resolve();}pause(){this.onpause?.();}}});
-vm.runInContext(await readFile('apps/client/host-player.js','utf8'),context);
-context.window.createHostPlayer({state,message(){},call:async(path)=>{if(path.endsWith('/state'))return {task:{id:'task',text:'公开播报',status:'ready'}};if(path.includes('/audio'))return {wav:''};if(path.endsWith('/played')){played++;return {};}}});
-get('hostEnable').onclick();await new Promise(r=>setImmediate(r));get('hostEnable').onclick();await new Promise(r=>setImmediate(r));assert.equal(played,0);
-get('hostEnable').onclick();await new Promise(r=>setImmediate(r));currentAudio.onended();await new Promise(r=>setImmediate(r));assert.equal(played,1);
-get('hostEnable').onclick();await tick();assert.equal(played,1);console.log('Host browser stop never acknowledges, ended acknowledges once and disabled poll does not play');
+const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,{});return elements.get(id);};let tick,finish,fetches=0,acks=0,failAck=false;
+const state={roomId:'room',playerId:'host',room:{hostPlayerId:'host'}};
+const window={addEventListener(){},AudioContext:class{async resume(){}},playPcmStream:async(_r,_c,{signal,onStart})=>{await onStart();await new Promise((resolve,reject)=>{finish=resolve;signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true});});signal.throwIfAborted();return {firstPlayMs:10,playbackMs:250};}};
+vm.runInNewContext(await readFile('apps/client/host-player.js','utf8'),{window,document:{getElementById:get},setInterval:f=>{tick=f;},clearInterval(){},AbortController});
+window.createHostPlayer({state,message(){},call:async(path)=>{if(path.endsWith('/state'))return {task:{id:'t',attemptId:'a',gameId:'g',status:'ready',text:'公开'}};if(path.includes('/stream')){fetches++;return {};}if(path.endsWith('/played')){acks++;if(failAck){failAck=false;throw Error('network');}}return {};}});
+const flush=()=>new Promise(r=>setImmediate(r));
+get('hostEnable').onclick();await flush();get('hostEnable').onclick();await flush();assert.equal(acks,0);
+get('hostEnable').onclick();await flush();failAck=true;finish();await flush();assert.equal(acks,1);const before=fetches;await tick();assert.equal(acks,2);assert.equal(fetches,before);
+await tick();assert.equal(fetches,before);state.roomId='other';await tick();assert.equal(acks,3); // prior completed retry only; switching never acknowledges the new room
+console.log('Stream cancellation never acknowledges; completed-attempt acknowledgement retries without replay; room switch stops playback');
 
-let fetches=0,attempts=0;
-context.window.createHostPlayer({state,message(){},call:async(path)=>{if(path.endsWith('/state'))return {task:{id:'retry-task',text:'test',status:'ready'}};if(path.includes('/audio')){fetches++;return {wav:''};}if(path.endsWith('/played')){attempts++;if(attempts===1)throw Error('temporary network failure');return {};}}});
-get('hostEnable').onclick();await new Promise(r=>setImmediate(r));currentAudio.onended();await new Promise(r=>setImmediate(r));
-await tick();assert.equal(attempts,2);assert.equal(fetches,1);
-console.log('Completed audio is not replayed when playback acknowledgement retries');
-
-context.window.createHostPlayer({state,message(){},call:async(path)=>{if(path.endsWith('/state'))return {task:{id:'natural-end',text:'test',status:'ready'}};if(path.includes('/audio'))return {wav:''};if(path.endsWith('/played')){attempts++;return {};}}});
-get('hostEnable').onclick();await new Promise(r=>setImmediate(r));
-currentAudio.ended=true;currentAudio.onpause();currentAudio.onended();await new Promise(r=>setImmediate(r));
-assert.equal(attempts,3);console.log('Natural-end pause before ended still acknowledges playback');
+// A played acknowledgement publishes SSE before its HTTP response finishes.
+// Changing to the next task in that interval is normal, not an interruption.
+let next=false,player,transitionAcks=0,transitionFetches=0;
+state.roomId='transition';
+player=window.createHostPlayer({state,message(){},call:async(path)=>{
+ if(path.endsWith('/state'))return {task:{id:next?'second':'first',attemptId:next?'b':'a',gameId:'g',status:'ready',text:'公开'}};
+ if(path.includes('/stream')){transitionFetches++;return {};}
+ if(path.endsWith('/played')){transitionAcks++;next=true;player.notify();await flush();}
+ return {};
+}});
+get('hostEnable').onclick();await flush();finish();await flush();await flush();
+assert.equal(transitionAcks,1);assert.equal(get('hostEnable').textContent,'停止公共声音');
+void tick();await flush();assert.equal(transitionFetches,2);assert.equal(transitionAcks,1);
+player.stop();await flush();assert.equal(transitionAcks,1);
+console.log('SSE during acknowledgement keeps sound enabled and automatically starts the next task');

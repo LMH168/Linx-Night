@@ -22,6 +22,7 @@ async function requestAdmin(base, token, path, body, fetchImpl) {
 
 export function createLinxControllerManager({ env = process.env, fetchImpl = fetch, clientFactory = identity => new LinxClient(identity), readIdentity = readProfile, loadAudio = readFile, onChange = () => {} } = {}) {
   const names = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(value => value.trim()).filter(Boolean);
+  const sends = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
@@ -91,6 +92,9 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     async ensureConnected(room, seat) {
       const adapter = adapterFor(room), c = room.controllers.find(c => c.seatId === seat.seatId);
       if (!c || c.status === 'failed') throw new Error('CONTROLLER_FAILED');
+      const key=room.roomId+':'+seat.seatId;
+      if(sends.has(key))await sends.get(key).catch(()=>{});
+      if(room.invalidated)throw Error('CONTROLLER_RELEASED');
       const client = adapter.clients.get(seat.seatId)?.client;
       if (!client || client.state === 'closed') await adapter.reconnect(room, seat.seatId);
     },
@@ -99,11 +103,11 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
-      client.record = event => { if (['input_start','input_stop','stt','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
+      client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
-      try { const result = await client.send(wav); recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
+      try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');const work=client.send(wav);sends.set(key,work);let result;try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
       catch (error) { recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
     },
     async releaseSeat(room, seat) {

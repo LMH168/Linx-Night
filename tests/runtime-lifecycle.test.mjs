@@ -26,7 +26,7 @@ const api=createApiServer({sessions:manager}).server;await new Promise(r=>api.li
 const base=`http://127.0.0.1:${api.address().port}`;
 const post=(path,playerId)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-player-id':playerId},body:'{}'});
 try {
-  const room=createRoom({hostPlayerId:'host'});addPlayer(room,{playerId:'host',displayName:'host'});rooms.set(room.roomId,room);
+  const room=createRoom({hostPlayerId:'host'});addPlayer(room,{playerId:'host',displayName:'host'});fillAiSeats(room);rooms.set(room.roomId,room);
   const route=`/api/rooms/${room.roomId}`;
   assert.equal((await post(route+'/start','host')).status,202);
   assert.equal((await post(route+'/start','host')).status,400);
@@ -40,7 +40,7 @@ try {
   assert.equal(room.controllers[0].status,'ready');
   room.turnRunning=true;room.controllers[0].status='failed';assert.equal((await post(route+'/controllers/retry-turn','host')).status,400);room.turnRunning=false;
   // Human P2 must never be relabelled Linx during the start preparation.
-  const humans=createRoom({hostPlayerId:'h1'});addPlayer(humans,{playerId:'h1',displayName:'h1'});addPlayer(humans,{playerId:'h2',displayName:'h2'});rooms.set(humans.roomId,humans);
+  const humans=createRoom({hostPlayerId:'h1'});addPlayer(humans,{playerId:'h1',displayName:'h1'});addPlayer(humans,{playerId:'h2',displayName:'h2'});fillAiSeats(humans);rooms.set(humans.roomId,humans);
   assert.equal((await post(`/api/rooms/${humans.roomId}/start`,'h1')).status,202);
   assert.equal(humans.seats[1].controlSource,'human');assert.deepEqual(humans.controllers.map(c=>c.seatId),['P3','P4','P5','P6','P7','P8','P9']);
   console.log('Lifecycle cancellation during OTA/hello/bind, late start and host retry authorization passed');

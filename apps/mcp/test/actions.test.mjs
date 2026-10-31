@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createMcpServer, registerSession, sessions } from '../src/server.mjs';
 import { rooms, events } from '../../server/src/api.mjs';
-import { createRoom, addPlayer } from '../../../packages/domain/src/model.mjs';
+import { createRoom, addPlayer, createTurn } from '../../../packages/domain/src/model.mjs';
 import { announceDay, submitVote } from '../../../packages/domain/src/engine.mjs';
 
 const { server } = createMcpServer({ authToken: 'test', adminToken: 'admin' });
@@ -69,8 +69,42 @@ try {
   await call('submit_vote', { target_player_id: 'P3' });
   assert.equal(room.phase, 'LAST_WORDS'); assert.equal(room.seats[2].alive, false);
   assert.equal(room.events.filter(e => e.type === 'game.vote_resolved').length, 1);
+  setup('NIGHT_WOLF',3);const teamBefore=structuredClone(room);
+  const teamError=JSON.parse((await call('submit_wolf_target',{target_player_id:'P4'})).result.content[0].text);
+  assert.equal(teamError.recovery.code,'INVALID_WOLF_TARGET');assert.ok(!teamError.recovery.targetSeatIds.includes('P4'));assert.deepEqual(room,teamBefore);
   setup('NIGHT_WOLF', 3); assert.equal((await call('submit_wolf_target', { target_player_id: 'P9' })).result.isError, false);
+  // A teammate can submit between the agent's state read and its write.
+  selected = 's4';
+  const beforeConflict = structuredClone(room);
+  const conflict = await call('submit_wolf_target', { target_player_id: 'P8', action_id: 'wolf-correctable' });
+  const hint = JSON.parse(conflict.result.content[0].text).recovery;
+  assert.equal(conflict.result.isError, true);assert.deepEqual(room, beforeConflict);
+  assert.equal(hint.code, 'WOLF_TARGET_CONFLICT');assert.equal(hint.arguments.target_player_id, 'P9');
+  assert.equal(hint.arguments.action_id, 'wolf-correctable');
+  const corrected = await call(hint.tool, hint.arguments);
+  assert.equal(JSON.parse(corrected.result.content[0].text).accepted, true);
+  assert.equal(room.actions.filter(a => a.actionId === 'wolf-correctable').length, 1);
+  await reject(hint.tool, hint.arguments);
+  selected = 's2';
+  const outsider = await call('submit_wolf_target', {target_player_id:'P8'});
+  assert.equal(JSON.parse(outsider.result.content[0].text).recovery, undefined);
+  // Enabling leases rejects stale requests before exposing a correction target.
+  selected = 's5';room.requireActionLease = true;room.seats[4].controlSource = 'linx';
+  const stale = await call('submit_wolf_target', {target_player_id:'P8',turn_id:'expired'});
+  assert.equal(JSON.parse(stale.result.content[0].text).recovery, undefined);
+  assert.deepEqual(room.actions, [...beforeConflict.actions, room.actions.at(-1)]);
+  room.requireActionLease = false;
   selected = 's2'; await reject('submit_wolf_target', { target_player_id: 'P9' });
+  setup('NIGHT_WOLF',3);await call('submit_wolf_target',{target_player_id:'P9'});
+  room.requireActionLease=true;room.gameId='recovery-game';selected='s4';room.seats[3].controlSource='linx';
+  room.controllers=[{seatId:'P4',status:'ready',controllerEpoch:1,sessionId:'s4',deviceId:'device',agentId:'agent'}];
+  registerSession({sessionId:'s4',roomId:room.roomId,seatId:'P4',playerId:'p4',deviceId:'device',agentId:'agent',gameId:room.gameId,controllerEpoch:1});
+  const lease=createTurn(room,{seatId:'P4',controlSource:'linx',controllerEpoch:1});room.turns.at(-1).expiresAt=Date.now()+60000;
+  const leasedBefore=structuredClone(room);
+  const leasedConflict=JSON.parse((await call('submit_wolf_target',{target_player_id:'P8',turn_id:lease.turnId,action_id:'leased-fix'})).result.content[0].text);
+  assert.deepEqual(room,leasedBefore);assert.equal(leasedConflict.recovery.arguments.turn_id,lease.turnId);
+  assert.equal(JSON.parse((await call('submit_wolf_target',leasedConflict.recovery.arguments)).result.content[0].text).accepted,true);
+  assert.equal(room.turns.at(-1).status,'completed');await reject('submit_wolf_target',leasedConflict.recovery.arguments);
   setup('NIGHT_SEER', 6); assert.equal(JSON.parse((await call('submit_seer_check', { target_player_id: 'P3' })).result.content[0].text).result, 'werewolf');
   for (const action of ['save', 'poison', 'skip']) {
     setup('NIGHT_WITCH', 7);

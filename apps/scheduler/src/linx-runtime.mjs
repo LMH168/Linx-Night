@@ -58,9 +58,9 @@ export class LinxTurnRuntime {
     const work = Promise.resolve().then(task).finally(() => { this.running.delete(room.roomId); room.turnRunning = false; if (this.again.delete(room)) this.wake(room); });
     this.running.set(room.roomId, work); return work;
   }
-  async play(room, seat) {
+  async play(room, seat, attempt = 0) {
     const gameId = room.gameId;
-    let turn, timer, poll, acceptedRecorded = false;
+    let turn, timer, poll, acceptedRecorded = false, retryVote = false;
     const hunterWindow = room.phase === 'HUNTER_RESPONSE' ? room.hunterResponse : null;
     const context = {roomId:room.roomId,gameId,seatId:seat.seatId,windowId:hunterWindow?.windowId};
     recordTurn('selected',context);
@@ -98,6 +98,7 @@ export class LinxTurnRuntime {
       if (windowExpired && active()) expireHunterResponse(room,this.now());
       const cancelled = !active() || (turn && (room.phase !== turn.phase || room.round !== turn.round));
       const code = windowExpired ? 'HUNTER_WINDOW_EXPIRED' : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
+      retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
       recordTurn('finished',{...context,code});
       if (turn) expireTurn(room, turn.turnId, code);
       if (error.message === 'TURN_TIMEOUT' && seat.controlSource === 'human' && active() && actionAvailable(room, seat)) {
@@ -117,6 +118,13 @@ export class LinxTurnRuntime {
         if (c) { c.status = 'failed'; c.errorCode = code || c.errorCode; }
       }
       this.publish(room);
+    }
+    // A stalled model may query state without submitting. Retry once with a new
+    // session and lease; never invent a vote or reuse an expired lease.
+    if (retryVote && active() && room.phase === turn.phase && room.round === turn.round && actionAvailable(room, seat)) {
+      updateController(room, seat.seatId, { status: 'released', errorCode: null });
+      recordTurn('vote_retry_started', context);
+      await this.play(room, seat, attempt + 1);
     }
   }
 }
