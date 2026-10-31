@@ -14,7 +14,7 @@ const emit = defineEmits<{ (e: 'enter'): void }>()
     <p class="copy">今晚，九个人，只有六个人能看见天亮。<br />一盏灯，留给先到的人。</p>
 
     <div class="meta-line">
-      <span>九人局</span><span class="dot" /><span>3 狼</span><span class="dot" /><span>3 民</span><span class="dot" /><span>预言家</span><span class="dot" /><span>女巫</span><span class="dot" /><span>守卫</span>
+      <span>九人局</span><span class="dot" /><span>3 狼</span><span class="dot" /><span>3 民</span><span class="dot" /><span>预言家</span><span class="dot" /><span>女巫</span><span class="dot" /><span>猎人</span>
     </div>
 
     <div class="cta">

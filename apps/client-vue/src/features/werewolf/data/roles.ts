@@ -1,4 +1,4 @@
-export type RoleId = 'wolf' | 'villager' | 'seer' | 'witch' | 'guard'
+export type RoleId = 'wolf' | 'villager' | 'seer' | 'witch' | 'hunter'
 
 export interface RoleMeta {
   id: RoleId
@@ -42,13 +42,13 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     poem: '一瓶救，一瓶毒；我只有两只手。',
     ability: '解药与毒药各一瓶，同一夜只能用一瓶。',
   },
-  guard: {
-    id: 'guard',
-    cn: '守卫',
-    en: 'THE GUARD',
+  hunter: {
+    id: 'hunter',
+    cn: '猎人',
+    en: 'THE HUNTER',
     camp: 'good',
-    poem: '今夜我守着门，明天谁来守我。',
-    ability: '每夜守护一人，不可连续两晚守同一人。',
+    poem: '死亡并不意味着沉默，最后一箭仍由我决定。',
+    ability: '出局时可以选择开枪带走一名玩家，或放弃。',
   },
 }
 
@@ -58,7 +58,7 @@ export const BOARD: { seat: number; role: RoleId; alive: boolean; name: string }
   { seat: 3, role: 'villager', alive: true, name: '旅人' },
   { seat: 4, role: 'seer', alive: false, name: '钟表匠' },
   { seat: 5, role: 'wolf', alive: true, name: '守夜人' },
-  { seat: 6, role: 'guard', alive: false, name: '说书人' },
+  { seat: 6, role: 'hunter', alive: false, name: '说书人' },
   { seat: 7, role: 'villager', alive: true, name: '学徒' },
   { seat: 8, role: 'wolf', alive: false, name: '猎户' },
   { seat: 9, role: 'villager', alive: true, name: '老妇' },

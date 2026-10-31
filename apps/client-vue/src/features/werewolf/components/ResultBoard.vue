@@ -3,11 +3,11 @@ import { BOARD, ROLES } from '../data/roles'
 import RoleSigil from './RoleSigil.vue'
 
 const timeline = [
-  { label: '第 1 夜', text: '守卫守护 6 号 · 狼人袭击 2 号 · 女巫使用解药', tone: 'night' },
+  { label: '第 1 夜', text: '狼人袭击 2 号 · 女巫使用解药', tone: 'night' },
   { label: '第 1 天', text: '4 号被指认出局 · 遗言：7 号是狼', tone: 'day' },
-  { label: '第 2 夜', text: '守卫守护 1 号 · 狼人袭击 6 号 · 女巫使用毒药', tone: 'night' },
+  { label: '第 2 夜', text: '狼人袭击 6 号 · 女巫使用毒药', tone: 'night' },
   { label: '第 2 天', text: '8 号出局 · 平安夜 · 预言家报验：5 号是狼', tone: 'day' },
-  { label: '第 3 夜', text: '狼人袭击 4 号未果 · 守卫力竭', tone: 'night' },
+  { label: '第 3 夜', text: '狼人袭击 4 号', tone: 'night' },
 ]
 </script>
 

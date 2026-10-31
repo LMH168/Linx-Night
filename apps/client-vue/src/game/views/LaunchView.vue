@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
       @load="pollScene"
     ></iframe>
     <div class="launch-scrim" aria-hidden="true"></div>
-    <header class="launch-top"><BrandMark /><span class="launch-top-meta">NINE PLAYERS · 预女守</span></header>
+    <header class="launch-top"><BrandMark /><span class="launch-top-meta">NINE PLAYERS · 预女猎</span></header>
     <section class="launch-copy">
       <p class="eyebrow">A FOREST CABIN · A LONG TABLE · NINE STRANGERS</p>
       <h1>暮林<br /><span>山舍</span></h1>

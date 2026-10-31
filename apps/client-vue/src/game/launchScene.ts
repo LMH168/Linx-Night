@@ -1,7 +1,7 @@
 /**
  * Dresses the public forest-cabin animation with the approved launch-table set.
- * The scene code mirrors the night-guard setup in `proto/build.mjs` (the source
- * of 02-desktop-night-guard) so the launch backdrop matches that composition.
+ * The launch scene is deliberately kept lightweight so it remains responsive
+ * while the real game client is loading behind it.
  */
 export interface CabinRuntime {
   THREE: any;
@@ -28,7 +28,6 @@ export interface SceneOptions {
   mode?: SceneMode;
   stage?: SceneStage;
   deadSeats?: string[];
-  shieldSeat?: string | null;
 }
 
 interface StoredLight {
@@ -49,11 +48,28 @@ interface TableState {
   cool: any;
   front: any;
   moon: any;
-  shield: any;
 }
 
 export function dressLaunchScene(win: CabinWindow) {
-  dressGameScene(win, { mode: 'night', stage: 'launch', deadSeats: ['P4', 'P9'], shieldSeat: 'P3' });
+  dressGameScene(win, { mode: 'night', stage: 'launch', deadSeats: ['P4', 'P9'] });
+  optimizeCabinRuntime(win);
+}
+
+/** Apply one predictable low-cost profile to every device. */
+export function optimizeCabinRuntime(win: CabinWindow) {
+  const runtime = win.__forestCabin;
+  if (!runtime?.renderer) return;
+  const renderer = runtime.renderer;
+  const pixelRatio = Math.min(win.devicePixelRatio || 1, 1);
+  renderer.setPixelRatio(pixelRatio);
+  renderer.shadowMap.enabled = false;
+  if (runtime.composer) {
+    // Rendering the scene directly avoids the bloom/noise post-processing
+    // chain, which was the largest recurring cost on integrated GPUs.
+    runtime.composer.render = () => renderer.render(runtime.scene, runtime.camera);
+    runtime.composer.setPixelRatio?.(pixelRatio);
+  }
+  win.postMessage({ type: 'linx-cabin-optimized' }, '*');
 }
 
 export function dressGameScene(win: CabinWindow, options: SceneOptions = {}) {
@@ -92,7 +108,6 @@ function dressTable(win: CabinWindow, initial: SceneOptions) {
     cool: null,
     front: null,
     moon: null,
-    shield: null,
   };
   (win as any).__linxTable = state;
 
@@ -422,42 +437,6 @@ function dressTable(win: CabinWindow, initial: SceneOptions) {
   const flies = new T.Points(flyGeometry, new T.PointsMaterial({ color: 0xffc88a, size: 0.035, transparent: true, opacity: 0.35, blending: T.AdditiveBlending, depthWrite: false }));
   scene.add(flies);
 
-  // A single reusable guard ward; applyGameScene() positions/shows it.
-  const shield = new T.Group();
-  shield.name = 'linx-guard-ward';
-  shield.visible = false;
-  {
-    const dome = new T.Mesh(
-      new T.SphereGeometry(1.02, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2),
-      new T.MeshBasicMaterial({ color: 0xe0aa62, transparent: true, opacity: 0.075, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })
-    );
-    dome.position.y = 0.55;
-    shield.add(dome);
-    for (const y of [0.18, 1.6]) {
-      const ring = new T.Mesh(
-        new T.TorusGeometry(1.0, 0.012, 6, 56),
-        new T.MeshBasicMaterial({ color: 0xf0b974, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false })
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = y;
-      shield.add(ring);
-    }
-    for (let i = 0; i < 5; i++) {
-      const a = i / 5 * Math.PI * 2;
-      const bar = new T.Mesh(
-        new T.CylinderGeometry(0.006, 0.006, 1.4, 4),
-        new T.MeshBasicMaterial({ color: 0xe8b776, transparent: true, opacity: 0.25, blending: T.AdditiveBlending, depthWrite: false })
-      );
-      bar.position.set(Math.cos(a) * 0.96, 0.78, Math.sin(a) * 0.96);
-      shield.add(bar);
-    }
-    const glow = new T.PointLight(0xffbd7a, 2.6, 3.4, 2);
-    glow.position.y = 1.4;
-    shield.add(glow);
-    scene.add(shield);
-    state.shield = shield;
-  }
-
   applyGameScene(win, initial);
   // Keep the table reference for debugging / future scene tags.
   (win as any).__protoTable = group;
@@ -465,7 +444,7 @@ function dressTable(win: CabinWindow, initial: SceneOptions) {
 }
 
 /**
- * Applies the day/night grade, stage camera, dead lanterns and guard ward to an
+ * Applies the day/night grade, stage camera, dead lanterns and role effect to an
  * already-dressed cabin table. Safe to call repeatedly when the game phase or
  * public seat state changes.
  */
@@ -526,14 +505,6 @@ export function applyGameScene(win: CabinWindow, options: SceneOptions = {}) {
     lantern.light.intensity = isDead ? 0.04 : 1.1;
     lantern.glass.material.emissiveIntensity = isDead ? 0.05 : 1.7;
     lantern.glass.material.color.setHex(isDead ? 0x6b5a45 : 0xffb767);
-  }
-
-  const shieldSeat = state.options.shieldSeat;
-  if (state.shield) {
-    const index = shieldSeat ? Number(shieldSeat.slice(1)) - 1 : -1;
-    const chair = state.seatGroups[index];
-    state.shield.visible = Boolean(shieldSeat && chair);
-    if (chair) state.shield.position.set(chair.position.x, 0, chair.position.z);
   }
 
   const mobile = win.innerWidth <= 760;

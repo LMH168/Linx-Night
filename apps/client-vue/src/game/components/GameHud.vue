@@ -199,7 +199,7 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
     <ActionPanel v-if="showAction && isMobile" mode="mobile" />
 
     <div v-if="showRules" class="rules-pop" role="dialog" aria-label="本局规则">
-      <div class="rules-head"><span class="eyebrow">NINE PLAYERS · 预女守</span><button class="text-btn" @click="showRules = false">关闭</button></div>
+      <div class="rules-head"><span class="eyebrow">NINE PLAYERS · 预女猎</span><button class="text-btn" @click="showRules = false">关闭</button></div>
       <p>3 狼人 · 3 村民 · 预言家 · 女巫 · 猎人。</p>
       <p>夜晚顺序：狼人 → 预言家 → 女巫；出局后的猎人在服务端窗口响应。</p>
       <p>白天顺序发言，随后放逐投票；最高票出局，平票无人出局。狼人达到人数 parity 或好人放逐全部狼人时结束。</p>
