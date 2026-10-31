@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation,privateState} from '../packages/domain/src/model.mjs';
-import {startGame,skipHunterResponse} from '../packages/domain/src/engine.mjs';
+import {startGame,skipHunterResponse,skipLastWords} from '../packages/domain/src/engine.mjs';
 import {rooms} from '../apps/server/src/api.mjs';
 import {createMcpServer,bindController,releaseController,sessions,controllerBindings,devices} from '../apps/mcp/src/server.mjs';
 import {tickRoom,defaultTurn} from '../apps/scheduler/src/local.mjs';
@@ -32,6 +32,7 @@ try{
   for(let step=0;step<300 && room.phase!=='GAME_OVER';step++){
    phases.add(room.phase);
    if(room.phase==='HUNTER_RESPONSE'){const hunter=room.seats.find(s=>s.seatId===room.hunterResponse.seatId);if(hunter.controlSource!=='linx')skipHunterResponse(room,hunter.seatId,randomUUID(),room.hunterResponse.windowId);}
+   if(room.phase==='LAST_WORDS'){const speaker=room.seats.find(s=>s.seatId===room.lastWords.seatId);skipLastWords(room,speaker.seatId,randomUUID(),room.lastWords.windowId);}
    if(room.seats[0].alive)defaultTurn(room,room.seats[0]); // Explicit scripted human, not a real participant.
    tickRoom(room);await runtime.tick(room);assert.ok(!room.controllers.some(c=>c.status==='failed'));
   }
