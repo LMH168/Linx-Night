@@ -15,10 +15,14 @@
  * 退出码：0 全部符合预算；1 发现违规；2 网络/解析失败。
  */
 
-const BASE = (process.argv[2] || 'https://linxnight.mimi-api.cn').replace(/\/+$/, '');
+import { gzipSync } from 'node:zlib';
+
+const args = process.argv.slice(2);const jsonFlag = args.find((a) => a.startsWith('--json'));
+const JSON_OUT = jsonFlag ? jsonFlag.replace(/^--json=?/, '') || 'probe-report.json' : null;
+const BASE = (args.find((a) => a.startsWith('http')) || 'https://linxnight.mimi-api.cn').replace(/\/+$/, '');
 
 const BUDGET = {
-  firstPartyJsKb: 420,     // 首屏自有 JS（不含 three 运行时按需）
+  firstLoadGzipKb: 260,    // 首屏 JS 的传输体积上限（three.js 已在包内）
   gameIframeRefs: 0,       // 对局页不允许再用 iframe 承载 3D 世界
   forestCabinRefs: 1,      // 只有 launch 开场动画可以引用森林小屋
 };
@@ -26,6 +30,12 @@ const BUDGET = {
 const PATTERNS = [
   ['对局页 iframe（linx-game=1）', /linx-game=1/g, BUDGET.gameIframeRefs],
   ['forest-cabin 引用', /forest-cabin/g, BUDGET.forestCabinRefs],
+];
+
+// 这些字符串只证明「新舞台的代码确实进了产物」，不作为配额
+const SIGNATURES = [
+  ['新舞台 is-lost', /is-lost/g],
+  ['新舞台 webglcontextlost', /webglcontextlost/g],
 ];
 
 async function main() {
@@ -57,11 +67,14 @@ async function main() {
   console.log(`入口判定  ${looks3D ? '3D 页面（game-main）' : '非 3D 入口'}`);
 
   let jsBytes = 0;
+  let gzipBytes = 0;
   for (const src of scripts) {
     try {
       const res = await fetch(`${BASE}${src}`);
       const text = await res.text();
       jsBytes += text.length;
+      const gz = gzipSync(Buffer.from(text, 'utf8'), { level: 9 }).length;
+      gzipBytes += gz;
       const counts = {};
       for (const [label, pattern, limit] of PATTERNS) {
         const n = (text.match(pattern) || []).length;
@@ -73,11 +86,18 @@ async function main() {
       for (const key of ['PointLight', 'SpotLight', 'setSize', 'requestAnimationFrame', 'InstancedMesh', 'mergeGeometries']) {
         counts[key] = (text.match(new RegExp(key, 'g')) || []).length;
       }
-      report.bundles.push({ src, bytes: text.length, counts });
+      const signatures = {};
+      for (const [label, pattern] of SIGNATURES) {
+        signatures[label] = (text.match(pattern) || []).length;
+      }
+      report.bundles.push({ src, bytes: text.length, gzip: gz, counts, signatures });
       console.log(`\n  bundle  ${src}`);
-      console.log(`    体积        ${(text.length / 1024).toFixed(1)} KB`);
+      console.log(`    体积        ${(text.length / 1024).toFixed(1)} KB  (gzip ${(gz / 1024).toFixed(1)} KB)`);
       for (const [k, v] of Object.entries(counts)) {
         console.log(`    ${k.padEnd(18)} ${v}`);
+      }
+      for (const [k, v] of Object.entries(signatures)) {
+        console.log(`    · ${k.padEnd(16)} ${v}`);
       }
     } catch (error) {
       report.violations.push(`${src} 拉取失败：${error.message}`);
@@ -85,9 +105,10 @@ async function main() {
   }
 
   const jsKb = jsBytes / 1024;
-  console.log(`\n  首屏 JS 合计  ${jsKb.toFixed(1)} KB`);
-  if (jsKb > BUDGET.firstPartyJsKb) {
-    report.violations.push(`首屏 JS ${jsKb.toFixed(1)} KB 超预算 ${BUDGET.firstPartyJsKb} KB`);
+  const gzKb = gzipBytes / 1024;
+  console.log(`\n  首屏 JS 合计  ${jsKb.toFixed(1)} KB  (gzip ${gzKb.toFixed(1)} KB)`);
+  if (gzKb > BUDGET.firstLoadGzipKb) {
+    report.violations.push(`首屏 JS gzip ${gzKb.toFixed(1)} KB 超预算 ${BUDGET.firstLoadGzipKb} KB`);
   }
 
   for (const path of ['/assets/splash/forest-cabin.html', '/assets/game/noise.png', '/api/health']) {
@@ -102,6 +123,11 @@ async function main() {
   }
 
   console.log('');
+  if (JSON_OUT) {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(JSON_OUT, JSON.stringify(report, null, 2), 'utf8');
+    console.log(`报告已写入 ${JSON_OUT}`);
+  }
   if (report.violations.length) {
     console.log('结论：FAIL');
     for (const v of report.violations) console.log(`  - ${v}`);
