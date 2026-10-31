@@ -29,7 +29,7 @@ onMounted(() => {
   try {
     stage.value = createStage(element, {
       mode: 'lobby',
-      night: true,
+      night: false,
       deadSeats: [],
       selectedSeat: null,
       selfSeat: null,
