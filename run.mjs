@@ -17,7 +17,7 @@ for (const [factory, options] of [[createApiServer, { sessions: manager, hostPla
   server.listen(port, '127.0.0.1', () => console.log(`Listening on ${port}`));
 }
 
-const gameTimer = setInterval(() => { for (const room of rooms.values()) {try { hostPlayback.sync(room); tickRoom(room, () => false); publishNewEvents(room); runtime.tick(room).catch(() => console.error('Linx lifecycle failed')); } catch (error) {console.error('Game tick:', error.message);} } }, 2000);
+const gameTimer = setInterval(() => { for (const room of rooms.values()) {try { hostPlayback.tick(room); hostPlayback.sync(room); tickRoom(room, () => false); publishNewEvents(room); runtime.tick(room).catch(() => console.error('Linx lifecycle failed')); } catch (error) {console.error('Game tick:', error.message);} } }, 2000);
 
 async function shutdown() {
   clearInterval(gameTimer);
