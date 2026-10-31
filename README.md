@@ -50,7 +50,9 @@ cloudflared tunnel --url http://127.0.0.1:9191
 
 ~~~powershell
 npm run dev:server    # API，默认 5000
-npm run dev:client    # 静态网页，默认 5010
+npm run build:client-vue # 首次或代码更新后构建 Vue 静态产物
+npm run dev:client       # 静态网页，默认 5010；默认提供 Vue
+npm run dev:client-vue   # Vue 开发服务器，默认 5173
 npm run dev:mcp       # MCP，默认 9091
 
 npm run check         # Node 语法检查
@@ -89,7 +91,7 @@ flowchart LR
 
 | 层 | 目录 | 负责内容 |
 | --- | --- | --- |
-| 网页客户端 | apps/client | 房间入口、私密状态、行动按钮、语音草稿、主持播放和 SSE 重连。 |
+| 网页客户端 | apps/client-vue | Vue 房间入口、私密状态、行动按钮、真人录音草稿、主持播放和 SSE 重连。旧版回滚入口保留在 apps/client。 |
 | HTTP/API | apps/server | 房间生命周期、玩家与控制权、公开/私密状态、事件流、结算和诊断。 |
 | 领域模型 | packages/domain | 狼人杀状态机、阶段转换、行动校验、投票/猎人/遗言和胜负判断；不依赖网络。 |
 | 回合调度 | apps/scheduler | 为当前合法席位创建 turn lease，串行驱动 AI 行动，处理超时、取消和重试。 |
