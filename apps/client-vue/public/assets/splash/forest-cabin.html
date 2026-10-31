@@ -507,6 +507,13 @@
   }
 
   /* ---------------- opening curtain ---------------- */
+  body.linx-launch .loader,
+  body.linx-launch .ui,
+  body.linx-launch .frame-shade {
+    display: none !important;
+  }
+  body.linx-launch #app canvas { opacity: 1; }
+
   .loader {
     position: fixed;
     inset: 0;
@@ -1315,7 +1322,7 @@
   }
 </style>
 </head>
-<body class="is-loading">
+<body class="is-loading linx-launch">
   <p class="sr-only">暮林山舍，一座坐落在暮色松林中的木屋。拖动画面可以环视，滚轮或双指缩放，右下角可以开启环境声。</p>
   <div id="app" aria-hidden="true"></div>
   <div class="frame-shade" aria-hidden="true"></div>
