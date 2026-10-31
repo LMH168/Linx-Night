@@ -10,11 +10,12 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL('./dist', import.meta.url)),
     emptyOutDir: true,
-    // 主客户端与「暮林夜宴」3D 舞台原型各自独立入口
+    // 主客户端、暮林夜宴 3D 舞台与九人局页面各自独立入口
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        werewolf: fileURLToPath(new URL('./werewolf.html', import.meta.url))
+        werewolf: fileURLToPath(new URL('./werewolf.html', import.meta.url)),
+        game: fileURLToPath(new URL('./game.html', import.meta.url))
       }
     }
   },
