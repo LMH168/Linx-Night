@@ -186,8 +186,14 @@ def scan_file(path: Path) -> Report:
         text,
         re.S,
     )
-    report.counts["on_demand"] = 1 if (has_dirty_flag and guarded) else 0
-    if render_call and not guarded:
+    # 另一种同样正确的写法：幂等的 rAF 调度器（有一次只排一帧的守卫）
+    raf_guard = re.search(
+        r"if\s*\([^)]*\b(?:frameHandle|rafId|rafHandle|pendingFrame|frameId)\b[^)]*\)\s*(?:return|;)",
+        text,
+    ) and re.search(r"requestAnimationFrame\s*\(", text)
+    on_demand = bool(guarded or raf_guard)
+    report.counts["on_demand"] = 1 if on_demand else 0
+    if render_call and not on_demand:
         report.findings.append(
             Finding(
                 "warn",
@@ -195,9 +201,9 @@ def scan_file(path: Path) -> Report:
                 "未发现按需渲染守卫：每帧都 render() 会让静止场景持续耗电发热",
             )
         )
-    elif guarded:
+    elif on_demand:
         report.findings.append(
-            Finding("info", "ON_DEMAND", "检测到按需渲染守卫（dirty / needsRender）")
+            Finding("info", "ON_DEMAND", "检测到按需渲染守卫（dirty 标志或幂等 rAF 调度）")
         )
 
     # ---- 6. iframe 承载世界 --------------------------------------------
