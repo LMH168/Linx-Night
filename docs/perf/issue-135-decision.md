@@ -226,5 +226,44 @@ forest-cabin 引用             1     ← 原为 2，仅剩 launch 开场动画
 **仍未测**：真机 fps、1% low、静止 10 s 渲染帧数。这三项需要浏览器，
 本机没有；它们是 #135 验收表里唯一还空着的行。
 
+## 10. 用真实浏览器测量（PR #157 / #158 之后）
+
+`tools/measure-stage.mjs` 用 Chrome/Edge 的 DevTools 协议直接量，不引入 Puppeteer：
+
+```powershell
+node tools/measure-stage.mjs --url="https://linxnight.mimi-api.cn/?perf=api#/lobby" --ms=4000 --idle=3000
+node tools/measure-stage.mjs ... --gpu     # 用 D3D11 而不是 SwiftShader
+```
+
+本机（Windows 虚拟机，**没有物理 GPU**）实测：
+
+| 指标 | SwiftShader（软件 Vulkan） | D3D11 WARP（软件） |
+|---|---|---|
+| fps | 19.7 | 42.4 |
+| draw calls | 19 | 19 |
+| triangles | 1006 | 1006 |
+| points / lights | 9 / 2 | 9 / 2 |
+| 静止 3 s 渲染帧数 | **0** | **0** |
+| 页面异常 | 0 | 0 |
+
+三条确定结论：
+
+1. **静止时真的不画**：连续 3 秒无交互，渲染帧数为 0。这不是靠节流，是结构性的。
+2. **场景开销极低**：19 个 draw call、1006 个三角形、2 个不投影光源。
+   对比改造前约 220 个 mesh、16 个实时点光源、10 处投影。
+3. **页面无异常**：`errors` 为空，canvas 正常初始化，说明没有黑屏、没有上下文失败。
+
+一条**不能**由此得出的结论：真机 60fps。本机两块 GPU 都是软件光栅
+（SwiftShader / Microsoft Basic Render Driver），fps 不能代表真实显卡。
+但以 19 个 draw call / 1006 个三角形的工作量，桌面独显与主流集显都没有压力；
+移动端 ≥30fps 同样有充足余量。
+
+`--gpu` 输出会打印实际渲染器名称，真机上一跑就能分辨：
+
+```text
+GPU：ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)
+```
+
+
 
 
