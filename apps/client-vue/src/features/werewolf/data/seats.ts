@@ -5,7 +5,7 @@ export interface SeatMeta {
   me?: boolean
 }
 
-/** 九席 · 3 狼 / 3 民 / 预言家 / 女巫 / 守卫 */
+/** 九席 · 3 狼 / 3 民 / 预言家 / 女巫 / 猎人 */
 export const SEATS: SeatMeta[] = [
   { id: 1, name: '你', role: '村民', me: true },
   { id: 2, name: '樵夫', role: '？' },

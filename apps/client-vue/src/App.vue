@@ -39,15 +39,10 @@ const phaseNames: Record<string, string> = { LOBBY: '等待开局', ROLE_ASSIGNM
 const roleNames: Record<string, string> = { werewolf: '狼人', seer: '预言家', witch: '女巫', hunter: '猎人', villager: '平民' };
 const roleArt: Record<string, { name: string; en: string; avatar: string; accent: string }> = {
   werewolf: { name: '狼人', en: 'THE WEREWOLF', avatar: '/assets/werewolf/avatars/werewolf.webp', accent: '#d78b4e' },
-  'wolf-siren': { name: '狼美人', en: 'THE WOLF SIREN', avatar: '/assets/werewolf/avatars/wolf-siren.webp', accent: '#b44a54' },
   seer: { name: '预言家', en: 'THE SEER', avatar: '/assets/werewolf/avatars/seer.webp', accent: '#7ca8a2' },
   witch: { name: '女巫', en: 'THE WITCH', avatar: '/assets/werewolf/avatars/witch.webp', accent: '#82a35e' },
   hunter: { name: '猎人', en: 'THE HUNTER', avatar: '/assets/werewolf/avatars/hunter.webp', accent: '#b45d3d' },
-  warden: { name: '守卫', en: 'THE WARDEN', avatar: '/assets/werewolf/avatars/warden.webp', accent: '#c18a4e' },
-  knight: { name: '骑士', en: 'THE KNIGHT', avatar: '/assets/werewolf/avatars/knight.webp', accent: '#95a9b1' },
   villager: { name: '村民', en: 'THE VILLAGER', avatar: '/assets/werewolf/avatars/villager.webp', accent: '#d0b178' },
-  fool: { name: '白痴', en: 'THE FOOL', avatar: '/assets/werewolf/avatars/fool.webp', accent: '#bb8b54' },
-  cupid: { name: '丘比特', en: 'THE CUPID', avatar: '/assets/werewolf/avatars/cupid.webp', accent: '#c98d82' },
 };
 const previewRoles = Object.values(roleArt).slice(0, 5);
 const avatarCatalog = Object.values(roleArt);
@@ -176,16 +171,30 @@ async function announceDay() { await submitAction('/actions', { type: 'announce_
 
 function handleForestSceneLoad() {
   forestSceneReady.value = true;
+  let settled = false;
   const syncScene = () => {
     const scene = (forestSceneFrame.value?.contentWindow as Window & { __forestCabin?: any })?.__forestCabin;
-    if (!scene) { window.setTimeout(syncScene, 120); return; }
+    if (!scene) {
+      if (!settled) window.setTimeout(syncScene, 120);
+      return;
+    }
+    settled = true;
     // Keep the original timeline: camera intro first, then the three visitors
     // enter from the path and walk toward the cabin door.
     scene.hideUi?.();
   };
   syncScene();
+  window.setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      forestSceneFrame.value?.classList.add('forest-splash-scene-failed');
+    }
+  }, 5000);
 }
-function enterGame() { showSplash.value = false; }
+function enterGame() {
+  showSplash.value = false;
+  forestSceneFrame.value?.contentWindow?.postMessage({ type: 'linx-cabin-pause' }, '*');
+}
 function errorMessage(cause: unknown) { return cause instanceof ApiRequestError ? cause.message : cause instanceof Error ? cause.message : '请求失败'; }
 function eventText(event: { type: string; data: Record<string, unknown> }) { const data = event.data; if (event.type === 'game.phase_changed') return `阶段：${phaseNames[String(data.phase)] || data.phase}`; if (event.type === 'game.player_eliminated') return `${data.seatId} 已出局`; if (event.type === 'game.vote_resolved') return `投票结算：${data.eliminatedSeatId || '平票'}`; if (event.type === 'game.night_resolved') return data.deathSeatIds ? `昨夜出局：${(data.deathSeatIds as string[]).join('、') || '平安夜'}` : '夜间结算'; if (event.type === 'game.last_words_submitted') return `${data.seatId} 完成遗言`; if (event.type === 'game.settlement_created') return `本局结束：${data.winner === 'good' ? '好人阵营' : data.winner === 'werewolf' ? '狼人阵营' : '房主结束'}`; return event.type; }
 
@@ -207,7 +216,7 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
         <h1>暮林<span>山舍</span></h1>
         <p class="forest-splash-copy">松风穿过檐角，木烟缓缓升起。<br>一盏灯，留给晚归的人。</p>
         <button class="forest-enter" type="button" @click="enterGame">进入林间 <span>↗</span></button>
-        <p class="forest-splash-hint">THE FOREST ROLES · 10 CHARACTERS</p>
+        <p class="forest-splash-hint">THE FOREST ROLES · 5 ROLES</p>
       </div>
       <div class="forest-splash-roles" aria-hidden="true">
         <article v-for="role in previewRoles" :key="role.name" class="forest-role-preview" :style="{ '--role-accent': role.accent }">
