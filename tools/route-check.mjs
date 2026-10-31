@@ -60,15 +60,20 @@ await send('Runtime.enable', {}, sessionId);
 
 for (const url of URLS) {
   await send('Page.navigate', { url }, sessionId);
-  await sleep(4000);
+  await sleep(6000);
   const probe = await send('Runtime.evaluate', {
     expression: `(() => {
       const frames = [...document.querySelectorAll('iframe')].map((f) => f.getAttribute('src'));
-      const canvas = document.querySelector('canvas.game-world-scene');
+      const canvases = [...document.querySelectorAll('canvas')].map((c) => ({
+        cls: c.className,
+        w: c.width,
+        h: c.height,
+        engine: c.dataset.engine ?? null,
+      }));
       const world = document.querySelector('.game-world');
       return {
         iframes: frames,
-        canvas: canvas ? { w: canvas.width, h: canvas.height, cls: canvas.className } : null,
+        canvases,
         gameWorld: world ? { cls: world.className, hidden: world.style.display } : null,
         stageHandle: !!window.__linxStage,
         route: location.hash,
