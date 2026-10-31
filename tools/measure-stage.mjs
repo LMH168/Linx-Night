@@ -32,6 +32,7 @@ const PORT = Number(arg('port', '9333'));
 const TIMEOUT = Number(arg('timeout', '45000'));
 const SHOT = arg('shot', '');
 const MOBILE = args.includes('--mobile');
+const HIDE_UI = args.includes('--hide-ui');
 
 const CANDIDATES = [
   arg('browser', ''),
@@ -230,6 +231,32 @@ async function main() {
     const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
     writeFileSync(SHOT, Buffer.from(shot.data, 'base64'));
     console.error(`截图已保存 ${SHOT}`);
+
+    if (HIDE_UI) {
+      // 只留 3D 世界图层：把 game-world 之外的 DOM 全部隐藏，便于单独评估场景画面
+      await cdp.send(
+        'Runtime.evaluate',
+        {
+          expression: `(() => {
+            const keep = document.querySelector('.game-world');
+            if (!keep) return false;
+            for (const el of document.querySelectorAll('body *')) {
+              if (el === keep || keep.contains(el) || el.contains(keep)) continue;
+              el.style.visibility = 'hidden';
+            }
+            document.body.style.background = '#000';
+            return true;
+          })()`,
+          returnByValue: true,
+        },
+        sessionId,
+      );
+      await sleep(400);
+      const clean = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
+      const cleanPath = SHOT.replace(/\.png$/i, '') + '-clean.png';
+      writeFileSync(cleanPath, Buffer.from(clean.data, 'base64'));
+      console.error(`纯场景截图已保存 ${cleanPath}`);
+    }
   }
 
   const result = await cdp.send(
