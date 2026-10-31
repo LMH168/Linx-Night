@@ -1,60 +1,60 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useGameStore } from './game';
+import { useRoomStore } from '../../stores/room';
 
-describe('nine-player game store', () => {
+function seed() {
+  const room = useRoomStore();
+  room.publicState = {
+    roomId: 'room-real',
+    hostPlayerId: 'player-1',
+    gameId: 'game-1',
+    controllerEpoch: 1,
+    controllerPhase: 'ready',
+    preparing: false,
+    phase: 'VOTE',
+    version: 4,
+    round: 1,
+    currentSeatId: null,
+    submittedVoteRound: 1,
+    submittedVoteSeatIds: ['P2'],
+    seats: [
+      { seatId: 'P1', displayName: '真人', playerType: 'human', controlSource: 'human', alive: true },
+      { seatId: 'P2', displayName: '灵矽一号', playerType: 'ai', controlSource: 'linx', alive: true },
+      { seatId: 'P3', displayName: '出局者', playerType: 'ai', controlSource: 'linx', alive: false },
+    ],
+    controllers: [], hostController: null, speeches: [{ speechId: 's1', round: 1, seatId: 'P1', text: '公开发言' }],
+    voteResolutions: [{ resolutionId: 'v1', round: 1, entries: [{ seatId: 'P1', votes: 2 }], totalVotes: 2, maxVotes: 2, leaders: ['P1'], eliminatedSeatId: 'P1' }],
+    events: [], hostPlaybackEnabled: false, hostPlaybackBlocked: false,
+  };
+  room.privateState = {
+    roomId: 'room-real', playerId: 'player-1', seatId: 'P1', role: 'seer', camp: 'good', alive: true,
+    skills: {}, seerResults: [{ targetSeatId: 'P2', result: 'werewolf' }], currentTurn: null,
+    hunterAction: null, lastWords: null, requiredAction: null,
+  };
+  return useGameStore();
+}
+
+describe('real game store adapter', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('never exposes roles through the public seat view', () => {
-    const store = useGameStore();
-    for (const seat of store.publicSeats) {
-      expect(seat).not.toHaveProperty('role');
-      expect(seat).not.toHaveProperty('camp');
-    }
-    expect(store.selfRole).toBe('seer');
-    expect(store.selfMeta.name).toBe('预言家');
-  });
-
-  it('only gives wolf teammates to the wolf viewpoint', () => {
-    const store = useGameStore();
-    expect(store.wolfTeammates).toEqual([]);
-    store.applyScene('wolf');
-    store.selectSeat('P2');
-    expect(store.selectedSeatId).toBe('P3');
-    store.selectSeat('P9');
-    expect(store.selectedSeatId).toBe('P3');
-    expect(store.selfRole).toBe('werewolf');
-    expect(store.wolfTeammates.map(member => member.id)).toEqual(['P2', 'P6', 'P9']);
-    expect(store.publicSeats.every(seat => !('role' in seat))).toBe(true);
-  });
-
-  it('enforces the guard no-repeat target and keeps the vote private', () => {
-    const store = useGameStore();
-    store.applyScene('guard');
-    store.selectSeat('P1');
-    expect(store.selectedSeatId).toBe('P3');
-    store.selectSeat('P3');
-    expect(store.selectedSeatId).toBe('P3');
-    expect(store.guardLastTarget).toBe('P1');
-
-    store.applyScene('vote');
-    store.selectSeat('P2');
-    expect(store.selectedSeatId).toBe(null);
-    store.selectSeat('P6');
-    store.confirmAction();
+  it('maps public and private server state without inventing roles or phases', () => {
+    const store = seed();
+    expect(store.roomId).toBe('room-real');
     expect(store.phase).toBe('VOTE');
-    expect(store.submittedVoteSeatId).toBe('P6');
-    store.setPhase('RESULT');
-    expect(store.phase).toBe('RESULT');
-    expect(store.winner).toBe('good');
-    expect(store.aliveCount).toBe(5);
-    expect(store.revealedSeats.filter(seat => !seat.alive).map(seat => seat.id)).toEqual(['P2', 'P4', 'P6', 'P9']);
+    expect(store.publicSeats).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'P1', name: '真人', isSelf: true, alive: true }),
+      expect.objectContaining({ id: 'P3', name: '出局者', alive: false }),
+    ]));
+    expect(store.selfRole).toBe('seer');
+    expect(store.seerChecks[0]).toMatchObject({ targetSeatId: 'P2', result: 'wolf' });
+    expect(store.voteTally[0]).toEqual({ seatId: 'P1', votes: 2 });
   });
 
-  it('reveals roles only in the settlement view model', () => {
-    const store = useGameStore();
-    const roles = store.revealedSeats.map(seat => seat.role);
-    expect(roles).toEqual(['villager', 'werewolf', 'villager', 'villager', 'witch', 'werewolf', 'seer', 'guard', 'werewolf']);
-    expect(store.publicSeats.some(seat => 'role' in seat)).toBe(false);
+  it('keeps private identity out of public seat projections', () => {
+    const store = seed();
+    expect(store.publicSeats.find(seat => seat.id === 'P1')).not.toHaveProperty('role');
+    expect(store.publicSeats.find(seat => seat.id === 'P2')).not.toHaveProperty('camp');
+    expect(store.revealedSeats.find(seat => seat.id === 'P1')?.role).toBeUndefined();
   });
 });

@@ -11,12 +11,12 @@ describe('game hash routes', () => {
     expect(router.currentRoute.value.name).toBe('launch');
     await router.push('/lobby');
     expect(router.currentRoute.value.name).toBe('lobby');
-    await router.push('/room/WALD-02');
+    await router.push('/room/room-test');
     expect(router.currentRoute.value.name).toBe('table');
-    expect(router.currentRoute.value.params.roomId).toBe('WALD-02');
-    await router.push('/room/WALD-02/result');
+    expect(router.currentRoute.value.params.roomId).toBe('room-test');
+    await router.push('/room/room-test/result');
     expect(router.currentRoute.value.name).toBe('result');
-    expect(router.currentRoute.value.params.roomId).toBe('WALD-02');
+    expect(router.currentRoute.value.params.roomId).toBe('room-test');
   });
 
   it('redirects unknown hash paths back to the launch screen', async () => {

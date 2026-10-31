@@ -102,6 +102,10 @@ export class GameApiClient {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/end`, { method: 'POST' });
   }
 
+  settlement(roomId: string): Promise<{ settlement: unknown }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/settlement`);
+  }
+
   recordingStart(roomId: string): Promise<RecordingStartResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/recording-start`, { method: 'POST', body: '{}' });
   }

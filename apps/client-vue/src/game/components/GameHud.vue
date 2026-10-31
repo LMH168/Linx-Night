@@ -4,16 +4,22 @@ import { useGameStore } from '../stores/game';
 import { PHASE_LABEL, ROLE_CATALOG } from '../types';
 import BrandMark from './BrandMark.vue';
 import ActionPanel from './ActionPanel.vue';
-import DemoBar from './DemoBar.vue';
 
 const store = useGameStore();
 const isMobile = ref(false);
 const showRules = ref(false);
 const tintPalette = ['#8e9b79', '#9b6a5d', '#a89a6b', '#8d7d68', '#738b6a', '#8a5d5d', '#769b96', '#b08a55', '#786b5c'];
+const now = ref(Date.now());
+const remainingLabel = computed(() => {
+  if (!store.actionDeadline) return '—';
+  const seconds = Math.max(0, Math.ceil((Date.parse(store.actionDeadline) - now.value) / 1000));
+  return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+});
+let clock: ReturnType<typeof setInterval> | undefined;
 
 const updateViewport = () => { isMobile.value = window.innerWidth < 760; };
-onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport); });
-onBeforeUnmount(() => window.removeEventListener('resize', updateViewport));
+onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport); clock = setInterval(() => { now.value = Date.now(); }, 250); });
+onBeforeUnmount(() => { window.removeEventListener('resize', updateViewport); if (clock) clearInterval(clock); });
 
 const currentSpeakerName = computed(() => store.currentSpeaker ? `${store.currentSpeaker.id} · ${store.currentSpeaker.name}` : '等待投票');
 const selectedSeat = computed(() => store.publicSeats.find(seat => seat.id === store.selectedSeatId));
@@ -72,7 +78,6 @@ const checkRows = computed(() => store.seerChecks.slice(0, 2));
 const wolfRows = computed(() => store.wolfTeammates.slice(0, 3));
 
 function castVote() { store.confirmAction(); }
-function publishVote() { store.setPhase('RESULT'); }
 function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => undefined); }
 </script>
 
@@ -105,7 +110,7 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
         <span class="round-num">{{ String(store.day).padStart(2, '0') }}</span>
         <div class="round-name"><b>{{ roundName }}</b><span>{{ roundEn }}</span></div>
       </div>
-      <div class="moon-line"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.2 14.2A7.7 7.7 0 0 1 9.8 4.8a8 8 0 1 0 9.4 9.4Z" /></svg><span>{{ store.night ? '月相 · 上弦' : '月相 · 下弦' }}</span><span class="moon-rule"></span><span>{{ store.night ? '00:18' : '18:42' }}</span></div>
+      <div class="moon-line"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.2 14.2A7.7 7.7 0 0 1 9.8 4.8a8 8 0 1 0 9.4 9.4Z" /></svg><span>{{ store.night ? '月相 · 上弦' : '月相 · 下弦' }}</span><span class="moon-rule"></span><span>{{ remainingLabel }}</span></div>
       <div v-if="store.night" class="night-note"><span class="pulse"></span><span>{{ nightNote }}</span><span class="night-sub">其余人沉睡</span></div>
       <div class="steps">
         <div v-for="step in steps" :key="step.cn" class="step" :class="step.state">
@@ -139,30 +144,28 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
         </div>
         <div v-else class="check-box">
           <div class="check-head"><span class="label">本局记录</span><span class="check-count">仅你可见</span></div>
-          <div class="check-row"><i class="sigil good"></i><span>{{ store.selfRole === 'guard' ? `上夜守护 ${store.guardLastTarget}` : store.selfRole === 'witch' ? '解药 · 未使用' : '没有夜间技能' }}</span><b class="ok">{{ store.selfRole === 'guard' ? '守卫' : store.selfRole === 'witch' ? '毒药 · 未使用' : '村民' }}</b></div>
+          <div class="check-row"><i class="sigil good"></i><span>{{ store.selfRole === 'witch' ? '女巫药剂状态由私密状态显示' : store.selfRole === 'hunter' ? '猎人技能在死亡窗口开放' : '没有夜间技能' }}</span><b class="ok">{{ store.selfMeta.name }}</b></div>
         </div>
         <div class="identity-foot"><span>身份牌 · 不可转让</span><span class="tiny">SEAT {{ store.selfSeat.id }}</span></div>
       </div>
     </aside>
 
     <section v-if="showSpeech && !isMobile" class="speech">
-      <div class="speech-head"><span class="speaker"><span class="sp-dot"></span>{{ currentSpeakerName }}</span><span class="speech-meta">DAY {{ String(store.day).padStart(2, '0') }} · 顺序发言</span><span class="speech-timer"><span class="timer-num">00:42</span><span class="timer-label">剩余</span></span></div>
+      <div class="speech-head"><span class="speaker"><span class="sp-dot"></span>{{ currentSpeakerName }}</span><span class="speech-meta">DAY {{ String(store.day).padStart(2, '0') }} · 顺序发言</span><span class="speech-timer"><span class="timer-num">{{ remainingLabel }}</span><span class="timer-label">剩余</span></span></div>
       <p class="speech-text">“{{ store.speech }}”</p>
       <div class="speech-foot"><span class="live"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>正在聆听</span></span><span class="hint">点击座位准备投票 · 轮到你时在右侧发言</span></div>
     </section>
 
     <section v-if="showVote && !isMobile" class="vote-dock">
-      <div class="vote-head"><span class="eyebrow">EXILE VOTE <span>/</span> 放逐投票</span><span class="vote-status"><i></i>{{ store.voteSubmitted ? `${store.totalVotes} / ${store.aliveCount} 已投 · 即将公布` : `等待你的票 · ${store.totalVotes} / ${store.aliveCount}` }}</span><span class="timer-ring"><span>00:09</span></span></div>
+      <div class="vote-head"><span class="eyebrow">EXILE VOTE <span>/</span> 放逐投票</span><span class="vote-status"><i></i>{{ store.voteSubmitted ? `${store.totalVotes} / ${store.aliveCount} 已投 · 等待结算` : `等待你的票 · ${store.totalVotes} / ${store.aliveCount}` }}</span><span class="timer-ring"><span>{{ remainingLabel }}</span></span></div>
       <div class="vote-main">
         <div class="vote-lead"><span class="label">当前最高票</span><div class="lead-name"><b>{{ leaderSeat?.id }}</b><span>{{ leaderSeat?.name }}</span></div><span class="lead-note">{{ store.leader?.votes }} 票</span></div>
         <div class="tally">
           <div v-for="row in store.voteTally" :key="row.seatId" class="tally-row" :class="{ lead: row.seatId === store.leader?.seatId }"><span class="t-name">{{ row.seatId }} · {{ store.publicSeats.find(seat => seat.id === row.seatId)?.name }}</span><span class="t-bar"><i :style="{ width: `${Math.max(5, row.votes / maxVotes * 100)}%` }"></i></span><span class="t-count">{{ row.votes }}</span></div>
         </div>
         <div class="vote-action">
-          <button v-if="!store.voteSubmitted" class="btn ghost" @click="store.setPhase('RESULT')">弃票</button>
           <button v-if="!store.voteSubmitted" class="btn gold" :disabled="!canVote" @click="castVote">投给 {{ selectedSeat ? `${selectedSeat.id} · ${selectedSeat.name}` : '…' }}</button>
-          <button v-if="store.voteSubmitted" class="btn ghost">查看票型</button>
-          <button v-if="store.voteSubmitted" class="btn gold" @click="publishVote">公布票型</button>
+          <span v-if="store.voteSubmitted" class="muted">已提交，等待服务端结算</span>
         </div>
       </div>
       <div class="vote-foot"><span>平票则无人出局；本轮不产生放逐。</span><span class="vote-hint">房主可提前公布</span></div>
@@ -186,20 +189,19 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
 
     <section v-if="isMobile && showVote" class="sheet mobile-vote-sheet">
       <div class="handle"></div>
-      <div class="sheet-head"><div><span class="eyebrow">EXILE VOTE · 放逐投票</span><h2 class="action-title">{{ selectedSeat ? `投给 ${selectedSeat.id} · ${selectedSeat.name}` : '选择放逐对象' }}</h2></div><span class="timer-ring"><span>00:09</span></span></div>
+      <div class="sheet-head"><div><span class="eyebrow">EXILE VOTE · 放逐投票</span><h2 class="action-title">{{ selectedSeat ? `投给 ${selectedSeat.id} · ${selectedSeat.name}` : '选择放逐对象' }}</h2></div><span class="timer-ring"><span>{{ remainingLabel }}</span></span></div>
       <div class="mobile-tally"><div v-for="row in store.voteTally" :key="row.seatId" class="tally-row" :class="{ lead: row.seatId === store.leader?.seatId }"><span class="t-name">{{ row.seatId }} · {{ store.publicSeats.find(seat => seat.id === row.seatId)?.name }}</span><span class="t-bar"><i :style="{ width: `${Math.max(5, row.votes / maxVotes * 100)}%` }"></i></span><span class="t-count">{{ row.votes }}</span></div></div>
-      <div class="mobile-actions"><button class="btn ghost" @click="store.setPhase('RESULT')">弃票</button><button class="btn gold" :disabled="!canVote" @click="castVote">确认投票</button></div>
+      <div class="mobile-actions"><button class="btn gold" :disabled="!canVote" @click="castVote">确认投票</button></div>
       <p class="sheet-foot">平票则无人出局 · 本轮不产生放逐</p>
     </section>
 
     <ActionPanel v-if="showAction && !isMobile" mode="desktop" />
     <ActionPanel v-if="showAction && isMobile" mode="mobile" />
-    <DemoBar />
 
     <div v-if="showRules" class="rules-pop" role="dialog" aria-label="本局规则">
       <div class="rules-head"><span class="eyebrow">NINE PLAYERS · 预女守</span><button class="text-btn" @click="showRules = false">关闭</button></div>
-      <p>3 狼人 · 3 村民 · 预言家 · 女巫 · 守卫。无猎人、无警长。</p>
-      <p>夜晚顺序：守卫 → 狼人 → 预言家 → 女巫。同守同救目标出局；女巫首夜可自救。</p>
+      <p>3 狼人 · 3 村民 · 预言家 · 女巫 · 猎人。</p>
+      <p>夜晚顺序：狼人 → 预言家 → 女巫；出局后的猎人在服务端窗口响应。</p>
       <p>白天顺序发言，随后放逐投票；最高票出局，平票无人出局。狼人达到人数 parity 或好人放逐全部狼人时结束。</p>
     </div>
     <div class="corner-note">{{ store.night ? 'WALDHÜTTE · PRIVATE RITE 02' : 'WALDHÜTTE · FIELD RECORDING 02' }}</div>
