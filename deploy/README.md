@@ -17,6 +17,24 @@ MCP_PORT=9091 MCP_AUTH_TOKEN='生成的随机长令牌' node apps/mcp/src/index.
 
 建议使用 systemd、supervisord 或容器管理进程，并把日志输出到集中日志系统。不要把 Token 写进 Git 仓库。
 
+公共主持播放确认默认使用 90 秒 watchdog。生产环境可在仓库外环境文件中覆盖：
+
+```text
+HOST_PLAYBACK_WATCHDOG_MS=90000
+```
+
+每次部署前从合并后的 `main` 计算构建标识，并同时传给静态客户端：
+
+```bash
+export LINX_BUILD_ID=$(git rev-parse --short HEAD)
+npm ci
+npm run build:client-vue
+npm run check
+node scripts/verify-deployment.mjs https://<网页域名> https://<API域名> "$LINX_BUILD_ID"
+```
+
+网页公共语音卡片会显示该标识，静态服务器响应会返回 `X-Linx-Client-Build`。部署重启会清空内存房间，必须先确认没有正式对局。
+
 复制 `.env.example` 为服务器上的环境文件，至少设置：
 
 ```text
@@ -73,6 +91,8 @@ curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:9091/health
 curl -N https://mcp.example.com/mcp
 ```
+
+上线后应核对网页响应头与页面显示的 `LINX_BUILD_ID` 相同，并在管理员诊断中确认 `host_browser_started`、`host_browser_completed` 或 `host_playback_timeout` 事件。
 
 MCP JSON-RPC 请求必须携带：
 
