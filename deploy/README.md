@@ -4,6 +4,48 @@
 
 # Linx-Night 部署基线
 
+## 生产容器部署
+
+生产镜像使用仓库根目录的 `Dockerfile`，Compose 文件为
+`docker-compose.production.yml`。镜像不包含运行时环境、Linx 软件身份或音频；这些内容必须在服务器上单独保存。
+
+服务器一次性准备目录：
+
+```bash
+sudo install -d -m 0750 /etc/linx-night /home/qiniu/linx-night /var/lib/linx-night/LinxNight/{profiles,audio,evidence}
+sudo cp deploy/compose.env.example /home/qiniu/linx-night/.env
+sudo cp .env.example /etc/linx-night/runtime.env
+sudo chmod 0600 /etc/linx-night/runtime.env
+```
+
+将 `runtime.env` 中的 Token、Agent ID、音频路径和端口改为服务器值。生产环境固定使用：
+
+```dotenv
+PORT=5000
+CLIENT_PORT=5010
+MCP_PORT=9091
+APP_HOST=0.0.0.0
+CLIENT_HOST=0.0.0.0
+LINX_TURN_WAV=/var/lib/linx-night/LinxNight/audio/turn.wav
+LINX_HUNTER_WAV=/var/lib/linx-night/LinxNight/audio/hunter.wav
+```
+
+把在可信电脑上生成的音频复制到服务器，并在服务器上单独初始化、激活软件身份；不要把其他电脑的 `identity.json` 提交或写入镜像。
+
+手动验证镜像：
+
+```bash
+cd /home/qiniu/linx-night
+export LINX_IMAGE=ghcr.io/lmh168/linx-night:COMMIT_SHA
+export LINX_BUILD_ID=COMMIT_SHA
+docker compose --project-name linx-night -f docker-compose.production.yml up -d --wait
+curl --fail http://127.0.0.1:5000/health
+curl --fail http://127.0.0.1:9091/health
+curl --fail http://127.0.0.1:5010/
+```
+
+该 Compose 项目只绑定本机的 5000、5010、9091，不接管现有项目的 80、12500 或 5432。
+
 ## 服务和端口
 
 在 Ubuntu 服务器上分别启动：

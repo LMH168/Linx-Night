@@ -6,7 +6,8 @@ import {checkConfig} from './check-config.mjs';
 const file=process.argv[2];
 if(!file){console.error('用法：node scripts/start-local.mjs <仓库外环境文件>');process.exit(1);}
 try{loadEnvFile(file);}catch{console.error('无法加载环境文件，请检查本机路径');process.exit(1);}
-process.env.CLIENT_HOST='127.0.0.1';
+process.env.APP_HOST = process.env.APP_HOST || '127.0.0.1';
+process.env.CLIENT_HOST = process.env.CLIENT_HOST || process.env.APP_HOST;
 process.env.CLIENT_UI = process.env.CLIENT_UI || 'vue';
 process.env.CLIENT_DIST = process.env.CLIENT_DIST || fileURLToPath(new URL('../apps/client-vue/dist', import.meta.url));
 if (process.env.CLIENT_UI === 'vue' && !existsSync(process.env.CLIENT_DIST)) {
