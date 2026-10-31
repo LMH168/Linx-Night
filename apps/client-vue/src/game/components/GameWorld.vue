@@ -25,8 +25,12 @@ const ready = ref(false);
 const failed = ref(false);
 const perfText = ref('');
 
-const perfMode =
-  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perf') === '1';
+const perfParam =
+  typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('perf') : null;
+// ?perf=1   显示 HUD 并自动跑一遍测量
+// ?perf=api 只暴露 window.__linxStage，供 tools/measure-stage.mjs 精确控制测量时序
+const perfMode = perfParam === '1' || perfParam === 'api';
+const autoBench = perfParam === '1';
 
 function modeOf(): StageMode {
   if (props.stage === 'lobby') return 'lobby';
@@ -91,9 +95,11 @@ onMounted(() => {
     }, 60);
     if (perfMode) {
       (window as unknown as { __linxStage?: StageHandle }).__linxStage = handle;
-      window.setTimeout(() => {
-        void runBenchmark(handle);
-      }, 700);
+      if (autoBench) {
+        window.setTimeout(() => {
+          void runBenchmark(handle);
+        }, 700);
+      }
     }
   } catch (error) {
     failed.value = true;
@@ -126,7 +132,7 @@ onBeforeUnmount(() => {
     ></canvas>
     <div class="game-world-vignette" aria-hidden="true"></div>
     <div class="game-world-grain" aria-hidden="true"></div>
-    <div v-if="perfMode" class="game-world-perf" aria-hidden="true">
+    <div v-if="autoBench" class="game-world-perf" aria-hidden="true">
       <span v-if="!perfText">测量中…（3 秒连续渲染）</span>
       <span v-else>{{ perfText }}</span>
     </div>
