@@ -3,6 +3,7 @@
 正式入口自动为全部 AI 空位分配 LINX_PROFILES，不再固定 P2/P3，不执行规则机器人 tick。平台无可用身份时必须重试或取消。
 
 - LINX_PROFILES：按顺序配置八个已激活软件身份，逗号分隔。测试夹具仍可显式限定席位。
+- LINX_SEATS：正式八席填写 `P2,P3,P4,P5,P6,P7,P8,P9`；开发局可填写实际接入 Linx 的席位，未列出的 AI 不会占用 Linx 身份。
 - LINX_AGENT_ID：玩家 Agent。
 - LINX_HOST_PROFILE、LINX_HOST_AGENT_ID：独立主持软件身份和独立 Agent，不能与玩家或转写身份复用。
 - 玩家与主持均绑定同一公网 MCP，使用已有测试认证；权限由后台登记决定。主持 HOST 是控制器标识，不是第十个座位。

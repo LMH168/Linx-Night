@@ -3,6 +3,7 @@ import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES, SETTLEMENT_TYPES,
 
 export const LAST_WORDS_TIMEOUT_MS = 30_000;
 export const MAX_LAST_WORDS_LENGTH = 200;
+export const MAX_SPEECH_LENGTH = 1_200;
 
 export class RuleError extends Error {}
 
@@ -83,8 +84,8 @@ export function announceDay(room) {
 
 export function submitSpeech(room, seatId, text, actionId) {
   if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
-  const seat = requireAlive(room, seatId); if (typeof text !== 'string' || !text.trim()) throw new RuleError('speech must not be empty');
-  recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: text.trim() }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
+  const seat = requireAlive(room, seatId); const normalized = typeof text === 'string' ? text.trim() : ''; if (!normalized || normalized.length > MAX_SPEECH_LENGTH) throw new RuleError('speech must be 1-1200 characters');
+  recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: normalized }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
   if (seat.playerType === 'ai' && seat.controlSource === 'linx' && room.hostPlaybackEnabled) {
     room.speechPlayback = { speechId: actionId, seatId, round: room.round, taskId: null, status: 'pending', attempts: 0, errorCode: null };
     room.version += 1;

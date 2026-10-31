@@ -1,6 +1,6 @@
 # 运行方式更新
 
-请优先遵循 [本机开局指南](../docs/local-play.md)。API 与 MCP 必须使用 `node run.mjs` 在同一进程启动。下方历史独立启动命令不适用于游戏联调。
+请优先遵循 [本机开局指南](../docs/local-play.md)。API 与 MCP 必须使用 `node run.mjs` 在同一进程启动。历史独立启动方式不适用于游戏联调。
 
 # Linx-Night 部署基线
 
@@ -72,16 +72,19 @@ LINX_DEPLOY_ROOT=/home/qiniu/linx-night
 
 ## 服务和端口
 
-在 Ubuntu 服务器上分别启动：
+在 Ubuntu 服务器上构建前端，然后只启动一个 Node 进程：
 
 ```bash
-PORT=5000 node apps/server/src/index.mjs
 node_modules/.bin/vite build --config apps/client-vue/vite.config.ts
-CLIENT_PORT=5010 CLIENT_UI=vue CLIENT_DIST="$PWD/apps/client-vue/dist" node apps/client/server.mjs
-MCP_PORT=9091 MCP_AUTH_TOKEN='生成的随机长令牌' node apps/mcp/src/index.mjs
+PORT=5000 CLIENT_PORT=5010 CLIENT_UI=vue CLIENT_DIST="$PWD/apps/client-vue/dist" \
+MCP_PORT=9091 MCP_AUTH_TOKEN='生成的随机长令牌' \
+LINX_MCP_ADMIN_URL=http://127.0.0.1:9091 \
+node run.mjs
 ```
 
-建议使用 systemd、supervisord 或容器管理进程，并把日志输出到集中日志系统。不要把 Token 写进 Git 仓库。
+API、调度器、MCP 和房间状态必须由同一个 `run.mjs` 进程持有。不要同时启动 `apps/server/src/index.mjs` 与 `apps/mcp/src/index.mjs`：两个进程各自有独立的房间和会话 Map，绑定会报 `MCP_ROOM_NOT_FOUND` 或工具调用报 `game room not found`。建议使用 systemd、supervisord 或容器管理这个单一进程，并把日志输出到集中日志系统。不要把 Token 写进 Git 仓库。
+
+上面的默认监听地址是 `127.0.0.1`，适合 Nginx/Caddy 反向代理。若服务器使用端口网关直接转发 5000/5010/9091，启动时增加 `APP_HOST=0.0.0.0`；MCP 仍应放在 HTTPS 入口后。
 
 公共主持播放确认默认使用 90 秒 watchdog。生产环境可在仓库外环境文件中覆盖：
 
@@ -107,7 +110,12 @@ node scripts/verify-deployment.mjs https://<网页域名> https://<API域名> "$
 PORT=5000
 CLIENT_PORT=5010
 MCP_PORT=9091
+APP_HOST=127.0.0.1
 MCP_AUTH_TOKEN=随机生成的长令牌
+LINX_SEATS=P2,P3,P4,P5,P6,P7,P8,P9
+LINX_TURN_TIMEOUT_MS=90000
+LINX_ACTION_TIMEOUT_MS=90000
+LINX_MCP_DISCOVERY_TIMEOUT_MS=30000
 ```
 
 ## HTTPS 反向代理
