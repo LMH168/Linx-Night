@@ -26,6 +26,8 @@ const actionBusy = ref(false);
 const message = ref('创建房间或填写房间号加入。');
 const actionMessage = ref('');
 const showSplash = ref(true);
+const forestSceneReady = ref(false);
+const forestSceneFrame = ref<HTMLIFrameElement | null>(null);
 
 const phaseNames: Record<string, string> = { LOBBY: '等待开局', ROLE_ASSIGNMENT: '分配身份', NIGHT_WOLF: '狼人行动', NIGHT_SEER: '预言家行动', NIGHT_WITCH: '女巫行动', DAY_ANNOUNCEMENT: '天亮了', HUNTER_RESPONSE: '猎人响应', LAST_WORDS: '遗言', SPEECH: '依次发言', VOTE: '放逐投票', RESOLUTION: '结算中', GAME_OVER: '本局结束' };
 const roleNames: Record<string, string> = { werewolf: '狼人', seer: '预言家', witch: '女巫', hunter: '猎人', villager: '平民' };
@@ -163,6 +165,18 @@ async function submitHunter(action: 'shoot' | 'skip') { const windowId = (store.
 async function submitLastWords(action: 'submit' | 'skip') { const windowId = (store.privateState?.lastWords as { windowId?: string } | null)?.windowId; await submitAction('/last-words', { action, window_id: windowId, ...(action === 'submit' ? { text: lastWordsText.value.trim() } : {}) }, action === 'submit' ? '遗言已提交。' : '已跳过遗言。'); if (action === 'submit') lastWordsText.value = ''; }
 async function announceDay() { await submitAction('/actions', { type: 'announce_day' }, '已宣布天亮。'); }
 
+function handleForestSceneLoad() {
+  forestSceneReady.value = true;
+  const syncScene = () => {
+    const scene = (forestSceneFrame.value?.contentWindow as Window & { __forestCabin?: any })?.__forestCabin;
+    if (!scene) { window.setTimeout(syncScene, 120); return; }
+    scene.finishIntro?.(true);
+    scene.hideUi?.();
+    scene.setTime?.(27.3);
+    scene.setVisitorElapsed?.(10.4);
+  };
+  syncScene();
+}
 function enterGame() { showSplash.value = false; }
 function errorMessage(cause: unknown) { return cause instanceof ApiRequestError ? cause.message : cause instanceof Error ? cause.message : '请求失败'; }
 function eventText(event: { type: string; data: Record<string, unknown> }) { const data = event.data; if (event.type === 'game.phase_changed') return `阶段：${phaseNames[String(data.phase)] || data.phase}`; if (event.type === 'game.player_eliminated') return `${data.seatId} 已出局`; if (event.type === 'game.vote_resolved') return `投票结算：${data.eliminatedSeatId || '平票'}`; if (event.type === 'game.night_resolved') return data.deathSeatIds ? `昨夜出局：${(data.deathSeatIds as string[]).join('、') || '平安夜'}` : '夜间结算'; if (event.type === 'game.last_words_submitted') return `${data.seatId} 完成遗言`; if (event.type === 'game.settlement_created') return `本局结束：${data.winner === 'good' ? '好人阵营' : data.winner === 'werewolf' ? '狼人阵营' : '房主结束'}`; return event.type; }
@@ -177,6 +191,7 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
 <template>
   <Transition name="splash-fade">
     <section v-if="showSplash" class="forest-splash" aria-label="暮林山舍游戏启动画面">
+      <iframe ref="forestSceneFrame" class="forest-splash-scene" src="/assets/splash/forest-cabin.html?linx-launch=1" title="暮林山舍动态森林场景" @load="handleForestSceneLoad"></iframe>
       <div class="forest-splash-bg"></div>
       <div class="forest-splash-mist"></div>
       <div class="forest-splash-content">
