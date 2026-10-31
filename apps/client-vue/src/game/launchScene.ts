@@ -21,7 +21,52 @@ export interface CabinWindow extends Window {
   __forestRoster?: { open?: () => void; close?: () => void };
 }
 
+export type SceneMode = 'day' | 'night';
+export type SceneStage = 'launch' | 'lobby' | 'table' | 'result';
+
+export interface SceneOptions {
+  mode?: SceneMode;
+  stage?: SceneStage;
+  deadSeats?: string[];
+  shieldSeat?: string | null;
+}
+
+interface StoredLight {
+  light: any;
+  intensity: number;
+  color: number;
+}
+
+interface TableState {
+  options: SceneOptions;
+  baseLights: StoredLight[];
+  baseFogColor: number;
+  baseFogDensity: number;
+  baseBackground: number | null;
+  lanterns: any[];
+  seatGroups: any[];
+  warm: any;
+  cool: any;
+  front: any;
+  moon: any;
+  shield: any;
+}
+
 export function dressLaunchScene(win: CabinWindow) {
+  dressGameScene(win, { mode: 'night', stage: 'launch', deadSeats: ['P4', 'P9'], shieldSeat: 'P3' });
+}
+
+export function dressGameScene(win: CabinWindow, options: SceneOptions = {}) {
+  if (!win.__forestCabin?.scene) return;
+  const state = (win as any).__linxTable as TableState | undefined;
+  if (state) {
+    applyGameScene(win, options);
+    return;
+  }
+  dressTable(win, options);
+}
+
+function dressTable(win: CabinWindow, initial: SceneOptions) {
   const f = win.__forestCabin;
   if (!f?.scene || !f.THREE) return;
   if (f.scene.getObjectByName('proto-long-table')) return;
@@ -31,41 +76,29 @@ export function dressLaunchScene(win: CabinWindow) {
   const scene = f.scene;
   const mobile = win.innerWidth <= 760;
 
+  const baseLights: StoredLight[] = [];
+  scene.traverse((o: any) => {
+    if (o.isLight) baseLights.push({ light: o, intensity: o.intensity, color: o.color?.getHex?.() ?? 0xffffff });
+  });
+  const state: TableState = {
+    options: { ...initial },
+    baseLights,
+    baseFogColor: scene.fog?.color?.getHex?.() ?? 0x0a1a12,
+    baseFogDensity: scene.fog?.density ?? 0.018,
+    baseBackground: scene.background?.isColor ? scene.background.getHex() : null,
+    lanterns: [],
+    seatGroups: [],
+    warm: null,
+    cool: null,
+    front: null,
+    moon: null,
+    shield: null,
+  };
+  (win as any).__linxTable = state;
+
   f.finishIntro?.(true);
   f.setTime?.(27.3);
   f.people?.group && (f.people.group.visible = false);
-
-  // ---- night grade (02-desktop-night-guard) --------------------------------
-  const lights: any[] = [];
-  scene.traverse((o: any) => { if (o.isLight) lights.push(o); });
-  for (const light of lights) {
-    if (light.name === 'low-sun') {
-      light.intensity = 0.38;
-      light.color?.set(0x7fa3c0);
-    } else if (light.isHemisphereLight) {
-      light.intensity = 0.34;
-    } else if (light.isAmbientLight) {
-      light.intensity = 0.14;
-    } else if (light.isDirectionalLight && light.name === 'moon-rim') {
-      light.intensity = 2.1;
-      light.color?.set(0xa8d2e6);
-    } else if (light.isDirectionalLight) {
-      light.intensity = 0.62;
-    } else if (light.isSpotLight) {
-      light.intensity = 7.5;
-    } else if (light.isPointLight) {
-      light.intensity *= 0.4;
-    }
-  }
-  if (f.scene.fog) {
-    f.scene.fog.color?.set(0x0a1719);
-    f.scene.fog.density = 0.0205;
-  }
-  if (f.scene.background?.isColor) f.scene.background.set(0x050a0d);
-  const moon = new T.DirectionalLight(0xa8d2e6, 2.0);
-  moon.position.set(-9, 13, 7);
-  scene.add(moon);
-  f.renderer.toneMappingExposure = 1.05;
 
   // ---- long table, nine chairs, seated travellers --------------------------
   const group = new T.Group();
@@ -255,8 +288,8 @@ export function dressLaunchScene(win: CabinWindow) {
   embers.position.y = 1.218;
   group.add(embers);
 
-  const seatGroups: any[] = [];
-  const lanterns: any[] = [];
+  const seatGroups = state.seatGroups;
+  const lanterns = state.lanterns;
   const chairRadius = 4.06;
   const cloakCols = [0x20251d, 0x28221a, 0x1c2020, 0x24251d, 0x201b1a, 0x23271f, 0x1b1d1a, 0x27231b, 0x1e2222];
   for (let i = 0; i < 9; i++) {
@@ -359,15 +392,23 @@ export function dressLaunchScene(win: CabinWindow) {
     group.add(card);
   }
 
-  const warm = new T.PointLight(0xffb36b, 17, 13, 2);
+  const warm = new T.PointLight(0xffb36b, 18, 13, 2);
   warm.position.set(0, 3.15, 7.6);
   scene.add(warm);
-  const cool = new T.PointLight(0x86a9ba, 13, 12, 2);
+  const cool = new T.PointLight(0x86a9ba, 4, 12, 2);
   cool.position.set(5, 2.7, 11.6);
   scene.add(cool);
-  const front = new T.PointLight(0xffbd82, 3, 8, 2);
+  const front = new T.PointLight(0xffbd82, 6, 8, 2);
   front.position.set(0, 1.9, 12.7);
   scene.add(front);
+  state.warm = warm;
+  state.cool = cool;
+  state.front = front;
+  const moon = new T.DirectionalLight(0xa8d2e6, 2.0);
+  moon.name = 'linx-moon';
+  moon.position.set(-9, 13, 7);
+  scene.add(moon);
+  state.moon = moon;
 
   const count = 38;
   const positions = new Float32Array(count * 3);
@@ -381,20 +422,11 @@ export function dressLaunchScene(win: CabinWindow) {
   const flies = new T.Points(flyGeometry, new T.PointsMaterial({ color: 0xffc88a, size: 0.035, transparent: true, opacity: 0.35, blending: T.AdditiveBlending, depthWrite: false }));
   scene.add(flies);
 
-  const dead = new Set(['P4', 'P9']);
-  for (const lantern of lanterns) {
-    if (dead.has(lantern.seatId)) {
-      lantern.light.intensity = 0.04;
-      lantern.glass.material.emissiveIntensity = 0.05;
-      lantern.glass.material.color.set(0x6b5a45);
-    }
-  }
-
-  // The approved guard frame includes the subtle golden ward around P3.
-  if (!mobile) {
-    const chair = seatGroups[2];
-    const shield = new T.Group();
-    shield.position.set(chair.position.x, 0, chair.position.z);
+  // A single reusable guard ward; applyGameScene() positions/shows it.
+  const shield = new T.Group();
+  shield.name = 'linx-guard-ward';
+  shield.visible = false;
+  {
     const dome = new T.Mesh(
       new T.SphereGeometry(1.02, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2),
       new T.MeshBasicMaterial({ color: 0xe0aa62, transparent: true, opacity: 0.075, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })
@@ -423,12 +455,105 @@ export function dressLaunchScene(win: CabinWindow) {
     glow.position.y = 1.4;
     shield.add(glow);
     scene.add(shield);
+    state.shield = shield;
   }
 
-  // ---- night-guard camera framing ------------------------------------------
-  const position = mobile ? [1.5, 10, 24] : [7.2, 5.2, 18.4];
-  const target = mobile ? [0, -0.5, 8.5] : [0, 2, 7.6];
-  const fov = mobile ? 58 : 40;
+  applyGameScene(win, initial);
+  // Keep the table reference for debugging / future scene tags.
+  (win as any).__protoTable = group;
+  (win as any).__protoSeats = seatGroups.map((chair: any, i: number) => ({ id: `P${i + 1}`, x: chair.position.x, z: chair.position.z + group.position.z }));
+}
+
+/**
+ * Applies the day/night grade, stage camera, dead lanterns and guard ward to an
+ * already-dressed cabin table. Safe to call repeatedly when the game phase or
+ * public seat state changes.
+ */
+export function applyGameScene(win: CabinWindow, options: SceneOptions = {}) {
+  const f = win.__forestCabin;
+  const state = (win as any).__linxTable as TableState | undefined;
+  if (!f?.scene || !state) return;
+
+  for (const key of Object.keys(options) as (keyof SceneOptions)[]) {
+    if (options[key] !== undefined) (state.options as any)[key] = options[key];
+  }
+
+  const night = (state.options.mode ?? 'night') === 'night';
+  const stage = state.options.stage ?? 'table';
+  const scene = f.scene;
+
+  for (const entry of state.baseLights) {
+    const light = entry.light;
+    if (light.name === 'low-sun') {
+      light.intensity = night ? 0.38 : 3.9;
+      light.color?.setHex(night ? 0x7fa3c0 : entry.color);
+    } else if (light.isHemisphereLight) {
+      light.intensity = night ? 0.34 : 0.9;
+    } else if (light.isAmbientLight) {
+      light.intensity = night ? 0.14 : 0.27;
+    } else if (light.isDirectionalLight && light.name === 'moon-rim') {
+      light.intensity = night ? 2.1 : entry.intensity;
+      light.color?.setHex(night ? 0xa8d2e6 : entry.color);
+    } else if (light.isDirectionalLight) {
+      light.intensity = night ? 0.62 : entry.intensity;
+    } else if (light.isSpotLight) {
+      light.intensity = night ? 7.5 : 20;
+    } else if (light.isPointLight) {
+      light.intensity = night ? entry.intensity * 0.4 : entry.intensity;
+    }
+  }
+
+  if (scene.fog) {
+    scene.fog.color?.setHex(night ? 0x0a1719 : state.baseFogColor);
+    scene.fog.density = night ? 0.0205 : 0.014;
+  }
+  if (scene.background?.isColor) {
+    scene.background.setHex(night ? 0x050a0d : (state.baseBackground ?? 0x0a1a12));
+  }
+  f.renderer.toneMappingExposure = night ? 1.05 : 1.3;
+
+  if (state.moon) {
+    state.moon.visible = night;
+    state.moon.intensity = 2;
+  }
+  state.warm.intensity = night ? 17 : 18;
+  state.cool.intensity = night ? 13 : 4;
+  state.front.intensity = night ? 3 : 6;
+
+  const dead = new Set(state.options.deadSeats ?? []);
+  for (const lantern of state.lanterns) {
+    const isDead = dead.has(lantern.seatId);
+    lantern.light.intensity = isDead ? 0.04 : 1.1;
+    lantern.glass.material.emissiveIntensity = isDead ? 0.05 : 1.7;
+    lantern.glass.material.color.setHex(isDead ? 0x6b5a45 : 0xffb767);
+  }
+
+  const shieldSeat = state.options.shieldSeat;
+  if (state.shield) {
+    const index = shieldSeat ? Number(shieldSeat.slice(1)) - 1 : -1;
+    const chair = state.seatGroups[index];
+    state.shield.visible = Boolean(shieldSeat && chair);
+    if (chair) state.shield.position.set(chair.position.x, 0, chair.position.z);
+  }
+
+  const mobile = win.innerWidth <= 760;
+  let position: [number, number, number];
+  let target: [number, number, number];
+  let fov: number;
+  if (mobile) {
+    position = [1.5, 10, 24];
+    target = [0, -0.5, 8.5];
+    fov = 58;
+  } else if (stage === 'result') {
+    position = [4.6, 6.4, 22.4];
+    target = [0, 2.1, 6.8];
+    fov = 43;
+  } else {
+    position = night ? [7.2, 5.2, 18.4] : [7.2, 5.4, 18.6];
+    target = [0, 2, 7.6];
+    fov = 40;
+  }
+
   if (f.controls) {
     f.controls.enabled = false;
     f.controls.update = () => {};
@@ -441,15 +566,11 @@ export function dressLaunchScene(win: CabinWindow) {
   f.camera.updateProjectionMatrix();
   f.renderer.setSize(win.innerWidth, win.innerHeight);
   if (f.composer) f.composer.setSize(win.innerWidth, win.innerHeight);
+
   f.renderer.shadowMap.autoUpdate = true;
   f.renderer.shadowMap.needsUpdate = true;
   if (f.composer) f.composer.render();
-  else f.renderer.render(f.scene, f.camera);
-  // This tableau is fixed; keep the first shadow pass and avoid re-rendering
-  // nine chair/traveller shadow casters every animation frame.
+  else f.renderer.render(scene, f.camera);
   f.renderer.shadowMap.autoUpdate = false;
   f.renderer.shadowMap.needsUpdate = false;
-  // Keep the table reference for debugging / future scene tags.
-  (win as any).__protoTable = group;
-  (win as any).__protoSeats = seatGroups.map((chair: any, i: number) => ({ id: `P${i + 1}`, x: chair.position.x, z: chair.position.z + group.position.z }));
 }
