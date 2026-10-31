@@ -9,7 +9,7 @@ import {LinxTurnRuntime} from '../apps/scheduler/src/linx-runtime.mjs';
 const server=createMcpServer({authToken:'test'}).server;await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}/mcp`;
 let writes=0;
 const manager={
- async ensureConnected(room,seat){const c=room.controllers.find(c=>c.seatId===seat.seatId);c.controllerEpoch++;c.status='pending';c.sessionId=null;bindController({roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,controllerEpoch:c.controllerEpoch,deviceId:seat.seatId,agentId:'simulated',sessionId:randomUUID()});c.status='ready';},
+ async ensureConnected(room,seat){const c=room.controllers.find(c=>c.seatId===seat.seatId);if(c.status==='ready'&&c.sessionId)return;c.controllerEpoch++;c.status='pending';c.sessionId=null;bindController({roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,controllerEpoch:c.controllerEpoch,deviceId:seat.seatId,agentId:'simulated',sessionId:randomUUID()});c.status='ready';},
  async sendTurn(room,seat){const mine=privateState(room,seat.playerId),c=room.controllers.find(c=>c.seatId===seat.seatId);const target=room.seats.find(s=>s.alive && s.seatId!==seat.seatId);let name,args={};
   if(room.phase==='SPEECH'){name='submit_speech';args.text='模拟协议玩家公开发言';}
   else if(room.phase==='VOTE'){name='submit_vote';args.target_player_id=target.seatId;}
