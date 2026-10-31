@@ -9,10 +9,10 @@ const router = useRouter();
 const route = useRoute();
 
 onMounted(() => {
-  if (store.phase === 'LOBBY') store.setPhase('SPEECH');
+  if (!store.publicState) router.replace('/lobby');
 });
 watch(() => store.phase, phase => {
-  if (phase === 'RESULT' && route.name !== 'result') router.replace(`/room/${store.roomId}/result`);
+  if (phase === 'GAME_OVER' && route.name !== 'result') router.replace(`/room/${store.roomId}/result`);
 }, { immediate: true });
 </script>
 

@@ -71,6 +71,7 @@ export interface RoomPublicState {
   currentSeatId: string | null;
   submittedVoteRound: number | null;
   submittedVoteSeatIds: string[];
+  speechDeadline?: string | null;
   seats: SeatState[];
   controllers: ControllerState[];
   hostController?: ControllerState | null;
