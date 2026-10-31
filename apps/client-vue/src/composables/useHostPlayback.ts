@@ -118,11 +118,12 @@ export function useHostPlayback(options: HostPlaybackOptions) {
   const canManage = computed(() => Boolean(options.isHost() && task.value));
   let interval: ReturnType<typeof setInterval> | null = null;
   let abort: AbortController | null = null;
+  let audioContext: AudioContext | null = null;
   let epoch = 0;
   const completed = new Set<string>();
   const pendingAcks = new Map<string, { firstPlayMs?: number; playbackMs?: number }>();
 
-  const stop = () => { enabled.value = false; epoch += 1; abort?.abort(); abort = null; status.value = '公共声音已停止；重新启用后继续当前任务。'; };
+  const stop = () => { enabled.value = false; epoch += 1; abort?.abort(); abort = null; busy.value = false; void audioContext?.close().catch(() => undefined); audioContext = null; status.value = '公共声音已停止；重新启用后继续当前任务。'; };
   const suspend = () => { if (!enabled.value) return; epoch += 1; abort?.abort(); abort = null; busy.value = false; status.value = '录音或转写进行中，公共声音暂时暂停。'; };
   const resume = () => { if (enabled.value) void poll(); };
   const poll = async () => {
@@ -147,7 +148,7 @@ export function useHostPlayback(options: HostPlaybackOptions) {
       const controller = new AbortController(); abort = controller;
       const contextCtor = globalThis.AudioContext || (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!contextCtor) throw new Error('浏览器不支持公共声音');
-      const context = new contextCtor();
+      const context = audioContext || (audioContext = new contextCtor());
       try {
         const response = await client.hostStream(roomId, current.id, controller.signal);
         const result = await playPcmStream(response, context, { signal: controller.signal, ids: { gameId: current.gameId, taskId: current.id, attemptId: attempt }, valid: () => enabled.value && run === epoch && options.roomId.value === roomId, onStart: async () => { if (options.isHost()) await client.hostStarted(roomId, current.id, attempt, controller.signal); }, onStatus: value => { status.value = `${current.seatId || '主持'}：${value}`; } });
@@ -159,7 +160,7 @@ export function useHostPlayback(options: HostPlaybackOptions) {
         }
         completed.add(key); if (completed.size > 80) completed.delete(completed.values().next().value as string);
         error.value = null; status.value = '播报完成，等待下一条。';
-      } finally { await context.close().catch(() => undefined); }
+      } finally { /* keep the user activated context for the next public task */ }
     } catch (cause) {
       if (run === epoch && enabled.value && !String((cause as Error)?.name).includes('Abort')) {
         error.value = cause instanceof Error ? cause.message : '公共播放失败'; status.value = `播放失败：${error.value}`;
@@ -167,7 +168,14 @@ export function useHostPlayback(options: HostPlaybackOptions) {
       }
     } finally { if (run === epoch) { busy.value = false; abort = null; } }
   };
-  const start = () => { if (enabled.value) return; enabled.value = true; epoch += 1; error.value = null; status.value = '正在连接公共声音……'; if (!interval) interval = setInterval(() => void poll(), 1000); void poll(); };
+  const start = () => {
+    if (enabled.value) return;
+    const contextCtor = globalThis.AudioContext || (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!contextCtor) { error.value = '浏览器不支持公共声音'; status.value = `播放失败：${error.value}`; return; }
+    audioContext = new contextCtor();
+    void audioContext.resume().catch(() => undefined);
+    enabled.value = true; epoch += 1; error.value = null; status.value = '正在连接公共声音……'; if (!interval) interval = setInterval(() => void poll(), 1000); void poll();
+  };
   const retry = async () => { const client = options.client.value; const roomId = options.roomId.value; if (!client || !roomId) return; await client.hostRetry(roomId); error.value = null; void poll(); };
   const skip = async () => { const client = options.client.value; const roomId = options.roomId.value; if (!client || !roomId || !task.value) return; await client.hostSkip(roomId, task.value.id); error.value = null; status.value = '已跳过当前音频。'; void poll(); };
   const notify = () => { void poll(); };
