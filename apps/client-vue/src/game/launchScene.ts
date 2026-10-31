@@ -1,7 +1,7 @@
 /**
  * Dresses the public forest-cabin animation with the approved launch-table set.
- * The scene code mirrors `proto/build.mjs` (the source of the approved
- * 01-desktop-day prototype) so the launch backdrop matches that composition.
+ * The scene code mirrors the night-guard setup in `proto/build.mjs` (the source
+ * of 02-desktop-night-guard) so the launch backdrop matches that composition.
  */
 export interface CabinRuntime {
   THREE: any;
@@ -35,17 +35,37 @@ export function dressLaunchScene(win: CabinWindow) {
   f.setTime?.(27.3);
   f.people?.group && (f.people.group.visible = false);
 
-  // ---- daylight grade ------------------------------------------------------
+  // ---- night grade (02-desktop-night-guard) --------------------------------
   const lights: any[] = [];
   scene.traverse((o: any) => { if (o.isLight) lights.push(o); });
   for (const light of lights) {
-    if (light.name === 'low-sun') light.intensity = 3.9;
-    else if (light.isHemisphereLight) light.intensity = 0.9;
-    else if (light.isAmbientLight) light.intensity = 0.27;
-    else if (light.isSpotLight) light.intensity = 20;
+    if (light.name === 'low-sun') {
+      light.intensity = 0.38;
+      light.color?.set(0x7fa3c0);
+    } else if (light.isHemisphereLight) {
+      light.intensity = 0.34;
+    } else if (light.isAmbientLight) {
+      light.intensity = 0.14;
+    } else if (light.isDirectionalLight && light.name === 'moon-rim') {
+      light.intensity = 2.1;
+      light.color?.set(0xa8d2e6);
+    } else if (light.isDirectionalLight) {
+      light.intensity = 0.62;
+    } else if (light.isSpotLight) {
+      light.intensity = 7.5;
+    } else if (light.isPointLight) {
+      light.intensity *= 0.4;
+    }
   }
-  if (f.scene.fog) f.scene.fog.density = 0.014;
-  f.renderer.toneMappingExposure = 1.3;
+  if (f.scene.fog) {
+    f.scene.fog.color?.set(0x0a1719);
+    f.scene.fog.density = 0.0205;
+  }
+  if (f.scene.background?.isColor) f.scene.background.set(0x050a0d);
+  const moon = new T.DirectionalLight(0xa8d2e6, 2.0);
+  moon.position.set(-9, 13, 7);
+  scene.add(moon);
+  f.renderer.toneMappingExposure = 1.05;
 
   // ---- long table, nine chairs, seated travellers --------------------------
   const group = new T.Group();
@@ -339,13 +359,13 @@ export function dressLaunchScene(win: CabinWindow) {
     group.add(card);
   }
 
-  const warm = new T.PointLight(0xffb36b, 18, 13, 2);
+  const warm = new T.PointLight(0xffb36b, 17, 13, 2);
   warm.position.set(0, 3.15, 7.6);
   scene.add(warm);
-  const cool = new T.PointLight(0x86a9ba, 4, 12, 2);
+  const cool = new T.PointLight(0x86a9ba, 13, 12, 2);
   cool.position.set(5, 2.7, 11.6);
   scene.add(cool);
-  const front = new T.PointLight(0xffbd82, 6, 8, 2);
+  const front = new T.PointLight(0xffbd82, 3, 8, 2);
   front.position.set(0, 1.9, 12.7);
   scene.add(front);
 
@@ -370,8 +390,43 @@ export function dressLaunchScene(win: CabinWindow) {
     }
   }
 
-  // ---- approved camera framing --------------------------------------------
-  const position = mobile ? [1.5, 10, 24] : [7.2, 5.4, 18.6];
+  // The approved guard frame includes the subtle golden ward around P3.
+  if (!mobile) {
+    const chair = seatGroups[2];
+    const shield = new T.Group();
+    shield.position.set(chair.position.x, 0, chair.position.z);
+    const dome = new T.Mesh(
+      new T.SphereGeometry(1.02, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2),
+      new T.MeshBasicMaterial({ color: 0xe0aa62, transparent: true, opacity: 0.075, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })
+    );
+    dome.position.y = 0.55;
+    shield.add(dome);
+    for (const y of [0.18, 1.6]) {
+      const ring = new T.Mesh(
+        new T.TorusGeometry(1.0, 0.012, 6, 56),
+        new T.MeshBasicMaterial({ color: 0xf0b974, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false })
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = y;
+      shield.add(ring);
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2;
+      const bar = new T.Mesh(
+        new T.CylinderGeometry(0.006, 0.006, 1.4, 4),
+        new T.MeshBasicMaterial({ color: 0xe8b776, transparent: true, opacity: 0.25, blending: T.AdditiveBlending, depthWrite: false })
+      );
+      bar.position.set(Math.cos(a) * 0.96, 0.78, Math.sin(a) * 0.96);
+      shield.add(bar);
+    }
+    const glow = new T.PointLight(0xffbd7a, 2.6, 3.4, 2);
+    glow.position.y = 1.4;
+    shield.add(glow);
+    scene.add(shield);
+  }
+
+  // ---- night-guard camera framing ------------------------------------------
+  const position = mobile ? [1.5, 10, 24] : [7.2, 5.2, 18.4];
   const target = mobile ? [0, -0.5, 8.5] : [0, 2, 7.6];
   const fov = mobile ? 58 : 40;
   if (f.controls) {
