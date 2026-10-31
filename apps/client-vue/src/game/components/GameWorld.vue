@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
 .game-world-scene { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; background: #050b08; transition: opacity 1.1s ease; display: block; }
 .game-world-scene.is-ready { opacity: 1; }
 .game-world-scene.is-lost { opacity: 0; }
-.game-world-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 42%, rgba(0,0,0,.42) 100%); }
+.game-world-vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 46%, rgba(0,0,0,.34) 100%); }
 .game-world-grain { position: absolute; inset: 0; pointer-events: none; opacity: .16; mix-blend-mode: soft-light; background-image: url('/assets/game/noise.png'); background-size: 256px 256px; }
 .game-world-perf { position: absolute; left: 12px; bottom: 12px; z-index: 5; padding: 6px 10px; border-radius: 6px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ffe6c2; background: rgba(6, 14, 11, .78); border: 1px solid rgba(212, 178, 122, .35); pointer-events: none; }
 </style>
