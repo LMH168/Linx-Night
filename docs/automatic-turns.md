@@ -1,12 +1,12 @@
 # 本机自动灵矽回合（#64）
 
-统一入口 `node run.mjs` 使用已激活 profile 建立连接。房主开局后只为配置为 Linx 且未被真人占用的座位连接；其余空位仍为明确标记的规则机器人。默认 P2/P3 为 Linx，支持一真人、两 Linx、六规则机器人的开发局。
+统一入口 `node run.mjs` 使用已激活 profile 建立连接。房主开局后只为配置为 Linx 且未被真人占用的座位连接；其余空位仍为明确标记的规则机器人。正式八席应配置 `LINX_SEATS=P2,P3,P4,P5,P6,P7,P8,P9`；开发局可按实际接入的席位缩小该列表。
 
 ## 一次配置
 
 1. 安装依赖：`npm ci`。
 2. Windows 使用 `powershell.exe -NoProfile -File scripts/linx-audio.ps1` 生成单声道 16kHz PCM `turn.wav`。触发音频目标控制在 1～2 秒，硬上限为 5 秒；超过上限会在准备阶段拒绝。脚本采用 UTF-8 BOM，兼容 Windows PowerShell 5.1。
-3. 本机环境配置 `LINX_AGENT_ID`、`LINX_PROFILES=player-a,player-b`、`LINX_MCP_ADMIN_URL=http://127.0.0.1:9091`、`LINX_MCP_ADMIN_TOKEN`、`MCP_AUTH_TOKEN`、`ADMIN_TOKEN`。可用 `LINX_TURN_WAV` 指向自备的通用中文行动音频。
+3. 本机环境配置 `LINX_AGENT_ID`、`LINX_PROFILES`、`LINX_SEATS`、`LINX_MCP_ADMIN_URL=http://127.0.0.1:9091`、`LINX_MCP_ADMIN_TOKEN`、`MCP_AUTH_TOKEN`、`ADMIN_TOKEN`。正式八席需要八个已激活 profile；开发局可让 `LINX_PROFILES` 与 `LINX_SEATS` 同步缩小。可用 `LINX_TURN_WAV` 指向自备的通用中文行动音频。
 4. Agent 保持 Function Call、无跨会话记忆，绑定公网 HTTPS `/mcp` 和 MCP Token。更新 `apps/mcp/prompts/player.md` 的租约指令，重新连接刷新工具列表。
 5. 启动后只在游戏网页创建/加入/开始，无需日常手动绑定。缺少配置/音频/已激活身份会显示准备失败，不伪造 ready。
 
@@ -18,7 +18,7 @@
 
 狼人可在自己的私密状态读取 `wolfProposal` 并跟随；公共 API/SSE 不公开夜间租约座位或提案。回合租约不是公开夜间行动广播。
 
-超时、连接或工具失败时暂停该座位并保留 Linx 控制来源，页面房主可点击“重试 AI 回合”。不自动切为规则机器人，也不自动重发已经成功的行动。旧 Session/Epoch/turn_id 均无权继续写入。猎人沿用 30 秒窗口，届满视为放弃；其他 Linx 回合等待 60 秒后显示失败。
+超时、连接或工具失败时暂停该座位并保留 Linx 控制来源，页面房主可点击“重试 AI 回合”。不自动切为规则机器人，也不自动重发已经成功的行动。旧 Session/Epoch/turn_id 均无权继续写入。猎人沿用 30 秒窗口，届满视为放弃；其他 Linx 回合默认等待 90 秒，可用 `LINX_TURN_TIMEOUT_MS` 覆盖；触发客户端使用同值的 `LINX_ACTION_TIMEOUT_MS`，避免服务端先于客户端取消行动。
 
 ## 验证边界
 
@@ -36,7 +36,7 @@
 
 ## MCP 就绪门槛
 
-WSS hello 不代表游戏 MCP 可用。自动绑定前最多等待 15 秒，在受保护诊断中核对已认证且成功的 initialize/tools/list 请求，Session、Device、Agent 必须与新连接一致。没有匹配记录则显示 MCP_DISCOVERY_TIMEOUT，留在准备失败，不分配角色。检查测试 Agent 的 MCP URL、认证、独立保存关联，以及隧道是否仍运行；修复后由房主重试。旧 Session 或陌生设备的发现请求不能满足门槛。
+WSS hello 不代表游戏 MCP 可用。自动绑定前默认最多等待 30 秒（`LINX_MCP_DISCOVERY_TIMEOUT_MS`），在受保护诊断中核对已认证且成功的 initialize/tools/list 请求，Session、Device、Agent 必须与新连接一致。没有匹配记录则显示 MCP_DISCOVERY_TIMEOUT，留在准备失败，不分配角色。检查测试 Agent 的 MCP URL、认证、独立保存关联，以及隧道是否仍运行；修复后由房主重试。旧 Session 或陌生设备的发现请求不能满足门槛。
 
 ## #77 短音频迁移与诊断
 

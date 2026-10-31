@@ -1,0 +1,57 @@
+name: Linx-Night CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+concurrency:
+  group: linx-night-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: 检查与回归
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 静态检查与前端构建
+        run: |
+          npm run check
+          npm run typecheck:client-vue
+          npm run build:client-vue
+
+      - name: 前端回归
+        run: |
+          npm run test:client-vue
+          npm run test:client
+
+      - name: 后端与领域回归
+        run: |
+          npm run test:domain
+          npm run test:api
+          npm run test:realtime
+          npm run test:mcp
+          npm run test:privacy
+
+      - name: 回合、语音和完整模拟局回归
+        run: |
+          npm run test:runtime
+          npm run test:voice
+          npm run test:delivery

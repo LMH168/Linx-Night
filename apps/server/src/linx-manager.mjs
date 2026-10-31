@@ -15,13 +15,23 @@ async function requestAdmin(base, token, path, body, fetchImpl) {
   let response;
   try { response = await fetchImpl(`${base.replace(/\/$/, '')}${path}`, { method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); }
   catch { throw Object.assign(new Error('MCP 管理服务连接失败'), { code: 'MCP_ADMIN_UNREACHABLE' }); }
-  const result = await response.json();
-  if (!response.ok || result.error) throw Object.assign(new Error('MCP 管理操作失败'), { code: 'MCP_BIND_FAILED' });
+  let result;
+  try { result = await response.json(); } catch { throw Object.assign(new Error('MCP 管理服务返回了无效响应'), { code: 'MCP_ADMIN_INVALID_RESPONSE' }); }
+  if (!response.ok || result.error) {
+    const message = typeof result.error === 'string' ? result.error : result.error?.message;
+    const code = message === 'game room not found' || message === 'game room is not preparing controllers' ? 'MCP_ROOM_NOT_FOUND' : response.status === 401 || response.status === 403 ? 'MCP_ADMIN_UNAUTHORIZED' : 'MCP_BIND_FAILED';
+    throw Object.assign(new Error(message || 'MCP 管理操作失败'), { code });
+  }
   return result;
 }
 
-export function createLinxControllerManager({ env = process.env, fetchImpl = fetch, clientFactory = identity => new LinxClient(identity), readIdentity = readProfile, loadAudio = readFile, onChange = () => {} } = {}) {
+export function createLinxControllerManager({ env = process.env, fetchImpl = fetch, clientFactory, readIdentity = readProfile, loadAudio = readFile, onChange = () => {} } = {}) {
   const names = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(value => value.trim()).filter(Boolean);
+  const configuredActionTimeout = Number(env.LINX_ACTION_TIMEOUT_MS || 90_000);
+  const actionTimeoutMs = Number.isFinite(configuredActionTimeout) && configuredActionTimeout > 0 ? configuredActionTimeout : 90_000;
+  const configuredDiscoveryTimeout = Number(env.LINX_MCP_DISCOVERY_TIMEOUT_MS || 30_000);
+  const discoveryTimeoutMs = Number.isFinite(configuredDiscoveryTimeout) && configuredDiscoveryTimeout > 0 ? configuredDiscoveryTimeout : 30_000;
+  const makeClient = clientFactory || (identity => new LinxClient(identity, { actionTimeoutMs }));
   const sends = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
@@ -31,7 +41,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
       const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, c.seatId==='HOST' ? env.LINX_HOST_PROFILE : names[i]]));
-      adapters.set(room.roomId, new LinxSessionAdapter({ profiles, clientFactory, onChange,
+      adapters.set(room.roomId, new LinxSessionAdapter({ profiles, clientFactory: makeClient, onChange,
         connectionFor: async controller => {
           const agentId = required(controller.seatId==='HOST' ? env.LINX_HOST_AGENT_ID : env.LINX_AGENT_ID, controller.seatId==='HOST' ? 'LINX_HOST_AGENT_ID' : 'LINX_AGENT_ID');
           const profileName = required(profileBySeat.get(controller.seatId), `LINX profile（${controller.seatId}）`);
@@ -41,7 +51,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           return { profileName, agentId, identity, connection };
         },
         bind: async binding => {
-          await waitForMcpDiscovery(binding,{base:required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL'),token:required(env.LINX_MCP_ADMIN_TOKEN,'LINX_MCP_ADMIN_TOKEN'),fetchImpl});
+          await waitForMcpDiscovery(binding,{base:required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL'),token:required(env.LINX_MCP_ADMIN_TOKEN,'LINX_MCP_ADMIN_TOKEN'),fetchImpl,timeoutMs:discoveryTimeoutMs});
           return requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/bindings', binding, fetchImpl);
         },
         release: binding => requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/controllers/release', binding, fetchImpl),

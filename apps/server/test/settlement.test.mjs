@@ -41,6 +41,9 @@ const byId = await request(port, `/api/settlements/${settlementId}`, { headers: 
 assert.equal(byId.status, 200);
 const report = (await byId.json()).settlement;
 assert.equal(report.settlementId, settlementId);
+assert.equal(report.release.controllers, 'failed');
+assert.equal(report.release.mcpBindings, 'failed');
+assert.equal(report.release.error, 'release unavailable');
 assert.equal('participants' in report, false);
 
 const stranger = await request(port, `/api/settlements/${settlementId}`, { headers: { 'x-player-id': 'stranger' } });

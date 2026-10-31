@@ -37,12 +37,18 @@ try {
   setup('LOBBY');
   assert.equal(JSON.parse((await call('get_public_game_state')).result.content[0].text).phase, 'LOBBY');
   const tools = (await rpc('tools/list')).result.tools;
+  for (const name of ['submit_vote', 'submit_wolf_target', 'submit_seer_check', 'submit_hunter_shot', 'submit_speech', 'skip_hunter_response', 'skip_last_words']) {
+    assert.ok(tools.find(t => t.name === name).inputSchema.required.includes('turn_id'));
+  }
   for (const name of ['submit_vote', 'submit_wolf_target', 'submit_seer_check', 'submit_hunter_shot']) assert.ok(tools.find(t => t.name === name).inputSchema.required.includes('target_player_id'));
   assert.ok(tools.find(t => t.name === 'submit_vote').inputSchema.properties.action_id);
   setup();
   for (const args of [null, [], 'text', { text: '' }, { text: 1 }, { text: 'hi', player_id: 'p1' }, { text: 'hi', action_id: '' }]) await reject('submit_speech', args, 'INVALID_ARGUMENTS');
   await reject('submit_vote', {}, 'INVALID_ARGUMENTS');
   await reject('submit_vote', { target_player_id: 'P99' }, 'INVALID_ARGUMENTS');
+  room.requireActionLease = true; room.seats[1].controlSource = 'linx';
+  await reject('submit_vote', { target_player_id: 'P3' }, 'INVALID_ARGUMENTS');
+  room.requireActionLease = false; room.seats[1].controlSource = 'human';
   await reject('submit_witch_action', { action: 'poison' }, 'INVALID_ARGUMENTS');
   await reject('missing_tool', {}, -32601);
   selected = 'missing'; await reject('get_public_game_state', {}, -32001); selected = 's2';

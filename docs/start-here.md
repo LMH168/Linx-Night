@@ -30,8 +30,8 @@
 ADMIN_TOKEN=独立随机管理员令牌
 MCP_AUTH_TOKEN=另一独立随机MCP令牌
 LINX_AGENT_ID=玩家AgentID
-LINX_PROFILES=player-a,player-b
-LINX_SEATS=P2,P3
+LINX_PROFILES=player-a,player-b,player-c,player-d,player-e,player-f,player-g,player-h
+LINX_SEATS=P2,P3,P4,P5,P6,P7,P8,P9
 LINX_MCP_ADMIN_URL=http://127.0.0.1:9091
 LINX_MCP_ADMIN_TOKEN=与ADMIN_TOKEN相同
 # 可选网页语音：先按 web-voice.md 激活独立身份

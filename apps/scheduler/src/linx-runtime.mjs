@@ -4,8 +4,10 @@ import { completeTurn, createTurn, expireTurn, updateController } from '../../..
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { defaultTurn } from './local.mjs';
 
+const validTimeout = (value, fallback) => { const timeout = Number(value); return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback; };
+
 export class LinxTurnRuntime {
-  constructor({ manager, publish = () => {}, timeoutMs = 60000, nightTimeoutMs = 10000, now = Date.now } = {}) {
+  constructor({ manager, publish = () => {}, timeoutMs = validTimeout(process.env.LINX_TURN_TIMEOUT_MS, 90000), nightTimeoutMs = validTimeout(process.env.LINX_NIGHT_TIMEOUT_MS, 10000), now = Date.now } = {}) {
     this.manager = manager; this.publish = publish; this.timeoutMs = timeoutMs; this.nightTimeoutMs = nightTimeoutMs; this.now = now; this.running = new Map(); this.pending = new Set(); this.again = new Set();
   }
   wake(room) {
@@ -23,7 +25,7 @@ export class LinxTurnRuntime {
     if (room.phase === 'GAME_OVER') {
       // Game-over cleanup still waits for the host task to settle.
       if(room.hostPlaybackBlocked)return Promise.resolve();
-      if (room.controllers.some(c => c.status !== 'released')) return this.track(room, () => this.manager.release(room));
+      if (room.controllers.some(c => c.status !== 'released') || room.settlement?.release?.controllers === 'pending') return this.track(room, () => this.releaseGame(room));
       return Promise.resolve();
     }
     // Host playback gates public day turns only; private night turns are independent.
@@ -57,6 +59,26 @@ export class LinxTurnRuntime {
     room.turnRunning = true;
     const work = Promise.resolve().then(task).finally(() => { this.running.delete(room.roomId); room.turnRunning = false; if (this.again.delete(room)) this.wake(room); });
     this.running.set(room.roomId, work); return work;
+  }
+  async releaseGame(room) {
+    try {
+      await this.manager.release(room);
+      if (room.settlement) {
+        const release = room.settlement.release ??= {};
+        release.controllers = 'released';
+        release.mcpBindings = 'released';
+        release.hostPlayback = 'released';
+      }
+    } catch (error) {
+      if (room.settlement) {
+        const release = room.settlement.release ??= {};
+        release.controllers = 'failed';
+        release.mcpBindings = 'failed';
+        release.hostPlayback = 'failed';
+        release.error = error.message;
+      }
+      throw error;
+    }
   }
   async play(room, seat, attempt = 0) {
     const gameId = room.gameId;
