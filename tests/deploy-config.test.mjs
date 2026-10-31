@@ -9,6 +9,7 @@ test('production compose keeps Linx-Night on isolated loopback ports and mounts 
   assert.match(compose, /127\.0\.0\.1:\$\{LINX_API_HOST_PORT:-5000\}:5000/);
   assert.match(compose, /127\.0\.0\.1:\$\{LINX_CLIENT_HOST_PORT:-5010\}:5010/);
   assert.match(compose, /127\.0\.0\.1:\$\{LINX_MCP_HOST_PORT:-9091\}:9091/);
+  assert.match(compose, /user: "1000:1000"/);
   assert.match(compose, /runtime\.env\}?:\/run\/linx-night\/runtime\.env:ro/);
   assert.match(compose, /LinxNight:\/var\/lib\/linx-night\/LinxNight/);
   assert.doesNotMatch(compose, /80:80|12500:|5432:/);
