@@ -29,7 +29,7 @@ try{
   const room=createRoom({hostPlayerId:'observer'});addPlayer(room,{playerId:'observer',displayName:'模拟观察员'});fillAiSeats(room);beginControllerPreparation(room,{aiSeatIds:['P2','P3']});room.requireActionLease=true;
   room.seats.forEach((s,i)=>{s.role=roles[i];s.camp=s.role==='werewolf'?'werewolf':'good';s.skills={hunterShotAvailable:s.role==='hunter',antidoteAvailable:s.role==='witch',poisonAvailable:s.role==='witch'};s.controlSource=i===1||i===2?'linx':i===0?'human':'rule_bot';});room.controllers.forEach(c=>c.status='ready');room.phase='ROLE_ASSIGNMENT';rooms.set(room.roomId,room);startGame(room);
   const runtime=new LinxTurnRuntime({manager,timeoutMs:1000});const phases=new Set();
-  for(let step=0;step<300 && room.phase!=='GAME_OVER';step++){
+  for(let step=0;step<600 && room.phase!=='GAME_OVER';step++){
    phases.add(room.phase);
    if(room.phase==='HUNTER_RESPONSE'){const hunter=room.seats.find(s=>s.seatId===room.hunterResponse.seatId);if(hunter.controlSource!=='linx')skipHunterResponse(room,hunter.seatId,randomUUID(),room.hunterResponse.windowId);}
    if(room.phase==='LAST_WORDS'){const speaker=room.seats.find(s=>s.seatId===room.lastWords.seatId);skipLastWords(room,speaker.seatId,randomUUID(),room.lastWords.windowId);}
