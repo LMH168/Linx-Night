@@ -22,6 +22,6 @@ const shieldSeatId = computed(() => stage.value === 'table' && store.selfRole ==
 </script>
 
 <template>
-  <GameWorld :stage="stage" :phase="worldPhase" :dead-seat-ids="deadSeatIds" :selected-seat-id="stage === 'table' ? store.selectedSeatId : null" :self-seat-id="store.selfSeatId" :shield-seat-id="shieldSeatId" />
+  <GameWorld v-if="stage !== 'launch'" :stage="stage" :phase="worldPhase" :dead-seat-ids="deadSeatIds" :selected-seat-id="stage === 'table' ? store.selectedSeatId : null" :self-seat-id="store.selfSeatId" :shield-seat-id="shieldSeatId" />
   <RouterView />
 </template>
