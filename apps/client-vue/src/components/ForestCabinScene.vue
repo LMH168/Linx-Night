@@ -7,6 +7,13 @@
     <div class="cabin-scene__mist cabin-scene__mist--two"></div>
     <div class="cabin-scene__forest cabin-scene__forest--back"></div>
     <div class="cabin-scene__forest cabin-scene__forest--front"></div>
+    <div class="cabin-scene__walkers" aria-hidden="true">
+      <div class="cabin-walker cabin-walker--wolf"><span class="cabin-walker__head">🐺</span><span class="cabin-walker__body"></span></div>
+      <div class="cabin-walker cabin-walker--witch"><span class="cabin-walker__head">🧙</span><span class="cabin-walker__body"></span></div>
+      <div class="cabin-walker cabin-walker--hunter"><span class="cabin-walker__head">🏹</span><span class="cabin-walker__body"></span></div>
+      <div class="cabin-walker cabin-walker--penguin"><span class="cabin-walker__head">🐧</span><span class="cabin-walker__body"></span></div>
+      <div class="cabin-walker cabin-walker--angel"><span class="cabin-walker__head">👼</span><span class="cabin-walker__body"></span></div>
+    </div>
     <div class="cabin-scene__cabin">
       <div class="cabin-scene__roof"></div>
       <div class="cabin-scene__wall">

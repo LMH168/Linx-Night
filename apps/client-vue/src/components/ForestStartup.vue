@@ -13,7 +13,7 @@ function enter() {
 onMounted(() => {
   const startedAt = performance.now();
   timer = setInterval(() => {
-    progress.value = Math.min(100, Math.round(((performance.now() - startedAt) / 1800) * 100));
+    progress.value = Math.min(100, Math.round(((performance.now() - startedAt) / 6400) * 100));
     if (progress.value >= 100 && timer) {
       clearInterval(timer);
       timer = undefined;
