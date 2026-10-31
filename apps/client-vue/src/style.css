@@ -38,6 +38,9 @@ input:focus { border-color: #8de3c7; }
 .action-card { border-color: #356178; }
 .action-card label { margin-top: 14px; }
 .action-card .actions { flex-wrap: wrap; margin-top: 16px; }
+.voice-panel { margin-top: 14px; padding: 12px; border: 1px solid #2c4162; border-radius: 10px; background: rgba(8, 17, 31, .35); }
+.voice-panel .actions, .host-card .actions { justify-content: flex-start; flex-wrap: wrap; margin-top: 10px; }
+.host-task { margin-top: 10px; padding: 10px; border-left: 3px solid #8de3c7; color: #c5d0e4; background: rgba(8, 17, 31, .35); }
 .live-dot { color: #8de3c7; font-size: .8rem; }
 .private-card { border-color: #725a9d; background: linear-gradient(135deg, rgba(69,50,101,.8), rgba(17,29,49,.9)); }
 .private-card p { margin-top: 9px; color: #c5d0e4; }

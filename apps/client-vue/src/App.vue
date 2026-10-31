@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { ApiRequestError, GameApiClient } from './api/client';
 import { useRoomStream } from './composables/useRoomStream';
+import { useHumanVoice } from './composables/useHumanVoice';
+import { useHostPlayback } from './composables/useHostPlayback';
 import { useRoomStore } from './stores/room';
 import type { SeatState } from '../../../packages/protocol/src/types';
 
@@ -41,6 +43,16 @@ const canHunter = computed(() => Boolean(store.publicState?.phase === 'HUNTER_RE
 const canLastWords = computed(() => Boolean(store.publicState?.phase === 'LAST_WORDS' && store.privateState?.lastWords && (store.privateState.lastWords as { seatId?: string }).seatId === store.privateState?.seatId && mySeat.value?.controlSource === 'human'));
 const canAnnounce = computed(() => Boolean(isHost.value && store.publicState?.phase === 'DAY_ANNOUNCEMENT'));
 const actionVisible = computed(() => canSpeak.value || canVote.value || canSkill.value || canHunter.value || canLastWords.value || canAnnounce.value);
+const voice = useHumanVoice({
+  client,
+  roomId,
+  contextKey: () => [roomId.value, store.publicState?.gameId, store.publicState?.round, store.publicState?.phase, store.publicState?.currentSeatId, store.privateState?.seatId].join(':'),
+  canRecord: () => canSpeak.value,
+  onBusyStart: () => hostPlayback.suspend(),
+  onBusyEnd: () => hostPlayback.resume(),
+  onDraft: text => { speechText.value = text; actionMessage.value = '转写已填入草稿，请检查后提交。'; }
+});
+const hostPlayback = useHostPlayback({ client, roomId, isHost: () => isHost.value, suspended: () => voice.busy.value });
 
 function newClient(nextPlayerId = playerId.value) { return new GameApiClient({ baseUrl: apiUrl.value, playerId: nextPlayerId }); }
 
@@ -112,7 +124,8 @@ async function submitAction(path: string, body: Record<string, unknown>, notice:
   finally { actionBusy.value = false; }
 }
 
-async function submitSpeech() { if (!speechText.value.trim()) { actionMessage.value = '发言不能为空。'; return; } await submitAction('/speeches', { text: speechText.value.trim() }, '发言已提交。'); if (!actionMessage.value.startsWith('提交失败')) speechText.value = ''; }
+async function submitSpeech() { if (voice.busy.value) { actionMessage.value = '请先结束录音或等待转写完成。'; return; } if (!speechText.value.trim()) { actionMessage.value = '发言不能为空。'; return; } await submitAction('/speeches', { text: speechText.value.trim() }, '发言已提交。'); if (!actionMessage.value.startsWith('提交失败')) { speechText.value = ''; voice.markSubmitted(); } }
+async function startVoiceRecording() { try { await voice.start(); } catch (cause) { actionMessage.value = errorMessage(cause); } }
 async function submitVote() { if (!targetSeatId.value) { actionMessage.value = '请选择投票目标。'; return; } await submitAction('/votes', { target_seat_id: targetSeatId.value }, '投票已提交。'); }
 async function submitSkill() {
   const role = store.privateState?.role;
@@ -132,7 +145,9 @@ function eventText(event: { type: string; data: Record<string, unknown> }) { con
 
 watch(() => stream.value?.lastError.value, value => { if (value) message.value = value; });
 watch(() => store.publicState?.phase, () => { targetSeatId.value = ''; });
-onBeforeUnmount(() => stream.value?.close());
+watch(() => store.recentEvents.length, () => hostPlayback.notify());
+watch(() => roomId.value, () => { voice.reset(); hostPlayback.stop(); });
+onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.cleanup(); });
 </script>
 
 <template>
@@ -152,12 +167,14 @@ onBeforeUnmount(() => stream.value?.close());
       <section v-if="store.privateState" class="card private-card"><div class="section-title"><h2>我的私密状态</h2><span>{{ store.privateState.seatId }}</span></div><p>身份：<strong>{{ store.privateState.role ? roleNames[store.privateState.role] || store.privateState.role : '等待分配' }}</strong></p><p>阵营：{{ store.privateState.camp || '—' }} · {{ store.privateState.alive ? '存活' : '已出局' }}</p><p v-if="store.privateState.role === 'seer'">查验记录：{{ store.privateState.seerResults.length ? store.privateState.seerResults.map(result => `${result.targetSeatId} ${result.result}`).join('、') : '暂无' }}</p></section>
       <section v-if="actionVisible" class="card action-card"><div class="section-title"><h2>行动</h2><span class="live-dot">●</span></div><p class="muted">{{ canSpeak ? '轮到你发言，提交后进入下一席。' : canVote ? '选择一名存活玩家投票。' : canSkill ? '选择技能目标并确认行动。' : canHunter ? '猎人可以开枪或放弃。' : canLastWords ? '留下最后的话，或跳过遗言。' : '房主可以宣布天亮。' }}</p><p class="message" role="status">{{ actionMessage }}</p>
         <label v-if="canSpeak">公开发言<textarea v-model="speechText" rows="4" maxlength="1200" placeholder="输入你的判断"></textarea></label>
+        <div v-if="canSpeak" class="voice-panel"><p class="muted">真人语音只生成可编辑草稿，确认提交后才会公开。</p><p class="message" role="status">{{ voice.draft.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs / 1000)} 秒` : voice.draft.stage === 'transcribing' ? '灵矽正在转写，请稍候……' : voice.draft.stage === 'confirming' ? '转写完成，请检查文字后提交。' : voice.draft.error || '可以录音或直接输入文字。' }}</p><div class="actions"><button class="secondary" :disabled="voice.busy" @click="startVoiceRecording">开始录音</button><button v-if="voice.draft.stage === 'recording'" class="secondary" @click="voice.stop">结束录音</button><button v-if="['recording','transcribing','confirming','failed'].includes(voice.draft.stage)" class="secondary" @click="voice.cancel">取消录音/转写</button></div></div>
         <label v-if="canLastWords">遗言<textarea v-model="lastWordsText" rows="3" maxlength="200" placeholder="留下最后的话"></textarea></label>
         <label v-if="canSkill && store.privateState?.role === 'witch'">女巫行动<select v-model="witchAction"><option value="skip">今晚不用药</option><option value="save">使用解药</option><option value="poison">使用毒药</option></select></label>
         <label v-if="canSkill || canVote || canHunter">选择目标<select v-model="targetSeatId"><option value="">请选择</option><option v-for="seat in aliveTargets" :key="seat.seatId" :value="seat.seatId">{{ seat.seatId }} · {{ seat.displayName }}</option></select></label>
         <div class="actions"><button v-if="canSpeak" :disabled="actionBusy" @click="submitSpeech">提交发言</button><button v-if="canSkill" :disabled="actionBusy || ((store.privateState?.role !== 'witch' || witchAction === 'poison') && !targetSeatId)" @click="submitSkill">确认行动</button><button v-if="canVote" :disabled="actionBusy || !targetSeatId" @click="submitVote">确认投票</button><button v-if="canHunter" :disabled="actionBusy || !targetSeatId" @click="submitHunter('shoot')">确认开枪</button><button v-if="canHunter" class="secondary" :disabled="actionBusy" @click="submitHunter('skip')">放弃开枪</button><button v-if="canLastWords" :disabled="actionBusy || !lastWordsText.trim()" @click="submitLastWords('submit')">提交遗言</button><button v-if="canLastWords" class="secondary" :disabled="actionBusy" @click="submitLastWords('skip')">跳过遗言</button><button v-if="canAnnounce" @click="announceDay">宣布天亮</button></div>
       </section>
       <section class="card"><div class="section-title"><h2>桌边记录</h2><span>{{ store.recentEvents.length }}</span></div><ol class="events"><li v-for="event in store.recentEvents.slice().reverse()" :key="event.eventId"><span>{{ eventText(event) }}</span><code>v{{ event.version }}</code></li><li v-if="!store.recentEvents.length" class="muted">暂无新事件</li></ol></section>
+      <section class="card host-card"><div class="section-title"><h2>公共语音</h2><span :class="hostPlayback.enabled ? 'live-dot' : 'muted'">{{ hostPlayback.enabled ? '已启用' : '未启用' }}</span></div><p class="muted">主持和已提交的 AI 发言按服务端事件顺序播放；私密状态和原始模型回复不会播放。</p><p class="message" role="status">{{ hostPlayback.status }}</p><p v-if="hostPlayback.task" class="host-task"><strong>{{ hostPlayback.task.seatId || '主持' }}</strong>：{{ hostPlayback.task.text }}</p><div class="actions"><button @click="hostPlayback.enabled ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage && hostPlayback.error" class="secondary" @click="hostPlayback.retry">重试音频</button><button v-if="hostPlayback.canManage && hostPlayback.task" class="secondary" @click="hostPlayback.skip">跳过当前音频</button></div></section>
       <section v-if="store.publicState.phase === 'GAME_OVER' || settlement" class="card result-card"><p class="eyebrow">THE END / 本局结算</p><h2>本局结束</h2><p class="muted">结算报告包含公开身份、出局顺序、投票结果和资源释放状态。</p><pre v-if="settlement">{{ JSON.stringify(settlement, null, 2) }}</pre></section>
     </template>
   </main>

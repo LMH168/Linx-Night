@@ -1,4 +1,4 @@
-import type { ApiEnvelope, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
+import type { ApiEnvelope, ApiError, HostTask, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -25,6 +25,8 @@ export interface JoinRoomResponse { player: { playerId: string; seatId: string }
 export interface StateResponse { state: RoomPublicState; }
 export interface PrivateStateResponse { private_state: PrivateState; }
 export interface MutationResponse { state: RoomPublicState; [key: string]: unknown; }
+export interface RecordingStartResponse { recordingId: string; deadline: number; }
+export interface HostStateResponse { task: (HostTask & { gameId?: string; eventId?: string; attemptId?: string }) | null; enabled?: boolean; blocked?: boolean; }
 
 export class GameApiClient {
   readonly baseUrl: string;
@@ -50,6 +52,20 @@ export class GameApiClient {
       throw new ApiRequestError(error?.message || `请求失败（${response.status}）`, response.status, error?.code, error?.details);
     }
     return (body ?? {}) as T;
+  }
+
+  /** Request a streaming response without trying to parse its body as JSON. */
+  async raw(path: string, init: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(init.headers);
+    if (this.playerId) headers.set('x-player-id', this.playerId);
+    const response = await this.fetchImpl(`${this.baseUrl}${path}`, { ...init, headers });
+    if (!response.ok) {
+      const text = await response.text();
+      let error: ApiError | undefined;
+      try { error = (JSON.parse(text) as ApiEnvelope<unknown>).error; } catch { /* non-json response */ }
+      throw new ApiRequestError(error?.message || `请求失败（${response.status}）`, response.status, error?.code, error?.details);
+    }
+    return response;
   }
 
   async roomState(roomId: string): Promise<RoomPublicState> {
@@ -84,6 +100,46 @@ export class GameApiClient {
 
   endRoom(roomId: string): Promise<{ settlement_id?: string; settlement?: unknown; state?: RoomPublicState }> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/end`, { method: 'POST' });
+  }
+
+  recordingStart(roomId: string): Promise<RecordingStartResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/recording-start`, { method: 'POST', body: '{}' });
+  }
+
+  recordingCancel(roomId: string, recordingId: string): Promise<{ cancelled: boolean }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/recording-cancel`, { method: 'POST', body: JSON.stringify({ recording_id: recordingId }) });
+  }
+
+  transcribe(roomId: string, wav: string, recordingId?: string): Promise<{ text: string }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/transcribe`, { method: 'POST', body: JSON.stringify({ wav, ...(recordingId ? { recording_id: recordingId } : {}) }) });
+  }
+
+  hostState(roomId: string): Promise<HostStateResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/state`);
+  }
+
+  hostStream(roomId: string, taskId: string, signal?: AbortSignal): Promise<Response> {
+    return this.raw(`/api/rooms/${encodeURIComponent(roomId)}/host/stream?task_id=${encodeURIComponent(taskId)}`, { signal });
+  }
+
+  hostStarted(roomId: string, taskId: string, attemptId: string, signal?: AbortSignal): Promise<{ ok: boolean }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/started`, { method: 'POST', signal, body: JSON.stringify({ task_id: taskId, attempt_id: attemptId }) });
+  }
+
+  hostInterrupted(roomId: string, taskId: string, attemptId: string): Promise<{ ok: boolean }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/interrupted`, { method: 'POST', body: JSON.stringify({ task_id: taskId, attempt_id: attemptId }) });
+  }
+
+  hostPlayed(roomId: string, taskId: string, attemptId: string, metrics: { firstPlayMs?: number; playbackMs?: number } = {}): Promise<HostStateResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/played`, { method: 'POST', body: JSON.stringify({ task_id: taskId, attempt_id: attemptId, ...metrics }) });
+  }
+
+  hostRetry(roomId: string): Promise<HostStateResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/retry`, { method: 'POST', body: '{}' });
+  }
+
+  hostSkip(roomId: string, taskId: string): Promise<HostStateResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/skip`, { method: 'POST', body: JSON.stringify({ task_id: taskId }) });
   }
 
   eventsUrl(roomId: string, afterVersion: number): string {

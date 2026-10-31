@@ -4,7 +4,8 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const legacyRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const useVue = process.env.CLIENT_UI === 'vue';
+// Vue is the production entry after Issue #124. Set CLIENT_UI=legacy only for rollback.
+const useVue = process.env.CLIENT_UI !== 'legacy';
 const staticRoot = useVue ? resolve(process.env.CLIENT_DIST || join(legacyRoot, 'dist')) : legacyRoot;
 const port = Number(process.env.CLIENT_PORT || 5010);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };

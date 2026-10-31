@@ -10,7 +10,8 @@
 
 ```bash
 PORT=5000 node apps/server/src/index.mjs
-CLIENT_PORT=5010 node apps/client/server.mjs
+node_modules/.bin/vite build --config apps/client-vue/vite.config.ts
+CLIENT_PORT=5010 CLIENT_UI=vue CLIENT_DIST="$PWD/apps/client-vue/dist" node apps/client/server.mjs
 MCP_PORT=9091 MCP_AUTH_TOKEN='生成的随机长令牌' node apps/mcp/src/index.mjs
 ```
 

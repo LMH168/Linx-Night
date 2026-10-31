@@ -40,7 +40,9 @@ async function cleanup() {
 }
 try {
   await listen(api, 5100); await listen(mcp, 9191);
-  child = spawn(process.execPath, ['apps/client/server.mjs'], { cwd: resolve(import.meta.dirname, '..'), env: { ...process.env, CLIENT_PORT: '5110', CLIENT_HOST: '127.0.0.1' }, stdio: ['ignore', 'inherit', 'inherit'] });
+  // The lab keeps the legacy page unless a built Vue artifact is explicitly requested.
+  // The normal local launcher uses Vue by default; this fixture remains focused on its scripted scenarios.
+  child = spawn(process.execPath, ['apps/client/server.mjs'], { cwd: resolve(import.meta.dirname, '..'), env: { ...process.env, CLIENT_UI: process.env.CLIENT_UI || 'legacy', CLIENT_PORT: '5110', CLIENT_HOST: '127.0.0.1' }, stdio: ['ignore', 'inherit', 'inherit'] });
   child.on('error', error => { console.error(error.message); cleanup(); });
   child.on('exit', code => { if (!closing) { console.error(`测试网页进程结束 ${code}`); cleanup(); } });
   terminal = createInterface({ input: process.stdin, output: process.stdout });
