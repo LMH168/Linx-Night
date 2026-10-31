@@ -82,7 +82,7 @@ export class LinxTurnRuntime {
   }
   async play(room, seat, attempt = 0) {
     const gameId = room.gameId;
-    let turn, timer, poll, acceptedRecorded = false, retryVote = false;
+    let turn, timer, poll, stored, acceptedRecorded = false, retryVote = false;
     const hunterWindow = room.phase === 'HUNTER_RESPONSE' ? room.hunterResponse : null;
     const context = {roomId:room.roomId,gameId,seatId:seat.seatId,windowId:hunterWindow?.windowId};
     recordTurn('selected',context);
@@ -101,7 +101,7 @@ export class LinxTurnRuntime {
       const c = room.controllers.find(c => c.seatId === seat.seatId);
       turn = createTurn(room, { seatId: seat.seatId, controlSource: seat.controlSource, controllerEpoch: c?.controllerEpoch ?? null });
       context.turnId = turn.turnId; recordTurn('lease_created',context);
-      const stored = room.turns.find(t => t.turnId === turn.turnId);
+      stored = room.turns.find(t => t.turnId === turn.turnId);
       const timeout = seat.controlSource === 'human' && room.phase.startsWith('NIGHT_') && this.timeoutMs >= 1000 ? Math.min(this.timeoutMs, this.nightTimeoutMs) : this.timeoutMs;
       stored.expiresAt = Math.min(this.now() + timeout, room.phase === 'HUNTER_RESPONSE' ? Date.parse(room.hunterResponse.expiresAt) : Infinity);
       this.publish(room);
