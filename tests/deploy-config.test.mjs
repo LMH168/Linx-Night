@@ -31,3 +31,13 @@ test('production listener configuration is opt-in while local defaults remain lo
   assert.match(start, /process\.env\.APP_HOST = process\.env\.APP_HOST \|\| '127\.0\.0\.1'/);
   assert.match(start, /process\.env\.CLIENT_HOST = process\.env\.CLIENT_HOST \|\| process\.env\.APP_HOST/);
 });
+
+test('remote deploy script requires immutable GHCR commit tags and has rollback logic', async () => {
+  const script = await read('deploy/remote-deploy.sh');
+  assert.match(script, /ghcr\[\.\]io/);
+  assert.match(script, /\[0-9a-f\]\{40\}/);
+  assert.match(script, /flock/);
+  assert.match(script, /rollback\(\)/);
+  assert.match(script, /--no-deps --force-recreate --wait app/);
+  assert.doesNotMatch(script, /--remove-orphans/);
+});
