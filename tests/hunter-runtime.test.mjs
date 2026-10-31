@@ -15,7 +15,7 @@ const rt=new LinxTurnRuntime({manager});await rt.tick(r);
 assert.equal(sends,1);assert.equal(r.hunterResponse,null);assert.equal(r.controllers[0].status,'ready');assert.equal(r.phase,'SPEECH');
 const slow=setup();await new LinxTurnRuntime({manager:{...manager,async ensureConnected(){await new Promise(r=>setTimeout(r,45));}}}).tick(slow);
 assert.equal(sends,1);assert.equal(slow.turns.length,0);assert.equal(slow.hunterResponse,null);assert.equal(slow.controllers[0].status,'ready');
-const wake=setup();wake.hunterResponse.expiresAt=new Date(Date.now()+30).toISOString();const runner=new LinxTurnRuntime({manager});runner.wake(wake);runner.wake(wake);await new Promise(r=>setTimeout(r,80));assert.equal(sends,1);assert.equal(releases,0);assert.equal(wake.hunterResponse,null);assert.equal(wake.controllers[0].status,'ready');
+const wake=setup();wake.hunterResponse.expiresAt=new Date(Date.now()+30).toISOString();const runner=new LinxTurnRuntime({manager});runner.wake(wake);runner.wake(wake);await new Promise(r=>setTimeout(r,80));assert.equal(sends,2);assert.equal(releases,0);assert.equal(wake.hunterResponse,null);assert.equal(wake.controllers[0].status,'ready');
 assert.doesNotThrow(()=>parseTriggerWav(wavFromPcm(Buffer.alloc(32000*5))));assert.throws(()=>parseTriggerWav(wavFromPcm(Buffer.alloc(32000*5+2))),/5/);
 for(let i=0;i<120;i++)recordTurn('test',{roomId:'r',token:'secret',text:'private'});
 assert.equal(turnDiagnostics().length,100);assert.ok(!JSON.stringify(turnDiagnostics()).includes('secret'));assert.ok(!JSON.stringify(turnDiagnostics()).includes('private'));
