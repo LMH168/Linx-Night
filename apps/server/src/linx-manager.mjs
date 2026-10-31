@@ -31,6 +31,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const actionTimeoutMs = Number.isFinite(configuredActionTimeout) && configuredActionTimeout > 0 ? configuredActionTimeout : 90_000;
   const configuredDiscoveryTimeout = Number(env.LINX_MCP_DISCOVERY_TIMEOUT_MS || 30_000);
   const discoveryTimeoutMs = Number.isFinite(configuredDiscoveryTimeout) && configuredDiscoveryTimeout > 0 ? configuredDiscoveryTimeout : 30_000;
+  const requireDiscovery = String(env.LINX_MCP_DISCOVERY_REQUIRED || '').toLowerCase() === 'true';
   const makeClient = clientFactory || (identity => new LinxClient(identity, { actionTimeoutMs }));
   const sends = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
@@ -51,7 +52,11 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           return { profileName, agentId, identity, connection };
         },
         bind: async binding => {
-          await waitForMcpDiscovery(binding,{base:required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL'),token:required(env.LINX_MCP_ADMIN_TOKEN,'LINX_MCP_ADMIN_TOKEN'),fetchImpl,timeoutMs:discoveryTimeoutMs});
+          // Linx normally discovers MCP tools only after it receives the first
+          // turn trigger. Waiting here deadlocks preparation: binding never
+          // completes, so the scheduler never sends that trigger. Keep the
+          // strict probe available for environments that explicitly require it.
+          if (requireDiscovery) await waitForMcpDiscovery(binding,{base:required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL'),token:required(env.LINX_MCP_ADMIN_TOKEN,'LINX_MCP_ADMIN_TOKEN'),fetchImpl,timeoutMs:discoveryTimeoutMs});
           return requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/bindings', binding, fetchImpl);
         },
         release: binding => requestAdmin(env.LINX_MCP_ADMIN_URL, env.LINX_MCP_ADMIN_TOKEN, '/admin/controllers/release', binding, fetchImpl),
