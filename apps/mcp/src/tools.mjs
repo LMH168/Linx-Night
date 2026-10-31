@@ -11,7 +11,7 @@ const definitions = [
   ['submit_witch_action', '提交女巫行动；poison 必须提供目标，save/skip 不需要目标', { action: { type: 'string', enum: ['save', 'poison', 'skip'] }, target_player_id: target }],
   ['submit_hunter_shot', '提交猎人开枪目标', { target_player_id: target, window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
   ['skip_hunter_response', '猎人放弃本次开枪；必须提供当前响应窗口 ID', { window_id: { ...text, description: '当前猎人响应窗口 ID' } }],
-  ['submit_vote', '提交投票目标', { target_player_id: target }],
+  ['submit_vote', 'VOTE 阶段必须调用本工具完成投票，不能只口头回复或等待其他玩家。target_player_id 必填，从存活座位中自行选择；自动调度时携带私密状态 currentTurn.turnId 作为 turn_id。仅 accepted:true 表示成功。', { target_player_id: target }],
   ['get_last_words_state', '获取当前遗言窗口状态', {}],
   ['submit_last_words', '提交当前座位的遗言', { text, window_id: { ...text, description: '当前遗言窗口 ID' } }],
   ['skip_last_words', '跳过当前遗言窗口', { window_id: { ...text, description: '当前遗言窗口 ID' } }],

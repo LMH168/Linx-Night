@@ -83,7 +83,19 @@ async function callTool(req, name, args, requiredToken, trace) {
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
     if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: room.lastWords, history: room.lastWordsHistory ?? [], version: room.version }); }
     if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }
-    if (name === 'get_my_private_state') { audit.ok = true; return resultText(privateState(room, seat.playerId)); }
+    if (name === 'get_my_private_state') {
+      const state = privateState(room, seat.playerId);
+      const turn = state.currentTurn;
+      if (turn?.phase === 'VOTE' && turn.expiresAt > Date.now()) {
+        state.requiredAction = {
+          tool: 'submit_vote',
+          arguments: { turn_id: turn.turnId },
+          targetSeatIds: room.seats.filter(s => s.alive && s.playerId).map(s => s.seatId),
+          instruction: '现在必须调用 submit_vote。自行从 targetSeatIds 选择一名玩家，将其座位号填入 target_player_id，并携带 arguments.turn_id。即使线索不足也必须选择；不能只查询、口头投票或等待其他玩家。只有 accepted:true 才算提交成功。',
+        };
+      }
+      audit.ok = true; return resultText(state);
+    }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {

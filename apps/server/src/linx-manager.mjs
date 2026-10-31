@@ -103,7 +103,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
-      client.record = event => { if (['input_start','input_stop','stt','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
+      client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
