@@ -14,7 +14,7 @@ try {
   const schema=url.replace('/mcp','/v1/schema');
   assert.equal((await fetch(schema)).status,401);
   const discovered=await (await fetch(schema,{headers:{authorization:'test-secret'}})).json();
-  assert.equal(discovered.tools.length,11);assert.deepEqual(discovered.data.tools,discovered.tools);
+  assert.equal(discovered.tools.length,14);assert.deepEqual(discovered.data.tools,discovered.tools);
   assert.equal((await send({jsonrpc:'2.0',id:0,method:'initialize'},{authorization:'Bearer invalid'})).status,401);
   for(const version of ['2025-03-26','2025-06-18','2025-11-25']) {
     const response=await send({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:version,capabilities:{},clientInfo:{name:'integration-client',version:'1.0'}}});
@@ -26,7 +26,7 @@ try {
   const notified=await send({jsonrpc:'2.0',method:'notifications/initialized'},negotiated);
   assert.equal(notified.status,202);assert.equal(await notified.text(),'');
   const list=await (await send({jsonrpc:'2.0',id:2,method:'tools/list'},negotiated)).json();
-  assert.equal(list.result.tools.length,11);
+  assert.equal(list.result.tools.length,14);
   const call={jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'get_my_private_state'}};
   const denied=await (await send(call,negotiated)).json();assert.equal(denied.error.code,-32001);assert.equal(denied.id,3);
   const own=await (await send(call,{...negotiated,'x-linx-session-id':session})).json();
