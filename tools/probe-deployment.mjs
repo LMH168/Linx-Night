@@ -24,7 +24,7 @@ const BASE = (args.find((a) => a.startsWith('http')) || 'https://linxnight.mimi-
 const BUDGET = {
   firstLoadGzipKb: 260,    // 首屏 JS 的传输体积上限（three.js 已在包内）
   gameIframeRefs: 0,       // 对局页不允许再用 iframe 承载 3D 世界
-  forestCabinRefs: 1,      // 只有 launch 开场动画可以引用森林小屋
+  forestCabinRefs: 0,      // 开场页也改用 canvas 舞台后，森林小屋不再被任何入口引用
 };
 
 const PATTERNS = [
