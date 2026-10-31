@@ -5,9 +5,11 @@ import { useRoomStream } from './composables/useRoomStream';
 import { useHumanVoice } from './composables/useHumanVoice';
 import { useHostPlayback } from './composables/useHostPlayback';
 import { useRoomStore } from './stores/room';
+import ForestStartup from './components/ForestStartup.vue';
 import type { SeatState } from '../../../packages/protocol/src/types';
 
 const store = useRoomStore();
+const showStartup = ref(true);
 const entryQuery = new URLSearchParams(location.search);
 const apiUrl = ref(sessionStorage.getItem('linx-api') || entryQuery.get('api') || 'http://127.0.0.1:5100');
 const roomId = ref(sessionStorage.getItem('linx-room') || entryQuery.get('room') || '');
@@ -151,7 +153,8 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
 </script>
 
 <template>
-  <main class="shell">
+  <ForestStartup v-if="showStartup" @ready="showStartup = false" />
+  <main v-else class="shell">
     <header class="hero"><div><p class="eyebrow">LINX NIGHT · VUE CLIENT</p><h1>AI 狼人杀</h1><p class="muted">Vue 客户端使用现有 Node API、MCP 和 SSE 协议。</p></div><span class="connection" :class="store.connectionStatus">{{ store.connectionStatus }}</span></header>
     <section class="card entry-card">
       <div class="section-title"><h2>{{ store.publicState ? `房间 ${store.publicState.roomId}` : '入座之前' }}</h2><span class="muted">{{ store.publicState ? '连接已建立' : '创建房间或加入朋友的房间' }}</span></div>
