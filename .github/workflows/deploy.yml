@@ -3,6 +3,8 @@ name: Linx-Night 自动部署
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -82,7 +84,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ${{ steps.meta.outputs.image }}:${{ github.sha }}
             ${{ steps.meta.outputs.image }}:main
