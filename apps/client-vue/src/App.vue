@@ -170,10 +170,9 @@ function handleForestSceneLoad() {
   const syncScene = () => {
     const scene = (forestSceneFrame.value?.contentWindow as Window & { __forestCabin?: any })?.__forestCabin;
     if (!scene) { window.setTimeout(syncScene, 120); return; }
-    scene.finishIntro?.(true);
+    // Keep the original timeline: camera intro first, then the three visitors
+    // enter from the path and walk toward the cabin door.
     scene.hideUi?.();
-    scene.setTime?.(27.3);
-    scene.setVisitorElapsed?.(10.4);
   };
   syncScene();
 }
