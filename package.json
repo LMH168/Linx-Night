@@ -6,6 +6,10 @@
   "scripts": {
     "dev:server": "node apps/server/src/index.mjs",
     "dev:client": "node apps/client/server.mjs",
+    "dev:client-vue": "vite --config apps/client-vue/vite.config.ts",
+    "build:client-vue": "vite build --config apps/client-vue/vite.config.ts",
+    "typecheck:client-vue": "tsc --noEmit -p apps/client-vue/tsconfig.json",
+    "test:client-vue": "vitest run --config apps/client-vue/vitest.config.ts",
     "dev:mcp": "node apps/mcp/src/index.mjs",
     "test:scheduler": "node apps/scheduler/test/scheduler.test.mjs",
     "check": "node --check apps/server/src/index.mjs && node --check apps/server/src/api.mjs && node --check apps/server/test/api.test.mjs && node --check apps/server/src/realtime.mjs && node --check apps/server/test/realtime.test.mjs && node --check apps/client/app.js && node --check apps/client/server.mjs && node --check apps/client/test/static.test.mjs && node --check apps/mcp/src/server.mjs && node --check apps/mcp/src/index.mjs && node --check apps/mcp/test/server.test.mjs && node --check apps/scheduler/src/scheduler.mjs && node --check apps/scheduler/test/scheduler.test.mjs && node --check packages/domain/src/model.mjs && node --check packages/domain/src/engine.mjs && node --check packages/domain/test/model.test.mjs && node --check packages/domain/test/engine.test.mjs && node --check apps/linx/src/session-adapter.mjs && node --check apps/linx/test/session-adapter.test.mjs && node --check apps/mcp/test/controllers.test.mjs && node --check apps/server/src/linx-manager.mjs && node --check apps/server/test/linx-manager.test.mjs",
@@ -31,6 +35,17 @@
     "test:delivery": "node tests/config.test.mjs && node tests/full-mixed.test.mjs"
   },
   "dependencies": {
+    "pinia": "3.0.3",
+    "vue": "3.5.22",
     "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.1",
+    "@types/node": "24.10.0",
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "27.0.0",
+    "typescript": "5.9.3",
+    "vite": "7.1.11",
+    "vitest": "4.0.6"
   }
 }
