@@ -2,11 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BrandMark from '../components/BrandMark.vue';
-
-type CabinWindow = Window & {
-  __forestCabin?: unknown;
-  __forestRoster?: { open?: () => void; close?: () => void };
-};
+import { dressLaunchScene, type CabinWindow } from '../launchScene';
 
 const router = useRouter();
 const frame = ref<HTMLIFrameElement | null>(null);
@@ -17,6 +13,7 @@ const leaving = ref(false);
 let pollTimer: number | undefined;
 let navTimer: number | undefined;
 let codexTimer: number | undefined;
+let sceneDressed = false;
 
 function pollScene() {
   window.clearTimeout(pollTimer);
@@ -34,6 +31,14 @@ function pollScene() {
     }
     if (win?.__forestRoster?.open) codexReady.value = true;
     const cabin = win?.__forestCabin;
+    if (cabin && !sceneDressed) {
+      sceneDressed = true;
+      try {
+        dressLaunchScene(win!);
+      } catch (error) {
+        console.warn('launch scene dressing skipped', error);
+      }
+    }
     if (cabin) sceneReady.value = true;
     if (sceneReady.value && codexReady.value) return;
     if (performance.now() - started > 12000) {
