@@ -25,9 +25,32 @@ const loading = ref(false);
 const actionBusy = ref(false);
 const message = ref('创建房间或填写房间号加入。');
 const actionMessage = ref('');
+const showSplash = ref(true);
 
 const phaseNames: Record<string, string> = { LOBBY: '等待开局', ROLE_ASSIGNMENT: '分配身份', NIGHT_WOLF: '狼人行动', NIGHT_SEER: '预言家行动', NIGHT_WITCH: '女巫行动', DAY_ANNOUNCEMENT: '天亮了', HUNTER_RESPONSE: '猎人响应', LAST_WORDS: '遗言', SPEECH: '依次发言', VOTE: '放逐投票', RESOLUTION: '结算中', GAME_OVER: '本局结束' };
 const roleNames: Record<string, string> = { werewolf: '狼人', seer: '预言家', witch: '女巫', hunter: '猎人', villager: '平民' };
+const roleArt: Record<string, { name: string; en: string; avatar: string; accent: string }> = {
+  werewolf: { name: '狼人', en: 'THE WEREWOLF', avatar: '/assets/werewolf/avatars/werewolf.webp', accent: '#d78b4e' },
+  'wolf-siren': { name: '狼美人', en: 'THE WOLF SIREN', avatar: '/assets/werewolf/avatars/wolf-siren.webp', accent: '#b44a54' },
+  seer: { name: '预言家', en: 'THE SEER', avatar: '/assets/werewolf/avatars/seer.webp', accent: '#7ca8a2' },
+  witch: { name: '女巫', en: 'THE WITCH', avatar: '/assets/werewolf/avatars/witch.webp', accent: '#82a35e' },
+  hunter: { name: '猎人', en: 'THE HUNTER', avatar: '/assets/werewolf/avatars/hunter.webp', accent: '#b45d3d' },
+  warden: { name: '守卫', en: 'THE WARDEN', avatar: '/assets/werewolf/avatars/warden.webp', accent: '#c18a4e' },
+  knight: { name: '骑士', en: 'THE KNIGHT', avatar: '/assets/werewolf/avatars/knight.webp', accent: '#95a9b1' },
+  villager: { name: '村民', en: 'THE VILLAGER', avatar: '/assets/werewolf/avatars/villager.webp', accent: '#d0b178' },
+  fool: { name: '白痴', en: 'THE FOOL', avatar: '/assets/werewolf/avatars/fool.webp', accent: '#bb8b54' },
+  cupid: { name: '丘比特', en: 'THE CUPID', avatar: '/assets/werewolf/avatars/cupid.webp', accent: '#c98d82' },
+};
+const previewRoles = Object.values(roleArt).slice(0, 5);
+const avatarCatalog = Object.values(roleArt);
+function seatAvatar(seat: SeatState, index: number) {
+  const mine = store.privateState?.seatId === seat.seatId ? roleArt[store.privateState?.role || ''] : null;
+  return (mine || avatarCatalog[index % avatarCatalog.length]).avatar;
+}
+function seatAvatarAlt(seat: SeatState, index: number) {
+  const mine = store.privateState?.seatId === seat.seatId ? roleArt[store.privateState?.role || ''] : null;
+  return mine ? `${mine.name}头像` : `${avatarCatalog[index % avatarCatalog.length].name}头像`;
+}
 const phaseName = computed(() => phaseNames[store.publicState?.phase || 'LOBBY'] || store.publicState?.phase || '等待连接');
 const isHost = computed(() => Boolean(store.publicState && playerId.value && store.publicState.hostPlayerId === playerId.value));
 const mySeat = computed(() => store.publicState?.seats.find(seat => seat.seatId === store.privateState?.seatId));
@@ -140,6 +163,7 @@ async function submitHunter(action: 'shoot' | 'skip') { const windowId = (store.
 async function submitLastWords(action: 'submit' | 'skip') { const windowId = (store.privateState?.lastWords as { windowId?: string } | null)?.windowId; await submitAction('/last-words', { action, window_id: windowId, ...(action === 'submit' ? { text: lastWordsText.value.trim() } : {}) }, action === 'submit' ? '遗言已提交。' : '已跳过遗言。'); if (action === 'submit') lastWordsText.value = ''; }
 async function announceDay() { await submitAction('/actions', { type: 'announce_day' }, '已宣布天亮。'); }
 
+function enterGame() { showSplash.value = false; }
 function errorMessage(cause: unknown) { return cause instanceof ApiRequestError ? cause.message : cause instanceof Error ? cause.message : '请求失败'; }
 function eventText(event: { type: string; data: Record<string, unknown> }) { const data = event.data; if (event.type === 'game.phase_changed') return `阶段：${phaseNames[String(data.phase)] || data.phase}`; if (event.type === 'game.player_eliminated') return `${data.seatId} 已出局`; if (event.type === 'game.vote_resolved') return `投票结算：${data.eliminatedSeatId || '平票'}`; if (event.type === 'game.night_resolved') return data.deathSeatIds ? `昨夜出局：${(data.deathSeatIds as string[]).join('、') || '平安夜'}` : '夜间结算'; if (event.type === 'game.last_words_submitted') return `${data.seatId} 完成遗言`; if (event.type === 'game.settlement_created') return `本局结束：${data.winner === 'good' ? '好人阵营' : data.winner === 'werewolf' ? '狼人阵营' : '房主结束'}`; return event.type; }
 
@@ -151,7 +175,27 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
 </script>
 
 <template>
-  <main class="shell">
+  <Transition name="splash-fade">
+    <section v-if="showSplash" class="forest-splash" aria-label="暮林山舍游戏启动画面">
+      <div class="forest-splash-bg"></div>
+      <div class="forest-splash-mist"></div>
+      <div class="forest-splash-content">
+        <p class="forest-splash-kicker">WALDHÜTTE · LINX NIGHT</p>
+        <h1>暮林<span>山舍</span></h1>
+        <p class="forest-splash-copy">松风穿过檐角，木烟缓缓升起。<br>一盏灯，留给晚归的人。</p>
+        <button class="forest-enter" type="button" @click="enterGame">进入林间 <span>↗</span></button>
+        <p class="forest-splash-hint">THE FOREST ROLES · 10 CHARACTERS</p>
+      </div>
+      <div class="forest-splash-roles" aria-hidden="true">
+        <article v-for="role in previewRoles" :key="role.name" class="forest-role-preview" :style="{ '--role-accent': role.accent }">
+          <img :src="role.avatar" :alt="role.name" />
+          <div><strong>{{ role.name }}</strong><small>{{ role.en }}</small></div>
+        </article>
+      </div>
+      <div class="forest-splash-mark">◒</div>
+    </section>
+  </Transition>
+  <main class="shell game-shell" :class="{ 'game-shell-visible': !showSplash }">
     <header class="hero"><div><p class="eyebrow">LINX NIGHT · VUE CLIENT</p><h1>AI 狼人杀</h1><p class="muted">Vue 客户端使用现有 Node API、MCP 和 SSE 协议。</p></div><span class="connection" :class="store.connectionStatus">{{ store.connectionStatus }}</span></header>
     <section class="card entry-card">
       <div class="section-title"><h2>{{ store.publicState ? `房间 ${store.publicState.roomId}` : '入座之前' }}</h2><span class="muted">{{ store.publicState ? '连接已建立' : '创建房间或加入朋友的房间' }}</span></div>
@@ -161,7 +205,7 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
     </section>
     <template v-if="store.publicState">
       <section class="card phase-card"><div><span class="eyebrow">当前阶段</span><h2>{{ phaseName }}</h2></div><div class="phase-meta">版本 {{ store.publicState.version }} · 第 {{ store.publicState.round }} 轮<span v-if="store.publicState.currentSeatId"> · {{ store.publicState.currentSeatId }} 行动</span></div></section>
-      <section class="card"><div class="section-title"><h2>座位</h2><span>{{ store.publicState.seats.filter(seat => seat.playerType).length }} / {{ store.publicState.seats.length }}</span></div><div class="seats"><article v-for="seat in store.publicState.seats" :key="seat.seatId" class="seat" :class="{ dead: !seat.alive, active: store.publicState?.currentSeatId === seat.seatId }"><strong>{{ seat.seatId }}</strong><span>{{ seat.displayName || '等待入座' }}</span><small>{{ !seat.playerType ? '空位' : !seat.alive ? '已出局' : seat.controlSource === 'linx' ? '灵矽 AI' : '真人' }}</small><button v-if="isHost && store.publicState.phase === 'LOBBY' && seat.playerType === 'ai'" class="link-button" @click="renameAi(seat)">改名</button></article></div><div v-if="isHost && store.publicState.phase === 'LOBBY'" class="ai-add"><input v-model="aiName" placeholder="AI 玩家名称（可选）" maxlength="24" /><button class="secondary" @click="addAi">添加 AI</button></div></section>
+      <section class="card"><div class="section-title"><h2>座位</h2><span>{{ store.publicState.seats.filter(seat => seat.playerType).length }} / {{ store.publicState.seats.length }}</span></div><div class="seats"><article v-for="(seat, seatIndex) in store.publicState.seats" :key="seat.seatId" class="seat" :class="{ dead: !seat.alive, active: store.publicState?.currentSeatId === seat.seatId }"><img class="seat-avatar" :src="seatAvatar(seat, seatIndex)" :alt="seatAvatarAlt(seat, seatIndex)" /><div class="seat-copy"><strong>{{ seat.seatId }}</strong><span>{{ seat.displayName || '等待入座' }}</span><small>{{ !seat.playerType ? '空位' : !seat.alive ? '已出局' : seat.controlSource === 'linx' ? '灵矽 AI' : '真人' }}</small></div><button v-if="isHost && store.publicState.phase === 'LOBBY' && seat.playerType === 'ai'" class="link-button" @click="renameAi(seat)">改名</button></article></div><div v-if="isHost && store.publicState.phase === 'LOBBY'" class="ai-add"><input v-model="aiName" placeholder="AI 玩家名称（可选）" maxlength="24" /><button class="secondary" @click="addAi">添加 AI</button></div></section>
       <section v-if="isHost && store.publicState.phase === 'LOBBY'" class="card lobby-actions"><p class="muted">{{ store.publicState.seats.some(seat => !seat.playerType) ? '请补齐九个座位后开始。' : '九席已满，可以开始游戏。' }}</p><div class="actions"><button :disabled="store.publicState.seats.some(seat => !seat.playerType) || store.publicState.preparing" @click="startGame">开始游戏</button><button v-if="store.publicState.preparing" class="secondary" @click="cancelControllers">取消准备</button><button v-if="store.publicState.controllerPhase === 'failed'" class="secondary" @click="retryControllers">重试连接</button></div></section>
       <section v-if="!['LOBBY', 'GAME_OVER'].includes(store.publicState.phase)" class="card lobby-actions"><div class="actions"><button v-if="isHost && store.publicState.controllerPhase === 'failed'" class="secondary" @click="retryTurn">重试 AI 回合</button><button v-if="isHost" class="secondary" @click="endGame">提前结束本局</button></div><p v-if="store.publicState.controllers.some(controller => controller.status === 'failed')" class="message">AI 行动失败，房主可以重试。</p></section>
       <section v-if="store.privateState" class="card private-card"><div class="section-title"><h2>我的私密状态</h2><span>{{ store.privateState.seatId }}</span></div><p>身份：<strong>{{ store.privateState.role ? roleNames[store.privateState.role] || store.privateState.role : '等待分配' }}</strong></p><p>阵营：{{ store.privateState.camp || '—' }} · {{ store.privateState.alive ? '存活' : '已出局' }}</p><p v-if="store.privateState.role === 'seer'">查验记录：{{ store.privateState.seerResults.length ? store.privateState.seerResults.map(result => `${result.targetSeatId} ${result.result}`).join('、') : '暂无' }}</p></section>
