@@ -32,7 +32,10 @@ export const useRoomStore = defineStore('room', () => {
       const [nextPublic, nextPrivate] = await Promise.all([client.roomState(nextRoomId), client.privateState(nextRoomId)]);
       publicState.value = nextPublic;
       privateState.value = nextPrivate;
+      const history = (nextPublic.events || []).slice(-100);
       cursor.value.version = Math.max(cursor.value.version, nextPublic.version || 0);
+      cursor.value.eventIds = history.map(event => event.eventId);
+      recentEvents.value = history;
       connectionStatus.value = 'connected';
     } catch (cause) {
       connectionStatus.value = 'error';

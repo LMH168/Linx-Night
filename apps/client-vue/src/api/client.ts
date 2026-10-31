@@ -20,6 +20,12 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface CreateRoomResponse { room_id: string; player_id: string; state: RoomPublicState; }
+export interface JoinRoomResponse { player: { playerId: string; seatId: string }; state: RoomPublicState; }
+export interface StateResponse { state: RoomPublicState; }
+export interface PrivateStateResponse { private_state: PrivateState; }
+export interface MutationResponse { state: RoomPublicState; [key: string]: unknown; }
+
 export class GameApiClient {
   readonly baseUrl: string;
   readonly playerId: string;
@@ -54,6 +60,30 @@ export class GameApiClient {
   async privateState(roomId: string): Promise<PrivateState> {
     const result = await this.request<{ private_state: PrivateState }>(`/api/rooms/${encodeURIComponent(roomId)}/private-state`);
     return result.private_state;
+  }
+
+  createRoom(displayName: string): Promise<CreateRoomResponse> {
+    return this.request('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: displayName }) });
+  }
+
+  joinRoom(roomId: string, displayName: string): Promise<JoinRoomResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) });
+  }
+
+  addAi(roomId: string, displayName?: string): Promise<MutationResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify({ player_type: 'ai', ...(displayName ? { display_name: displayName } : {}) }) });
+  }
+
+  renameAi(roomId: string, seatId: string, displayName: string): Promise<MutationResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players/${encodeURIComponent(seatId)}`, { method: 'PATCH', body: JSON.stringify({ display_name: displayName }) });
+  }
+
+  mutate(roomId: string, path: string, body: Record<string, unknown> = {}, method = 'POST'): Promise<MutationResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}${path}`, { method, body: JSON.stringify(body) });
+  }
+
+  endRoom(roomId: string): Promise<{ settlement_id?: string; settlement?: unknown; state?: RoomPublicState }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/end`, { method: 'POST' });
   }
 
   eventsUrl(roomId: string, afterVersion: number): string {
