@@ -19,13 +19,13 @@ const BASE = (process.argv[2] || 'https://linxnight.mimi-api.cn').replace(/\/+$/
 
 const BUDGET = {
   firstPartyJsKb: 420,     // 首屏自有 JS（不含 three 运行时按需）
-  forestCabinRefs: 0,      // 不允许再指向 1.6MB 的 iframe 场景
-  iframeWorld: 0,
+  gameIframeRefs: 0,       // 对局页不允许再用 iframe 承载 3D 世界
+  forestCabinRefs: 1,      // 只有 launch 开场动画可以引用森林小屋
 };
 
 const PATTERNS = [
-  ['forest-cabin', /forest-cabin/g, BUDGET.forestCabinRefs],
-  ['<iframe 世界', /createElement\("iframe"\)|<iframe/gi, BUDGET.iframeWorld],
+  ['对局页 iframe（linx-game=1）', /linx-game=1/g, BUDGET.gameIframeRefs],
+  ['forest-cabin 引用', /forest-cabin/g, BUDGET.forestCabinRefs],
 ];
 
 async function main() {
@@ -107,7 +107,7 @@ async function main() {
     for (const v of report.violations) console.log(`  - ${v}`);
     return 1;
   }
-  console.log('结论：PASS（未发现 iframe 世界与 forest-cabin 引用）');
+  console.log('结论：PASS（对局页已不再用 iframe 承载 3D 世界）');
   return 0;
 }
 
