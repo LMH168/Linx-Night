@@ -49,10 +49,12 @@
 ## 验证
 
 - `npm run typecheck:client-vue`：通过
-- `npm run test:client-vue`：8 个测试文件 / 15 个测试通过
-- `npm run build:client-vue`：通过，产出 `index.html` 与 `game.html`
+- `npm run test:client-vue`：9 个测试文件 / 20 个测试通过
+- `npm run build:client-vue`：通过，产出 `index.html`、`werewolf.html` 与 `game.html`
 - 新增隐私/视图模型测试：公共座位不出现 role/camp；狼队仅狼人视角；守卫不能连续守同一人；投票提交后不自动公开；结算公开全部身份。
 - 新增路由测试：四个路由名称/参数、未知路径回退。
+
+实现 PR：[#146](https://github.com/LMH168/Linx-Night/pull/146)。
 
 ## 说明
 
