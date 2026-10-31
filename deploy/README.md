@@ -46,6 +46,30 @@ curl --fail http://127.0.0.1:5010/
 
 该 Compose 项目只绑定本机的 5000、5010、9091，不接管现有项目的 80、12500 或 5432。
 
+## GitHub Actions 自动部署
+
+`.github/workflows/deploy.yml` 在 `main` 更新后先运行检查，再构建并推送带完整提交 SHA 的 GHCR 镜像，最后通过 SSH 上传 Compose 和部署脚本。服务器上的 GHCR 读取凭据、`runtime.env`、软件身份和音频不由工作流管理。
+
+在仓库的 Secrets 中设置：
+
+```text
+LINX_DEPLOY_SSH_KEY
+LINX_DEPLOY_KNOWN_HOSTS
+LINX_DEPLOY_HOST
+LINX_DEPLOY_USER
+LINX_DEPLOY_PORT
+```
+
+可选 Repository Variable：
+
+```text
+LINX_DEPLOY_ROOT=/home/qiniu/linx-night
+```
+
+`LINX_DEPLOY_KNOWN_HOSTS` 必须是管理员预先核对过的服务器公钥，不能在工作流中临时执行 `ssh-keyscan`。服务器应提前完成 `docker login ghcr.io`，并确保部署用户能运行 Docker。工作流只操作 `linx-night` Compose 项目，不执行全局 `docker compose down` 或 `--remove-orphans`。
+
+部署脚本会保存当前容器镜像，拉取目标 SHA，重建服务并等待三个健康检查；检查失败时恢复上一镜像。由于房间状态保存在内存，部署期间不要运行正在进行的对局；本流程不提供跨重启恢复或无损发布。
+
 ## 服务和端口
 
 在 Ubuntu 服务器上分别启动：
