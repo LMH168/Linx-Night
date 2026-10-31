@@ -27,4 +27,21 @@ describe('room store event cursor', () => {
     expect(store.cursor.version).toBe(4);
     expect(store.recentEvents[0].eventId).toBe('evt-4');
   });
+
+  it('replaces a high cursor when hydrating a different lower-version room', async () => {
+    setActivePinia(createPinia());
+    const store = useRoomStore();
+    let roomId = 'room-1';
+    const client = {
+      roomState: async () => roomId === 'room-1'
+        ? { roomId, version: 10, events: [{ eventId: 'evt-10', version: 10, type: 'room.updated', data: {} }] }
+        : { roomId, version: 2, events: [{ eventId: 'evt-2', version: 2, type: 'room.updated', data: {} }] },
+      privateState: async () => ({ roomId, seatId: 'P1', playerId: 'p1', role: null, camp: null, alive: true, skills: {}, seerResults: [], currentTurn: null, hunterAction: null })
+    } as never;
+    await store.hydrate(client, 'room-1');
+    roomId = 'room-2';
+    await store.hydrate(client, 'room-2');
+    expect(store.cursor.version).toBe(2);
+    expect(store.acceptEvent({ eventId: 'evt-3', version: 3, type: 'room.updated', data: {} })).toBe(true);
+  });
 });

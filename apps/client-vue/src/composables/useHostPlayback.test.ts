@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { playPcmStream } from './useHostPlayback';
+import { ref } from 'vue';
+import { playPcmStream, useHostPlayback } from './useHostPlayback';
 
 class FakeSource {
   onended: (() => void) | null = null;
@@ -14,6 +15,7 @@ class FakeContext {
   async resume() {}
   createBuffer(_channels: number, samples: number) { return { duration: samples / 16000, getChannelData: () => new Float32Array(samples) }; }
   createBufferSource() { return new FakeSource(); }
+  async close() {}
 }
 
 function stream(lines: string[]) {
@@ -40,5 +42,22 @@ describe('host PCM playback validation', () => {
     const ids = { gameId: 'g', taskId: 't', attemptId: 'a' };
     const pcm = btoa(String.fromCharCode(...new Uint8Array(2)));
     await expect(playPcmStream(stream([JSON.stringify({ type: 'audio', ...ids, seq: 0, data: pcm }) + '\n']), new FakeContext() as unknown as AudioContext, { ids })).rejects.toThrow('缺少音频起点');
+  });
+
+  it('clears busy when stopping an in-flight poll', async () => {
+    const previous = globalThis.AudioContext;
+    (globalThis as typeof globalThis & { AudioContext: typeof AudioContext }).AudioContext = FakeContext as unknown as typeof AudioContext;
+    let resolveState: ((value: { task: null }) => void) | undefined;
+    const client = { hostState: () => new Promise<{ task: null }>(resolve => { resolveState = resolve; }) } as never;
+    const playback = useHostPlayback({ client: ref(client), roomId: ref('room'), isHost: () => false });
+    playback.start();
+    await Promise.resolve();
+    expect(playback.busy.value).toBe(true);
+    playback.stop();
+    expect(playback.busy.value).toBe(false);
+    resolveState?.({ task: null });
+    await Promise.resolve();
+    playback.cleanup();
+    (globalThis as typeof globalThis & { AudioContext: typeof AudioContext }).AudioContext = previous;
   });
 });
