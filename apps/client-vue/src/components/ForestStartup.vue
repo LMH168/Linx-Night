@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import ForestCabinScene from './ForestCabinScene.vue';
 
 const emit = defineEmits<{ ready: [] }>();
 const progress = ref(0);
@@ -27,6 +28,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="forest-startup" aria-label="暮林山舍启动画面" @click="enter">
+    <ForestCabinScene />
     <div class="forest-startup__grain" aria-hidden="true"></div>
     <div class="forest-startup__inner">
       <p class="forest-startup__eyebrow">PRIVATE RETREAT · 47° 12′ N</p>
