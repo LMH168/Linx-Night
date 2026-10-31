@@ -30,11 +30,25 @@ export interface StageStats {
   renders: number;
 }
 
+export type StageQuality = 'high' | 'low';
+
+export interface StageBenchmark {
+  fps: number;
+  frames: number;
+  ms: number;
+  calls: number;
+  triangles: number;
+}
+
 export interface Stage {
   setOptions(options: Partial<StageOptions>): void;
   render(): void;
   resize(): void;
   stats(): StageStats;
+  /** 连续渲染 durationMs 毫秒，返回这段时间的真实帧率与 draw call。 */
+  benchmark(durationMs?: number): Promise<StageBenchmark>;
+  /** low：DPR 降到 1 并关掉光柱，用于低端设备兜底。 */
+  setQuality(quality: StageQuality): void;
   dispose(): void;
 }
 
@@ -131,6 +145,64 @@ function glowTexture(): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
+/** 大厅背景：远景渐变 + 树影剪影，一次性烘焙，1 个 draw call。 */
+function backdropTexture(): THREE.Texture {
+  const width = 512;
+  const height = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const sky = ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, '#060d12');
+    sky.addColorStop(0.55, '#0b1712');
+    sky.addColorStop(0.82, '#132018');
+    sky.addColorStop(1, '#1b2a1f');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+
+    // 远山轮廓
+    ctx.fillStyle = 'rgba(9, 20, 18, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.78);
+    for (let x = 0; x <= width; x += 16) {
+      const wave = Math.sin(x / 58) * 14 + Math.sin(x / 23) * 7;
+      ctx.lineTo(x, height * 0.78 + wave);
+    }
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    ctx.fill();
+
+    // 树干剪影
+    for (let i = 0; i < 26; i += 1) {
+      const x = (i / 26) * width + Math.sin(i * 3.7) * 10;
+      const treeHeight = 60 + ((i * 37) % 90);
+      const stumpWidth = 3 + ((i * 13) % 5);
+      ctx.fillStyle = `rgba(4, 10, 9, ${0.55 + ((i * 7) % 30) / 100})`;
+      ctx.fillRect(x, height - treeHeight, stumpWidth, treeHeight);
+      ctx.beginPath();
+      ctx.moveTo(x + stumpWidth / 2, height - treeHeight - 26);
+      ctx.lineTo(x - 14, height - treeHeight + 16);
+      ctx.lineTo(x + stumpWidth + 14, height - treeHeight + 16);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 底部暖雾
+    const haze = ctx.createLinearGradient(0, height * 0.62, 0, height);
+    haze.addColorStop(0, 'rgba(120, 82, 44, 0)');
+    haze.addColorStop(1, 'rgba(150, 100, 52, 0.35)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, height * 0.62, width, height * 0.38);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  return texture;
+}
+
 function seatPosition(index: number, radiusScale = 1): THREE.Vector3 {
   const angle = (index / SEAT_COUNT) * Math.PI * 2 - Math.PI / 2;
   return new THREE.Vector3(
@@ -186,6 +258,16 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   scene.add(ground);
+
+  // ---------- 大厅背景（1 个 draw call，把「悬空的桌子」补成「屋里的桌子」）----------
+  const hallMap = track(backdropTexture());
+  const hallMat = track(
+    new THREE.MeshBasicMaterial({ map: hallMap, side: THREE.BackSide, fog: true, depthWrite: false }),
+  );
+  const hallGeo = track(new THREE.CylinderGeometry(13, 15, 15, 24, 1, true));
+  const hall = new THREE.Mesh(hallGeo, hallMat);
+  hall.position.y = 5.2;
+  scene.add(hall);
 
   // ---------- 长桌（7 个 box，同一材质）----------
   const woodMap = track(woodTexture());
@@ -292,6 +374,50 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
   const glow = new THREE.Points(glowGeo, glowMat);
   scene.add(glow);
 
+  // ---------- 桌面中心：烛台 + 火光 ----------
+  const bowlMat = track(new THREE.MeshStandardMaterial({ color: 0x6b4b2c, roughness: 0.6, metalness: 0.25 }));
+  const bowlGeo = track(new THREE.CylinderGeometry(0.46, 0.34, 0.2, 18));
+  const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+  bowl.position.set(0, TABLE_TOP + 0.1, 0);
+  scene.add(bowl);
+
+  const flameMat = track(
+    new THREE.SpriteMaterial({
+      map: glowMap,
+      color: new THREE.Color(PALETTE.glow),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0.9,
+    }),
+  );
+  const flame = new THREE.Sprite(flameMat);
+  flame.position.set(0, TABLE_TOP + 0.34, 0);
+  flame.scale.setScalar(1.5);
+  scene.add(flame);
+
+  // ---------- 顶部光柱（加法混合的锥体，不是体积光，但足够暗示）----------
+  const shaftMat = track(
+    new THREE.MeshBasicMaterial({
+      color: 0xffcf9a,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    }),
+  );
+  const shaftGeo = track(new THREE.ConeGeometry(1.9, 8.4, 20, 1, true));
+  const shafts: THREE.Mesh[] = [];
+  for (const [x, z] of [[-2.2, -0.6], [2.2, 0.6]] as Array<[number, number]>) {
+    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+    shaft.position.set(x, 5.0, z);
+    shaft.rotation.z = x > 0 ? -0.05 : 0.05;
+    shafts.push(shaft);
+    scene.add(shaft);
+  }
+
   // ---------- 选中环 / 护盾环（各自 1 个，移动而非重建）----------
   const ringGeo = track(new THREE.RingGeometry(0.3, 0.4, 32));
   const selectMat = track(
@@ -336,6 +462,9 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
     if (lanterns.instanceColor) lanterns.instanceColor.needsUpdate = true;
     if (plaques.instanceColor) plaques.instanceColor.needsUpdate = true;
     glowMat.opacity = options.night ? 0.7 : 0.5;
+    shaftMat.opacity = options.night ? 0.07 : 0.035;
+    flameMat.opacity = options.night ? 1 : 0.65;
+    hallMat.color.set(options.night ? 0x8fa6c4 : 0xffffff);
 
     const cameraScale = options.mode === 'table' ? 1 : 1.12;
     camera.position.set(0, 4.75 * cameraScale, 8.3 * cameraScale);
@@ -450,6 +579,45 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
         dpr: renderer.getPixelRatio(),
         renders,
       };
+    },
+    benchmark(durationMs = 3000): Promise<StageBenchmark> {
+      return new Promise<StageBenchmark>((resolve) => {
+        let frames = 0;
+        const start = performance.now();
+        const step = (): void => {
+          if (disposed) {
+            resolve({ fps: 0, frames, ms: performance.now() - start, calls: 0, triangles: 0 });
+            return;
+          }
+          draw();
+          frames += 1;
+          const elapsed = performance.now() - start;
+          if (elapsed >= durationMs) {
+            resolve({
+              fps: (frames / elapsed) * 1000,
+              frames,
+              ms: elapsed,
+              calls: renderer.info.render.calls,
+              triangles: renderer.info.render.triangles,
+            });
+            return;
+          }
+          window.requestAnimationFrame(step);
+        };
+        window.requestAnimationFrame(step);
+      });
+    },
+    setQuality(quality: StageQuality): void {
+      if (quality === 'low') {
+        renderer.setPixelRatio(1);
+        for (const shaft of shafts) shaft.visible = false;
+        glowMat.opacity = Math.min(glowMat.opacity, 0.4);
+      } else {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
+        for (const shaft of shafts) shaft.visible = true;
+      }
+      applySize();
+      draw();
     },
     dispose(): void {
       if (disposed) return;
