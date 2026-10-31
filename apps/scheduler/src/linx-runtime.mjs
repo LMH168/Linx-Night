@@ -116,8 +116,12 @@ export class LinxTurnRuntime {
         if (seat.controlSource === 'linx') Promise.resolve().then(() => this.manager.sendTurn(room, seat)).catch(() => { if (!check()) reject(new Error('LINX_INPUT_FAILED')); });
       });
     } catch (error) {
-      const windowExpired = hunterWindow && this.now() >= Date.parse(hunterWindow.expiresAt);
-      if (windowExpired && active()) expireHunterResponse(room,this.now());
+      const hunterDeadline = hunterWindow ? Date.parse(hunterWindow.expiresAt) : null;
+      // A timer can fire one millisecond before Date.now() reaches the ISO
+      // deadline. The turn deadline is authoritative in that case; otherwise
+      // an already timed-out hunter window can remain open indefinitely.
+      const windowExpired = hunterWindow && (this.now() >= hunterDeadline || (error.message === 'TURN_TIMEOUT' && turn?.phase === 'HUNTER_RESPONSE' && stored?.expiresAt === hunterDeadline));
+      if (windowExpired && active()) expireHunterResponse(room, Math.max(this.now(), hunterDeadline));
       const cancelled = !active() || (turn && (room.phase !== turn.phase || room.round !== turn.round));
       const code = windowExpired ? 'HUNTER_WINDOW_EXPIRED' : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
       retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
