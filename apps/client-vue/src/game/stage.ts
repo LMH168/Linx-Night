@@ -58,7 +58,7 @@ const SEAT_RZ = 2.55;
 const TABLE_TOP = 0.74;
 
 const PALETTE = {
-  ground: '#0d1512',
+  ground: '#121b17',
   fog: '#08110d',
   tableWood: '#3a2519',
   tableEdge: '#2a1a11',
@@ -70,8 +70,8 @@ const PALETTE = {
   lanternNight: '#ffd9a3',
   glow: '#ff9a4d',
   shield: '#7fd6ff',
-  day: { hemi: 0.95, dir: 0.75, bg: '#16241d' },
-  night: { hemi: 0.3, dir: 0.22, bg: '#050a10' },
+  day: { hemi: 1.02, dir: 0.72, bg: '#16241d' },
+  night: { hemi: 0.34, dir: 0.24, bg: '#050a10' },
 } as const;
 
 /** 用 2D canvas 现画一张木纹，避免任何网络贴图。 */
@@ -229,7 +229,7 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
   });
   renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = 1.14;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
@@ -241,7 +241,7 @@ export function createStage(canvas: HTMLCanvasElement, initial: StageOptions): S
 
   const hemi = new THREE.HemisphereLight(0xffd6a8, 0x1a2b22, PALETTE.day.hemi);
   const dir = new THREE.DirectionalLight(0xfff0d0, PALETTE.day.dir);
-  dir.position.set(-3.2, 6.4, 2.6);
+  dir.position.set(-1.5, 7.0, 3.8);
   scene.add(hemi, dir);
 
   const disposables: Array<{ dispose: () => void }> = [];

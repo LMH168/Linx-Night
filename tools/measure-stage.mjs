@@ -14,7 +14,7 @@
  * 退出码：0 测到数据；1 页面没起来 / 没有舞台；2 浏览器或 CDP 失败。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -30,6 +30,8 @@ const BENCH_MS = Number(arg('ms', '3000'));
 const IDLE_MS = Number(arg('idle', '2500'));
 const PORT = Number(arg('port', '9333'));
 const TIMEOUT = Number(arg('timeout', '45000'));
+const SHOT = arg('shot', '');
+const MOBILE = args.includes('--mobile');
 
 const CANDIDATES = [
   arg('browser', ''),
@@ -194,8 +196,41 @@ async function main() {
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
   await cdp.send('Runtime.enable', {}, sessionId);
+
+  if (MOBILE) {
+    await cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: 390, height: 844, deviceScaleFactor: 3, mobile: true },
+      sessionId,
+    );
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true }, sessionId);
+  }
+
   await cdp.send('Page.navigate', { url: URL_TARGET }, sessionId);
   await sleep(1200);
+
+  if (SHOT) {
+    // 等舞台初始化完成再截图，避免拍到淡入前的空画面
+    await cdp.send(
+      'Runtime.evaluate',
+      {
+        expression: `(async () => {
+          const t = performance.now();
+          while (!window.__linxStage && performance.now() - t < ${TIMEOUT}) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          await new Promise((r) => setTimeout(r, 1400));
+          return !!window.__linxStage;
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      sessionId,
+    );
+    const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    writeFileSync(SHOT, Buffer.from(shot.data, 'base64'));
+    console.error(`截图已保存 ${SHOT}`);
+  }
 
   const result = await cdp.send(
     'Runtime.evaluate',
