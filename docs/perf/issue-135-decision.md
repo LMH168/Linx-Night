@@ -137,12 +137,11 @@ python tools/check_scene_budget.py --json <文件>        # CI 用
 |---|---|
 | 渲染路线决策 | 完成（本文件） |
 | 静态预算检查器 | 完成 `tools/check_scene_budget.py`（自测：违规样本 4 error + 2 warn，必失败） |
-| 线上产物探针 | 完成 `tools/probe-deployment.mjs`（已对生产站点跑通，见 §8.2） |
+| 线上产物探针 | 完成 `tools/probe-deployment.mjs`（含 gzip 与舞台签名，见 §9） |
 | 轻量骨架原型 | 完成 `prototypes/issue-135-table/`（9 draw call / 2 光源 / 按需渲染，检查器 PASS） |
-| PR 材料 | 完成 `prs/issue-135-perf/`（正文、文件清单、可选 CI 模板、提交步骤） |
-| 浏览器实测 | **未做**（本机无 node / 无浏览器自动化） |
-| 提交 PR / 合并 / 部署 | **未做**（本机无 git 可执行文件、无 GitHub 凭据） |
-| 并入 `client-vue` | **未做**（本地无该目录） |
+| **M2 并入 `client-vue`** | **完成**（PR #154：iframe → 进程内 canvas 舞台） |
+| 提交 PR / 合并 / 部署 | 完成（#153 门禁， #154 舞台；均已部署到生产） |
+| 浏览器真机帧率 | **未做**（本机无浏览器自动化，需人工看） |
 | M0 基线、M1 静帧 | 未做 |
 
 ## 8. 证据：现网实现的静态体检
@@ -197,5 +196,35 @@ game-main 101.4 KB
 2. bundle 里没有 `requestAnimationFrame`，说明渲染循环完全在 iframe 内部——Vue 侧
    既停不了也调不了，这与「优化只能靠关效果」的表现一致；
 3. `/api/health` 返回 404，健康检查路径与文档可能不一致（与本议题无关，记录备查）。
+
+## 9. M2 完成后的线上读数（PR #154 部署后）
+
+```text
+站点      https://linxnight.mimi-api.cn
+入口判定  3D 页面（game-main）
+
+shared  chunk  _plugin-vue_export-helper  627.1 KB (gzip 166.6 KB)   ← three.js 运行时
+game    chunk  game-main                  108.6 KB (gzip  40.4 KB)
+
+对局页 iframe（linx-game=1）  0     ← 原为 1
+forest-cabin 引用             1     ← 原为 2，仅剩 launch 开场动画
+新舞台 is-lost                2     ← 新代码确实进了产物
+新舞台 webglcontextlost       2
+首屏 JS 合计 735.7 KB (gzip 207.1 KB)
+结论：PASS
+```
+
+| 指标 | 改造前 | 改造后 |
+|---|---|---|
+| 对局页承载方式 | iframe（1.6 MB 单文件场景） | 进程内 canvas |
+| 独立文档 / 渲染循环 | 1 个 / 在 iframe 内，Vue 不可控 | 0 个 / 在 Vue 内，可随时停 |
+| 场景光源 | 约 16 个实时点光源 | 2 个（半球 + 平行，均不投影） |
+| 阴影贴图 | 10 处 `castShadow` | 0 |
+| 场景资源请求 | 1 次 1.6 MB HTML + 其内 CDN 模块 | 0 次 |
+| 静止渲染 | 持续 60 fps | 按需，静止时不进 rAF |
+
+**仍未测**：真机 fps、1% low、静止 10 s 渲染帧数。这三项需要浏览器，
+本机没有；它们是 #135 验收表里唯一还空着的行。
+
 
 
