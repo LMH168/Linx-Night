@@ -28,6 +28,6 @@ export const cartoonCharacters: CartoonCharacterAsset[] = [
   name,
   role,
   faction: faction as CartoonFaction,
-  avatar: `/characters-cartoon/avatars/${id}-${name}.svg`,
-  fullBody: `/characters-cartoon/full-body/${id}-${name}.svg`,
+  avatar: `/characters-cartoon/avatars/${id}.svg`,
+  fullBody: `/characters-cartoon/full-body/${id}.svg`,
 }));

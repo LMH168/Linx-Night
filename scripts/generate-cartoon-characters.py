@@ -80,10 +80,10 @@ def svg(c, full=False):
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320"><title>{name} · {role}</title><rect width="320" height="320" rx="54" fill="#f6d66f"/><circle cx="160" cy="140" r="119" fill="{accent}" opacity=".35"/>{animal_head(animal,main,accent,160,137,74,expr)}{prop(pr,245,250,accent)}<path d="M62 267q98-55 196 0" fill="{main}" {STYLE}/><circle cx="46" cy="47" r="28" fill="#171522"/><text x="46" y="57" text-anchor="middle" fill="#fff3d5" font-family="sans-serif" font-size="22" font-weight="bold">{code}</text><text x="28" y="298" fill="#171522" font-family="sans-serif" font-size="16" font-weight="bold">{name} · {role}</text></svg>'''
 
 for c in characters:
-    (AV/f'{c[0]}-{c[1]}.svg').write_text(svg(c), encoding='utf-8')
-    (FB/f'{c[0]}-{c[1]}.svg').write_text(svg(c, True), encoding='utf-8')
+    (AV/f'{c[0]}.svg').write_text(svg(c), encoding='utf-8')
+    (FB/f'{c[0]}.svg').write_text(svg(c, True), encoding='utf-8')
 
 manifest = ['# 暮林山舍 · 欧美卡通角色资产', '', '粗黑手绘描边、明快块面、高饱和配色、夸张可爱比例。每个角色含 SVG 头像与全身展示图。', '', '| 编号 | 名称 | 角色 | 阵营 | 头像 | 全身 |', '|---|---|---|---|---|---|']
 for c in characters:
-    manifest.append(f'| {c[0]} | {c[1]} | {c[2]} | {c[3]} | `avatars/{c[0]}-{c[1]}.svg` | `full-body/{c[0]}-{c[1]}.svg` |')
+    manifest.append(f'| {c[0]} | {c[1]} | {c[2]} | {c[3]} | `avatars/{c[0]}.svg` | `full-body/{c[0]}.svg` |')
 (OUT/'README.md').write_text('\n'.join(manifest)+'\n', encoding='utf-8')
