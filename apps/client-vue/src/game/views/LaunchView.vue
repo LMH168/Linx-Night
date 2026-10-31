@@ -19,6 +19,10 @@ const roles = (Object.keys(ROLE_CATALOG) as GameRole[]).map((key) => ({
   ...ROLE_CATALOG[key],
 }));
 
+// 与对局页同一约定：?perf=api 时把舞台挂到 window，供 tools/measure-stage.mjs 驱动
+const exposeApi = new URLSearchParams(window.location.search).get('perf') === 'api';
+const perfWindow = window as unknown as { __linxStage?: StageHandle };
+
 onMounted(() => {
   const element = canvas.value;
   if (!element) return;
@@ -34,6 +38,7 @@ onMounted(() => {
     readyTimer = window.setTimeout(() => {
       sceneReady.value = true;
     }, 60);
+    if (exposeApi && stage.value) perfWindow.__linxStage = stage.value;
   } catch (error) {
     console.warn('launch stage unavailable, falling back to gradient backdrop', error);
     sceneReady.value = true;
@@ -59,6 +64,7 @@ onBeforeUnmount(() => {
   window.clearTimeout(navTimer);
   window.clearTimeout(readyTimer);
   window.removeEventListener('keydown', onKeydown);
+  if (perfWindow.__linxStage === stage.value) delete perfWindow.__linxStage;
   stage.value?.dispose();
   stage.value = null;
 });
