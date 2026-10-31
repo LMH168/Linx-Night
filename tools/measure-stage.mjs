@@ -42,6 +42,8 @@ const CANDIDATES = [
   '/usr/bin/chromium-browser',
 ].filter(Boolean);
 
+const USE_GPU = args.includes('--gpu');
+
 const browserPath = CANDIDATES.find((p) => existsSync(p));
 if (!browserPath) {
   console.error('找不到 Chrome/Edge，可用 --browser=<路径> 指定');
@@ -59,7 +61,9 @@ const child = spawn(
     '--no-default-browser-check',
     '--disable-extensions',
     '--disable-background-networking',
-    '--enable-unsafe-swiftshader',
+    ...(USE_GPU
+      ? ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist']
+      : ['--enable-unsafe-swiftshader', '--disable-gpu']),
     '--window-size=1440,900',
     'about:blank',
   ],
