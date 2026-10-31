@@ -26,7 +26,7 @@ export interface StateResponse { state: RoomPublicState; }
 export interface PrivateStateResponse { private_state: PrivateState; }
 export interface MutationResponse { state: RoomPublicState; [key: string]: unknown; }
 export interface RecordingStartResponse { recordingId: string; deadline: number; }
-export interface HostStateResponse { task: (HostTask & { gameId?: string; eventId?: string; attemptId?: string }) | null; enabled?: boolean; blocked?: boolean; }
+export interface HostStateResponse { task: (HostTask & { gameId?: string; eventId?: string; attemptId?: string }) | null; enabled?: boolean; blocked?: boolean; errorCode?: string | null; watchdogDeadlineAt?: string | null; recoveryRequired?: boolean; }
 
 export class GameApiClient {
   readonly baseUrl: string;
