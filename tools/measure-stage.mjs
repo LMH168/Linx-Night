@@ -28,7 +28,7 @@ const arg = (name, fallback) => {
 const URL_TARGET = arg('url', 'https://linxnight.mimi-api.cn/?perf=1#/lobby');
 const BENCH_MS = Number(arg('ms', '3000'));
 const IDLE_MS = Number(arg('idle', '2500'));
-const PORT = Number(arg('port', '9333'));
+const PORT = Number(arg('port', String(9400 + (process.pid % 500))));
 const TIMEOUT = Number(arg('timeout', '45000'));
 const SHOT = arg('shot', '');
 const MOBILE = args.includes('--mobile');
@@ -156,7 +156,7 @@ const EXPRESSION = `(async () => {
     await new Promise((r) => setTimeout(r, 120));
   }
   if (!window.__linxStage) {
-    const canvas = document.querySelector('canvas.game-world-scene');
+    const canvas = document.querySelector('canvas');
     return { ok: false, reason: 'window.__linxStage 未出现', canvas: !!canvas };
   }
   const bench = await window.__linxStage.benchmark(${BENCH_MS});
@@ -175,6 +175,11 @@ const EXPRESSION = `(async () => {
 })()`;
 
 async function main() {
+  // 兜底：任何一步卡住都不允许无限挂起（CDP 调用没有内置超时）
+  const watchdog = setTimeout(() => {
+    console.error(`全局超时（${Math.round((TIMEOUT * 3) / 1000)}s），强制退出`);
+    process.exit(3);
+  }, TIMEOUT * 3);
   const wsUrl = await waitForDevtools();
   const ws = new WebSocket(wsUrl, { maxPayload: 256 * 1024 * 1024 });
   await new Promise((resolve, reject) => {
@@ -272,9 +277,16 @@ async function main() {
   await cdp.send('Target.closeTarget', { targetId }).catch(() => {});
   ws.close();
   cleanup();
+  clearTimeout(watchdog);
 
-  if (!value) return 2;
-  if (!value.ok) return 1;
+  if (!value) {
+    console.error('测量没有拿到结果（页面可能未就绪或舞台未初始化）');
+    return 2;
+  }
+  if (!value.ok) {
+    console.error(`测量失败：${value.reason}`);
+    return 1;
+  }
   const low = value.bench.fps < 30;
   console.error(
     `\n结论：${value.bench.fps.toFixed(1)} fps · ${value.bench.calls} draw calls · ` +
