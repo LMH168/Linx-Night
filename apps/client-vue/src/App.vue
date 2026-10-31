@@ -9,7 +9,12 @@ import type { SeatState } from '../../../packages/protocol/src/types';
 
 const store = useRoomStore();
 const entryQuery = new URLSearchParams(location.search);
-const apiUrl = ref(sessionStorage.getItem('linx-api') || entryQuery.get('api') || 'http://127.0.0.1:5100');
+const isLocalClient = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const defaultApiUrl = isLocalClient ? 'http://127.0.0.1:5100' : location.origin;
+// Production serves the web client and API through the same origin. Keep an
+// explicit query override for local development, while avoiding a stale
+// localhost value from a previous browser session on the public site.
+const apiUrl = ref(entryQuery.get('api') || (isLocalClient ? sessionStorage.getItem('linx-api') : '') || defaultApiUrl);
 const roomId = ref(sessionStorage.getItem('linx-room') || entryQuery.get('room') || '');
 const playerId = ref(sessionStorage.getItem('linx-player') || '');
 const displayName = ref(sessionStorage.getItem('linx-name') || '玩家');
@@ -155,7 +160,7 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
     <header class="hero"><div><p class="eyebrow">LINX NIGHT · VUE CLIENT</p><h1>AI 狼人杀</h1><p class="muted">Vue 客户端使用现有 Node API、MCP 和 SSE 协议。</p></div><span class="connection" :class="store.connectionStatus">{{ store.connectionStatus }}</span></header>
     <section class="card entry-card">
       <div class="section-title"><h2>{{ store.publicState ? `房间 ${store.publicState.roomId}` : '入座之前' }}</h2><span class="muted">{{ store.publicState ? '连接已建立' : '创建房间或加入朋友的房间' }}</span></div>
-      <div class="entry-grid"><label>你的昵称<input v-model="displayName" maxlength="24" /></label><label>房间号<input v-model="roomId" placeholder="room_xxx" /></label><label>API 地址<input v-model="apiUrl" /></label></div>
+        <div class="entry-grid"><label>你的昵称<input v-model="displayName" maxlength="24" /></label><label>房间号<input v-model="roomId" placeholder="room_xxx" /></label></div>
       <div class="actions"><button :disabled="loading" @click="createRoom">创建房间</button><button class="secondary" :disabled="loading" @click="joinRoom">加入房间</button></div>
       <p class="message" role="status">{{ message }}</p>
     </section>
@@ -174,7 +179,7 @@ onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.clean
         <div class="actions"><button v-if="canSpeak" :disabled="actionBusy" @click="submitSpeech">提交发言</button><button v-if="canSkill" :disabled="actionBusy || ((store.privateState?.role !== 'witch' || witchAction === 'poison') && !targetSeatId)" @click="submitSkill">确认行动</button><button v-if="canVote" :disabled="actionBusy || !targetSeatId" @click="submitVote">确认投票</button><button v-if="canHunter" :disabled="actionBusy || !targetSeatId" @click="submitHunter('shoot')">确认开枪</button><button v-if="canHunter" class="secondary" :disabled="actionBusy" @click="submitHunter('skip')">放弃开枪</button><button v-if="canLastWords" :disabled="actionBusy || !lastWordsText.trim()" @click="submitLastWords('submit')">提交遗言</button><button v-if="canLastWords" class="secondary" :disabled="actionBusy" @click="submitLastWords('skip')">跳过遗言</button><button v-if="canAnnounce" @click="announceDay">宣布天亮</button></div>
       </section>
       <section class="card"><div class="section-title"><h2>桌边记录</h2><span>{{ store.recentEvents.length }}</span></div><ol class="events"><li v-for="event in store.recentEvents.slice().reverse()" :key="event.eventId"><span>{{ eventText(event) }}</span><code>v{{ event.version }}</code></li><li v-if="!store.recentEvents.length" class="muted">暂无新事件</li></ol></section>
-      <section class="card host-card"><div class="section-title"><h2>公共语音</h2><span :class="hostPlayback.enabled ? 'live-dot' : 'muted'">{{ hostPlayback.enabled ? '已启用' : '未启用' }}</span></div><p class="muted">主持和已提交的 AI 发言按服务端事件顺序播放；私密状态和原始模型回复不会播放。</p><p class="message" role="status">{{ hostPlayback.status }}</p><p v-if="hostPlayback.task" class="host-task"><strong>{{ hostPlayback.task.seatId || '主持' }}</strong>：{{ hostPlayback.task.text }}</p><div class="actions"><button @click="hostPlayback.enabled ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage && hostPlayback.error" class="secondary" @click="hostPlayback.retry">重试音频</button><button v-if="hostPlayback.canManage && hostPlayback.task" class="secondary" @click="hostPlayback.skip">跳过当前音频</button></div></section>
+      <section class="card host-card"><div class="section-title"><h2>公共语音</h2><span :class="hostPlayback.enabled.value ? 'live-dot' : 'muted'">{{ hostPlayback.enabled.value ? '已启用' : '未启用' }}</span></div><p class="muted">主持和已提交的 AI 发言按服务端事件顺序播放；私密状态和原始模型回复不会播放。</p><p class="message" role="status">{{ hostPlayback.status.value }}</p><p v-if="hostPlayback.task.value" class="host-task"><strong>{{ hostPlayback.task.value.seatId || '主持' }}</strong>：{{ hostPlayback.task.value.text }}</p><div class="actions"><button @click="hostPlayback.enabled.value ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled.value ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage.value && hostPlayback.error.value" class="secondary" @click="hostPlayback.retry">重试音频</button><button v-if="hostPlayback.canManage.value && hostPlayback.task.value" class="secondary" @click="hostPlayback.skip">跳过当前音频</button></div></section>
       <section v-if="store.publicState.phase === 'GAME_OVER' || settlement" class="card result-card"><p class="eyebrow">THE END / 本局结算</p><h2>本局结束</h2><p class="muted">结算报告包含公开身份、出局顺序、投票结果和资源释放状态。</p><pre v-if="settlement">{{ JSON.stringify(settlement, null, 2) }}</pre></section>
     </template>
   </main>
