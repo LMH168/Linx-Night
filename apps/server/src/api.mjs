@@ -151,7 +151,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         try {
           if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920) throw new Error('PCM 音频帧无效'); relay.chunks.push(frame); relay.stream?.append(frame); await session?.send(frame); return; }
           const message = JSON.parse(raw.toString());
-          if (message.type === 'stop') { await session?.stop(); finish(); return; }
+          if (message.type === 'stop') { await relay.finish?.(); await session?.stop(); finish(); return; }
           if (message.type !== 'start') throw new Error('实时语音控制消息无效');
         } catch (error) { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } }
       });

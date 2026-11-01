@@ -6,9 +6,9 @@ const read = file => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
 test('production compose keeps Linx-Night on isolated loopback ports and mounts runtime state', async () => {
   const compose = await read('docker-compose.production.yml');
-  assert.match(compose, /127\.0\.0\.1:\$\{LINX_API_HOST_PORT:-5000\}:5000/);
-  assert.match(compose, /127\.0\.0\.1:\$\{LINX_CLIENT_HOST_PORT:-5010\}:5010/);
-  assert.match(compose, /127\.0\.0\.1:\$\{LINX_MCP_HOST_PORT:-9091\}:9091/);
+  assert.match(compose, /\$\{LINX_BIND_HOST:-127\.0\.0\.1\}:\$\{LINX_API_HOST_PORT:-5000\}:5000/);
+  assert.match(compose, /\$\{LINX_BIND_HOST:-127\.0\.0\.1\}:\$\{LINX_CLIENT_HOST_PORT:-5010\}:5010/);
+  assert.match(compose, /\$\{LINX_BIND_HOST:-127\.0\.0\.1\}:\$\{LINX_MCP_HOST_PORT:-9091\}:9091/);
   assert.match(compose, /user: "1000:1000"/);
   assert.match(compose, /runtime\.env\}?:\/run\/linx-night\/runtime\.env:ro/);
   assert.match(compose, /LinxNight:\/var\/lib\/linx-night\/LinxNight/);
