@@ -150,7 +150,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       return relay;
     },
     async sendTurn(room, seat) {
-      const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
+      let client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
@@ -164,7 +164,13 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
         if (inputRelay) {
-          await client.stopRealtime({ waitForTts: false });
+          try { await client.stopRealtime({ waitForTts: false }); }
+          catch {
+            await this.ensureConnected(room, seat);
+            client = this.clientFor(room, seat.seatId);
+            client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
+            if (relay) client.onAudio = chunk => { relay.chunks.push(chunk); relay.stream?.append(chunk); relay.target?.(chunk); };
+          }
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
           const work = client.send(wav); sends.set(key, work);
           try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
