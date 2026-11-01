@@ -6,6 +6,7 @@ const setup=()=>{const room=createRoom();addPlayer(room,{playerId:room.hostPlaye
 let count=0,sends=0,closed=0,lastAudio; const voteWav=Buffer.from(wav);voteWav.writeInt16LE(7,44);
 const manager=createLinxControllerManager({env:{LINX_AGENT_ID:'agent',LINX_PROFILES:'a',LINX_VOTE_WAV:'vote',LINX_MCP_ADMIN_URL:'http://test',LINX_MCP_ADMIN_TOKEN:'secret',LINX_MCP_DISCOVERY_REQUIRED:'true'},loadAudio:async path=>path==='vote'?voteWav:wav,readIdentity:async()=>({deviceId:'device'}),fetchImpl:async url=>Response.json(url.endsWith('/admin/diagnostics')?{requests:[{authenticated:true,status:200,method:'tools/list',sessionId:`s-${count}`,deviceId:'device',agentId:'agent'}]}:url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'secret'}}:{registered:true}),clientFactory:()=>({state:'closed',sessionId:`s-${++count}`,async connect(){this.state='ready';},async send(audio){sends++;lastAudio=audio;},close(){closed++;this.state='closed';}})});
 const room=setup();await manager.prepare(room);await manager.sendTurn(room,room.seats[1]);assert.equal(sends,1);assert.equal(lastAudio,wav);room.phase='VOTE';await manager.sendTurn(room,room.seats[1]);assert.equal(lastAudio,voteWav);
+await assert.rejects(Promise.resolve().then(() => manager.checkAvailability(setup())), { code: 'PROFILE_IN_USE' });
 await manager.releaseSeat(room,room.seats[1]);
 await assert.rejects(manager.prepare(setup()),{code:'PROFILE_IN_USE'});
 await manager.ensureConnected(room,room.seats[1]);assert.equal(count,2);assert.equal(room.controllers[0].controllerEpoch,2);
