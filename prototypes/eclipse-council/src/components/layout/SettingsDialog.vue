@@ -1,0 +1,6 @@
+<script setup lang="ts">
+import { useGameStore } from '@/stores/game'
+const g=useGameStore()
+</script>
+<template><div v-if="g.ui.showSettings" class="veil" @click.self="g.ui.showSettings=false"><section role="dialog" aria-modal="true" aria-label="演示设置"><button class="close" aria-label="关闭设置" @click="g.ui.showSettings=false">×</button><p class="eyebrow">演示设置</p><h2 class="display">在月夜里慢一点</h2><label><input v-model="g.flow.sound" type="checkbox"/>启用模拟主持播放流程</label><p>关闭后无需逐条确认播放。录音、转写与连接状态均为本地演示，不调用外部服务。</p><button @click="g.flow.playback='idle';g.ui.showSettings=false">完成</button><button @click="g.quitToLobby();g.ui.showSettings=false">返回房间大厅</button></section></div></template>
+<style scoped>.veil{position:fixed;inset:0;z-index:150;display:grid;place-items:center;background:#03060ce8;padding:20px}section{position:relative;width:min(430px,100%);padding:30px;border:1px solid var(--gold-soft);border-radius:16px;background:#0b111c}h2{font-size:27px;margin:10px 0 24px}label{display:flex;align-items:center;gap:8px;font-size:13px}p:not(.eyebrow){color:var(--ink-3);font-size:12px;margin:16px 0 24px}button{padding:9px 14px;border:1px solid var(--gold-soft);border-radius:8px;font-size:12px;margin:0 10px 0 0}.close{position:absolute;right:10px;top:10px;border:0;font-size:22px}</style>
