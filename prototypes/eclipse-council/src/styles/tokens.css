@@ -1,0 +1,89 @@
+:root {
+  color-scheme: dark;
+
+  --font-display: "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "Songti SC",
+    "STSong", "SimSun", serif;
+  --font-body: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Hiragino Sans GB",
+    system-ui, -apple-system, sans-serif;
+
+  --ink: #ece7dd;
+  --ink-2: #b6afa2;
+  --ink-3: #7b766d;
+  --gold: #d5b184;
+  --gold-text: #e7cba1;
+  --gold-soft: rgba(213, 177, 132, 0.55);
+  --line: rgba(213, 177, 132, 0.16);
+  --line-strong: rgba(213, 177, 132, 0.4);
+
+  --glass: rgba(9, 12, 18, 0.58);
+  --glass-2: rgba(9, 12, 18, 0.8);
+  --glass-3: rgba(6, 8, 12, 0.92);
+
+  --danger: #c25a4e;
+  --danger-soft: rgba(194, 90, 78, 0.18);
+  --good: #7cb69c;
+  --good-soft: rgba(124, 182, 156, 0.16);
+
+  --radius-s: 10px;
+  --radius: 16px;
+  --radius-l: 24px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-seat: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  --header-h: 62px;
+  --log-h: 62px;
+  --dock-w: 372px;
+
+  /* 场景色（由 data-scene 覆盖） */
+  --scene-tint: #8ab0e6;
+  --scene-glow: rgba(138, 176, 230, 0.35);
+  --scene-bg: #05080f;
+  --scene-panel: rgba(9, 12, 18, 0.58);
+}
+
+[data-scene='night'] {
+  --scene-tint: #9cb9e8;
+  --scene-glow: rgba(122, 160, 214, 0.4);
+  --scene-bg: #04070d;
+}
+
+[data-scene='dawn'] {
+  --scene-tint: #d9b98d;
+  --scene-glow: rgba(217, 185, 141, 0.35);
+  --scene-bg: #1b1a1a;
+}
+
+[data-scene='day'] {
+  --scene-tint: #b6d6c6;
+  --scene-glow: rgba(160, 206, 182, 0.3);
+  --scene-bg: #16211f;
+}
+
+[data-scene='vote'],
+[data-scene='pk'] {
+  --scene-tint: #e3b183;
+  --scene-glow: rgba(227, 157, 96, 0.4);
+  --scene-bg: #1a1018;
+}
+
+[data-scene='result-good'] {
+  --scene-tint: #f0d8a8;
+  --scene-glow: rgba(240, 216, 168, 0.45);
+  --scene-bg: #171410;
+}
+
+[data-scene='result-wolf'] {
+  --scene-tint: #c96a63;
+  --scene-glow: rgba(190, 60, 60, 0.35);
+  --scene-bg: #0b0508;
+}
+
+[data-scene='lobby'] {
+  --scene-tint: #d3a97e;
+  --scene-glow: rgba(211, 169, 126, 0.28);
+  --scene-bg: #0a0b10;
+}
