@@ -30,10 +30,58 @@ export interface ControllerState {
 export interface HostTask {
   id: string;
   attemptId?: string;
+  gameId?: string;
+  eventId?: string;
+  seatId?: string | null;
+  kind?: string;
   text: string;
   status: string;
   taskType?: string;
   sourceEventId?: string;
+  errorCode?: string | null;
+}
+
+export interface HunterResponseState {
+  windowId: string;
+  seatId: string;
+  phaseBefore?: Phase;
+  cause?: string;
+  status: 'open' | 'submitted' | 'skipped' | 'expired' | string;
+  createdAt?: string;
+  expiresAt: string;
+  targetSeatId?: string | null;
+}
+
+export interface HunterActionState {
+  windowId: string;
+  expiresAt: string;
+  canShoot?: boolean;
+  canSkip?: boolean;
+  targetSeatIds?: string[];
+}
+
+export interface LastWordsState {
+  windowId: string;
+  lastWordsId: string;
+  seatId: string;
+  round: number;
+  cause?: string;
+  status: 'open' | 'submitted' | 'skipped' | 'expired' | string;
+  expiresAt: string;
+  text?: string | null;
+}
+
+export interface SettlementState {
+  settlementId: string;
+  roomId?: string;
+  gameId?: string | null;
+  settlementType: string;
+  reason: string;
+  endedAt: string;
+  finalVersion: number;
+  winner?: Camp | null;
+  seats?: Array<Record<string, unknown>>;
+  release?: Record<string, unknown>;
 }
 
 export interface SpeechRecord {
@@ -82,9 +130,9 @@ export interface RoomPublicState {
   hostPlaybackBlocked: boolean;
   hostTasks?: HostTask[];
   speechPlaybackHistory?: Array<{ speechId: string; status: string }>;
-  lastWords?: unknown;
-  hunterResponse?: unknown;
-  settlement?: unknown;
+  lastWords?: LastWordsState | null;
+  hunterResponse?: HunterResponseState | null;
+  settlement?: SettlementState | null;
 }
 
 export interface CurrentTurn {
@@ -105,9 +153,9 @@ export interface PrivateState {
   skills: Record<string, unknown>;
   seerResults: Array<{ targetSeatId: string; result: Role | Camp | string }>;
   currentTurn: CurrentTurn | null;
-  hunterAction: unknown;
-  speechSession?: unknown;
-  lastWords?: unknown;
+  hunterAction: HunterActionState | null;
+  speechSession?: Record<string, unknown> | null;
+  lastWords?: LastWordsState | null;
   requiredAction?: unknown;
   [key: string]: unknown;
 }

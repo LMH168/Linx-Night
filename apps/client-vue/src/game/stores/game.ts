@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue';
 import { defineStore } from 'pinia';
 import { GameApiClient, type CreateRoomResponse, type JoinRoomResponse } from '../../api/client';
+import type { ActionRequest, HunterResponseRequest, LastWordsRequest, SpeechRequest, VoteRequest } from '../../../../../packages/protocol/src/api';
 import { useRoomStream } from '../../composables/useRoomStream';
 import { useRoomStore } from '../../stores/room';
 import { PHASE_LABEL, ROLE_CATALOG, isNightPhase, type GamePhase, type GameRole, type PublicSeat, type SeerCheck, type VoteTally } from '../types';
@@ -105,22 +106,26 @@ export const useGameStore = defineStore('game', () => {
   async function restore() { if (roomId.value && playerId.value) { try { await openRoom(roomId.value, playerId.value); } catch (error) { notice.value = error instanceof Error ? error.message : '房间恢复失败'; } } }
   async function createRoom(name = displayName.value) { const response = await newClient('').createRoom(name.trim() || '玩家') as CreateRoomResponse; await openRoom(response.room_id, response.player_id, name); return response; }
   async function joinRoom(id = roomId.value, name = displayName.value) { const response = await newClient('').joinRoom(id.trim(), name.trim() || '玩家') as JoinRoomResponse; await openRoom(id.trim(), response.player.playerId, name); return response; }
-  async function mutate(path: string, body: Record<string, unknown> = {}) {
+  async function runMutation(request: () => Promise<{ state?: RoomPublicState }>) {
     if (!client.value || !roomId.value) throw new Error('请先进入房间');
     if (actionBusy.value) return null;
     actionBusy.value = true;
-    try { const response = await client.value.mutate(roomId.value, path, body); if (response.state) room.publicState = response.state; await refresh(); return response; }
+    try { const response = await request(); if (response.state) room.publicState = response.state; await refresh(); return response; }
     finally { actionBusy.value = false; }
   }
-  async function startGame() { return mutate('/start'); }
-  async function retryControllers() { return mutate('/controllers/retry'); }
-  async function cancelControllers() { return mutate('/controllers/cancel'); }
-  async function retryTurn() { return mutate('/controllers/retry-turn'); }
+  async function startGame() { if (!client.value || !roomId.value) throw new Error('请先进入房间'); return runMutation(() => client.value!.startRoom(roomId.value)); }
+  async function retryControllers() { return runMutation(() => client.value!.retryControllers(roomId.value)); }
+  async function cancelControllers() { return runMutation(() => client.value!.cancelControllers(roomId.value)); }
+  async function retryTurn() { return runMutation(() => client.value!.retryTurn(roomId.value)); }
   async function endGame() { if (!client.value || !roomId.value) return; const response = await client.value.endRoom(roomId.value); settlement.value = (response.settlement || null) as Record<string, unknown> | null; stream.value?.close(); if (publicState.value) room.publicState = { ...publicState.value, phase: 'GAME_OVER', preparing: false }; return response; }
-  async function loadSettlement() { if (!client.value || !roomId.value) return null; const response = await client.value.settlement(roomId.value); settlement.value = response.settlement as Record<string, unknown>; return settlement.value; }
+  async function loadSettlement() { if (!client.value || !roomId.value) return null; const response = await client.value.settlement(roomId.value); settlement.value = response.settlement as unknown as Record<string, unknown>; return settlement.value; }
   async function addAi(name?: string) { if (!client.value || !roomId.value) return; const response = await client.value.addAi(roomId.value, name); room.publicState = response.state; return response; }
   async function renameAi(seatId: string, name: string) { if (!client.value || !roomId.value) return; const response = await client.value.renameAi(roomId.value, seatId, name); room.publicState = response.state; return response; }
-  async function submitAction(path: string, body: Record<string, unknown>) { return mutate(path, { ...body, action_id: `${path.replaceAll('/', '_')}_${crypto.randomUUID()}` }); }
+  async function submitAction(path: string, body: ActionRequest | VoteRequest | SpeechRequest | HunterResponseRequest | LastWordsRequest) {
+    if (!client.value || !roomId.value) throw new Error('请先进入房间');
+    const payload = { ...body, action_id: `${path.replaceAll('/', '_')}_${crypto.randomUUID()}` } as typeof body;
+    return runMutation(() => path === '/actions' ? client.value!.submitAction(roomId.value, payload as ActionRequest) : path === '/votes' ? client.value!.submitVote(roomId.value, payload as VoteRequest) : path === '/speeches' ? client.value!.submitSpeech(roomId.value, payload as SpeechRequest) : path === '/hunter-response' ? client.value!.submitHunterResponse(roomId.value, payload as HunterResponseRequest) : client.value!.submitLastWords(roomId.value, payload as LastWordsRequest));
+  }
   async function submitSpeech(text: string) { if (!text.trim()) { notice.value = '发言不能为空。'; return; } await submitAction('/speeches', { text: text.trim() }); notice.value = '发言已提交。'; speech.value = ''; }
   async function confirmAction() {
     if (!selectedSeatId.value) { notice.value = '请先选择一个目标。'; return; }

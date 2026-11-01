@@ -1,4 +1,7 @@
-import type { ApiEnvelope, ApiError, HostTask, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
+import type { ApiEnvelope, ApiError, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
+import type { ActionRequest, AddPlayerRequest, CreateRoomRequest, CreateRoomResponse, EndRoomResponse, HostStateResponse, HunterResponseRequest, JoinRoomRequest, JoinRoomResponse, LastWordsRequest, MutationResponse, PrivateStateResponse, RecordingStartResponse, RenamePlayerRequest, SettlementResponse, SpeechRequest, StartGameResponse, StateResponse, VoteRequest } from '../../../../packages/protocol/src/api';
+
+export type { CreateRoomResponse, JoinRoomResponse, MutationResponse, HostStateResponse } from '../../../../packages/protocol/src/api';
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -20,13 +23,7 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-export interface CreateRoomResponse { room_id: string; player_id: string; state: RoomPublicState; }
-export interface JoinRoomResponse { player: { playerId: string; seatId: string }; state: RoomPublicState; }
-export interface StateResponse { state: RoomPublicState; }
-export interface PrivateStateResponse { private_state: PrivateState; }
-export interface MutationResponse { state: RoomPublicState; [key: string]: unknown; }
-export interface RecordingStartResponse { recordingId: string; deadline: number; }
-export interface HostStateResponse { task: (HostTask & { gameId?: string; eventId?: string; attemptId?: string }) | null; enabled?: boolean; blocked?: boolean; errorCode?: string | null; watchdogDeadlineAt?: string | null; recoveryRequired?: boolean; }
+export type { StateResponse, RecordingStartResponse } from '../../../../packages/protocol/src/api';
 
 export class GameApiClient {
   readonly baseUrl: string;
@@ -69,40 +66,54 @@ export class GameApiClient {
   }
 
   async roomState(roomId: string): Promise<RoomPublicState> {
-    const result = await this.request<{ state: RoomPublicState }>(`/api/rooms/${encodeURIComponent(roomId)}/state`);
+    const result = await this.request<StateResponse>(`/api/rooms/${encodeURIComponent(roomId)}/state`);
     return result.state;
   }
 
   async privateState(roomId: string): Promise<PrivateState> {
-    const result = await this.request<{ private_state: PrivateState }>(`/api/rooms/${encodeURIComponent(roomId)}/private-state`);
+    const result = await this.request<PrivateStateResponse>(`/api/rooms/${encodeURIComponent(roomId)}/private-state`);
     return result.private_state;
   }
 
   createRoom(displayName: string): Promise<CreateRoomResponse> {
-    return this.request('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: displayName }) });
+    const body: CreateRoomRequest = { display_name: displayName };
+    return this.request('/api/rooms', { method: 'POST', body: JSON.stringify(body) });
   }
 
   joinRoom(roomId: string, displayName: string): Promise<JoinRoomResponse> {
-    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) });
+    const body: JoinRoomRequest = { display_name: displayName };
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify(body) });
   }
 
   addAi(roomId: string, displayName?: string): Promise<MutationResponse> {
-    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify({ player_type: 'ai', ...(displayName ? { display_name: displayName } : {}) }) });
+    const body: AddPlayerRequest = { player_type: 'ai', ...(displayName ? { display_name: displayName } : {}) };
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify(body) });
   }
 
   renameAi(roomId: string, seatId: string, displayName: string): Promise<MutationResponse> {
-    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players/${encodeURIComponent(seatId)}`, { method: 'PATCH', body: JSON.stringify({ display_name: displayName }) });
+    const body: RenamePlayerRequest = { display_name: displayName };
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players/${encodeURIComponent(seatId)}`, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
   mutate(roomId: string, path: string, body: Record<string, unknown> = {}, method = 'POST'): Promise<MutationResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}${path}`, { method, body: JSON.stringify(body) });
   }
 
-  endRoom(roomId: string): Promise<{ settlement_id?: string; settlement?: unknown; state?: RoomPublicState }> {
+  startRoom(roomId: string): Promise<StartGameResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/start`, { method: 'POST', body: '{}' }); }
+  retryControllers(roomId: string): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/controllers/retry`, { method: 'POST', body: '{}' }); }
+  cancelControllers(roomId: string): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/controllers/cancel`, { method: 'POST', body: '{}' }); }
+  retryTurn(roomId: string): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/controllers/retry-turn`, { method: 'POST', body: '{}' }); }
+  submitAction(roomId: string, body: ActionRequest): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/actions`, { method: 'POST', body: JSON.stringify(body) }); }
+  submitVote(roomId: string, body: VoteRequest): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/votes`, { method: 'POST', body: JSON.stringify(body) }); }
+  submitSpeech(roomId: string, body: SpeechRequest): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/speeches`, { method: 'POST', body: JSON.stringify(body) }); }
+  submitHunterResponse(roomId: string, body: HunterResponseRequest): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/hunter-response`, { method: 'POST', body: JSON.stringify(body) }); }
+  submitLastWords(roomId: string, body: LastWordsRequest): Promise<MutationResponse> { return this.request(`/api/rooms/${encodeURIComponent(roomId)}/last-words`, { method: 'POST', body: JSON.stringify(body) }); }
+
+  endRoom(roomId: string): Promise<EndRoomResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/end`, { method: 'POST' });
   }
 
-  settlement(roomId: string): Promise<{ settlement: unknown }> {
+  settlement(roomId: string): Promise<SettlementResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/settlement`);
   }
 
