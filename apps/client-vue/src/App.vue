@@ -201,6 +201,7 @@ const waiting = computed(() =>
 const voice = useHumanVoice({
   client,
   roomId,
+  realtime: true,
   contextKey: () => actionKey.value,
   canRecord: () => action.value === "speech" && !actionDisabled.value,
   onBusyStart: () => hostPlayback.suspend(),
@@ -863,17 +864,8 @@ onBeforeUnmount(() => {
             <template v-if="action === 'speech'"
               ><p class="muted">
                 {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·
-                草稿确认后才公开
+                必须开麦，识别完成后自动提交发言
               </p>
-              <label
-                >公开发言<textarea
-                  v-model="speechText"
-                  rows="4"
-                  maxlength="1200"
-                  placeholder="说出你的判断"
-                  :disabled="actionDisabled"
-                />
-              </label>
               <div class="voice-controls">
                 <p role="status">
                   {{
@@ -884,7 +876,7 @@ onBeforeUnmount(() => {
                         : voice.draft.value.stage === "confirming"
                           ? "转写完成，请检查文字后提交"
                           : voice.draft.value.error ||
-                            "支持录音转写，也可直接输入。"
+                            "点击开始录音并直接说话。"
                   }}
                 </p>
                 <div class="buttons">
@@ -906,15 +898,7 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
               </div>
-              <button
-                class="gold"
-                :disabled="
-                  actionDisabled || voice.busy.value || !speechText.trim()
-                "
-                @click="submitSpeech"
-              >
-                确认提交发言
-              </button></template
+              </template
             >
             <template v-if="action === 'lastwords'"
               ><p class="muted">遗言最多 200 字，确认提交后公开。</p>

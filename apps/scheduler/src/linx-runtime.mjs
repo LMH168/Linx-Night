@@ -53,6 +53,7 @@ export class LinxTurnRuntime {
     const work = Promise.resolve().then(async () => {
       recordTurn('speech_prewarm_started', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
       await this.manager.ensureConnected(room, next);
+      if (typeof this.manager.startSpeechRelay === 'function') await this.manager.startSpeechRelay(room, next);
       const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && room.speechPlayback?.status === 'pending' && room.invalidated === false;
       if (!valid) { marker.status = 'stale'; recordTurn('stale_result_rejected', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId }); return; }
       marker.status = 'ready'; recordTurn('speech_prewarm_ready', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });

@@ -14,6 +14,7 @@ const hostPlayback = useHostPlayback({ client, roomId, isHost: () => store.playe
 const voice = useHumanVoice({
   client,
   roomId,
+  realtime: true,
   contextKey: () => [store.roomId, store.publicState?.gameId, store.publicState?.round, store.phase, store.publicState?.currentSeatId, store.selfSeatId].join(':'),
   canRecord: () => store.phase === 'SPEECH' && store.isMyAction,
   onBusyStart: () => hostPlayback.suspend(),
@@ -84,9 +85,9 @@ async function skip() { await store.skipAction(); }
     </template>
 
     <template v-else-if="store.phase === 'SPEECH' && store.isMyAction">
-      <div class="speech-compose"><textarea v-model="draft" maxlength="1200" aria-label="你的发言" placeholder="输入你的发言，或使用真人录音……"></textarea><span class="compose-count">{{ draft.length }} / 1200</span></div>
-      <p v-if="voice.draft.value.stage !== 'idle'" class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '灵矽正在转写……' : voice.draft.value.stage === 'confirming' ? '转写完成，请确认文字后提交。' : voice.draft.value.error }}</p>
-      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="voice.busy.value" @click="voice.start">开始录音</button><button v-if="voice.draft.value.stage === 'recording'" class="btn ghost" @click="voice.stop">结束录音</button><button v-if="voice.draft.value.stage !== 'idle'" class="btn ghost" @click="voice.cancel()">取消录音</button><button class="btn gold" :disabled="!draft.trim() || store.actionBusy || voice.busy.value" @click="submitSpeech">提交发言</button></div>
+      <p class="action-notice">必须开麦，识别完成后自动提交。</p>
+      <p v-if="voice.draft.value.stage !== 'idle'" class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '灵矽正在转写……' : voice.draft.value.error }}</p>
+      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="voice.busy.value" @click="voice.start">开始录音</button><button v-if="voice.draft.value.stage === 'recording'" class="btn ghost" @click="voice.stop">结束录音</button><button v-if="voice.draft.value.stage !== 'idle'" class="btn ghost" @click="voice.cancel()">取消录音</button></div>
     </template>
 
     <template v-else-if="store.phase === 'LAST_WORDS' && store.isMyAction">

@@ -132,16 +132,40 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (!client || client.state === 'closed') await adapter.reconnect(room, seat.seatId);
     },
     clientFor(room, seatId) { return adapters.get(room.roomId)?.clients.get(seatId)?.client; },
+    async startSpeechRelay(room, nextSeat) {
+      const source = room.speechAudioRelay;
+      if (!source || source.seatId === nextSeat.seatId || room.speechInputRelay?.seatId === nextSeat.seatId) return room.speechInputRelay;
+      const client = this.clientFor(room, nextSeat.seatId);
+      if (!client) throw new Error('CONTROLLER_MISSING');
+      const stream = await client.startRealtime();
+      const relay = { seatId: nextSeat.seatId, sourceSeatId: source.seatId, stream, queue: Promise.resolve(), closed: false };
+      const push = chunk => { relay.queue = relay.queue.then(() => stream.send(chunk)).catch(() => {}); return relay.queue; };
+      relay.push = push;
+      room.speechInputRelay = relay;
+      source.target = push;
+      for (const chunk of source.chunks) await push(chunk);
+      recordTurn('speech_pcm_relay_started', { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId, bytes: source.chunks.reduce((n, chunk) => n + chunk.length, 0) });
+      return relay;
+    },
     async sendTurn(room, seat) {
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
+      const inputRelay = room.phase === 'SPEECH' && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
+      const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: null, done: null } : null;
+      if (relay) { relay.done = new Promise(resolve => { relay.resolve = resolve; }); room.speechAudioRelay = relay; }
+      const previousAudio = client.onAudio;
+      if (relay) client.onAudio = chunk => { relay.chunks.push(chunk); relay.stream?.append(chunk); relay.target?.(chunk); };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
-      try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');const work=client.send(wav);sends.set(key,work);let result;try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
-      catch (error) { recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
+      try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
+        if (inputRelay) { result = await client.stopRealtime(); room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null; }
+        else { if (client.stream) throw Error('CLIENT_BUSY'); const work=client.send(wav);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
+        if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
+      catch (error) { if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
+      finally { if(relay) client.onAudio = previousAudio; }
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);

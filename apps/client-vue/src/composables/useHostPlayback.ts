@@ -127,7 +127,7 @@ export function useHostPlayback(options: HostPlaybackOptions) {
       if (!task.value) { status.value = '等待下一条公开播报。'; return; }
       const current = task.value; status.value = current.status === 'generating' ? '主持正在生成音频……' : `${current.seatId || '主持'}：${current.text}`;
       if (current.status === 'failed') { error.value = current.errorCode || '公共音频生成失败'; status.value = `音频失败：${error.value}`; return; }
-      if (!['ready', 'generating'].includes(current.status) || current.status !== 'ready' || !current.attemptId) return;
+      if (!['ready', 'generating'].includes(current.status) || !current.attemptId) return;
       const attempt = current.attemptId; const key = `${current.id}:${attempt}`;
       const previousMetrics = pendingAcks.get(key);
       if (previousMetrics && options.isHost()) {
