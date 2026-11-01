@@ -95,6 +95,16 @@ export function submitSpeech(room, seatId, text, actionId) {
   return room;
 }
 
+export function skipSpeech(room, seatId, actionId) {
+  if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
+  const seat = requireAlive(room, seatId);
+  recordAction(room, { actionId, turnId: room.round, actionType: 'speech_skip', seatId });
+  room.version += 1;
+  appendEvent(room, { type: 'game.speech_skipped', data: { seatId, round: room.round } });
+  advanceSpeech(room, seat);
+  return room;
+}
+
 function advanceSpeech(room, seat) {
   if (room.pk?.stage === 'speech' && room.pk.round === room.round) {
     const next = room.pk.candidates[room.pk.candidates.indexOf(seat.seatId) + 1];

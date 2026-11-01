@@ -1,5 +1,5 @@
 import { recordTurn } from '../../server/src/turn-diagnostics.mjs';
-import { expireHunterResponse, expireLastWords } from '../../../packages/domain/src/engine.mjs';
+import { expireHunterResponse, expireLastWords, skipSpeech } from '../../../packages/domain/src/engine.mjs';
 import { completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { defaultTurn } from './local.mjs';
@@ -137,6 +137,7 @@ export class LinxTurnRuntime {
       // lease exactly once. This does not impersonate an MCP call or alter a
       // successful Linx path; it only resolves a missed deadline.
       const canDefaultNight = error.message === 'TURN_TIMEOUT' && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(room.phase);
+      const canSkipSpeech = error.message === 'TURN_TIMEOUT' && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'SPEECH';
       let defaultedNight = false;
       if (canDefaultNight) {
         try {
@@ -149,12 +150,23 @@ export class LinxTurnRuntime {
           recordTurn('default_action_failed', {...context,reason:'TURN_TIMEOUT',code:fallbackError.message});
         }
       }
-      if (turn && !defaultedNight) expireTurn(room, turn.turnId, code);
+      let skippedSpeech = false;
+      if (canSkipSpeech) {
+        try {
+          skipSpeech(room, seat.seatId, `timeout_${turn?.turnId ?? context.turnId}`);
+          if (turn) completeTurn(room, turn.turnId);
+          skippedSpeech = true;
+          recordTurn('speech_skipped', {...context,reason:'TURN_TIMEOUT'});
+        } catch (skipError) {
+          recordTurn('speech_skip_failed', {...context,reason:'TURN_TIMEOUT',code:skipError.message});
+        }
+      }
+      if (turn && !defaultedNight && !skippedSpeech) expireTurn(room, turn.turnId, code);
       if (error.message === 'TURN_TIMEOUT' && seat.controlSource === 'human' && active() && actionAvailable(room, seat)) {
         try { defaultTurn(room, seat); completeTurn(room, turn.turnId); } catch { expireTurn(room, turn.turnId, 'TURN_DEFAULT_FAILED'); }
       } else if (!windowExpired && !cancelled && active() && actionAvailable(room, seat) && seat.controlSource === 'linx') {
         const c = room.controllers.find(c => c.seatId === seat.seatId);
-        if (c && !defaultedNight) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
+        if (c && !defaultedNight && !skippedSpeech) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
       }
     } finally {
       clearTimeout(timer); clearInterval(poll);
