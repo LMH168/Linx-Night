@@ -140,6 +140,7 @@ export function publicEventData(type, data = {}) {
     'game.phase_changed': ['phase', 'seatId', 'winner', 'pk', 'candidates'],
     'game.night_resolved': ['round', 'deathSeatIds'],
     'game.speech_submitted': ['speechId', 'seatId'],
+    'game.speech_skipped': ['seatId', 'round'],
     'game.speech_window_opened': ['seatId', 'expiresAt'],
     'game.speech_playback_completed': ['speechId', 'seatId', 'taskId', 'status'],
     'game.vote_submitted': ['voteId', 'seatId'],
