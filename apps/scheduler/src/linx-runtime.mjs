@@ -161,12 +161,25 @@ export class LinxTurnRuntime {
           recordTurn('speech_skip_failed', {...context,reason:'TURN_TIMEOUT',code:skipError.message});
         }
       }
-      if (turn && !defaultedNight && !skippedSpeech) expireTurn(room, turn.turnId, code);
+      const canDefaultVote = error.message === 'TURN_TIMEOUT' && attempt > 0 && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'VOTE';
+      let defaultedVote = false;
+      if (canDefaultVote) {
+        try {
+          if (defaultTurn(room, seat)) {
+            if (turn) completeTurn(room, turn.turnId);
+            defaultedVote = true;
+            recordTurn('default_vote', {...context,reason:'TURN_TIMEOUT'});
+          }
+        } catch (voteError) {
+          recordTurn('default_vote_failed', {...context,reason:'TURN_TIMEOUT',code:voteError.message});
+        }
+      }
+      if (turn && !defaultedNight && !skippedSpeech && !defaultedVote) expireTurn(room, turn.turnId, code);
       if (error.message === 'TURN_TIMEOUT' && seat.controlSource === 'human' && active() && actionAvailable(room, seat)) {
         try { defaultTurn(room, seat); completeTurn(room, turn.turnId); } catch { expireTurn(room, turn.turnId, 'TURN_DEFAULT_FAILED'); }
       } else if (!windowExpired && !cancelled && active() && actionAvailable(room, seat) && seat.controlSource === 'linx') {
         const c = room.controllers.find(c => c.seatId === seat.seatId);
-        if (c && !defaultedNight && !skippedSpeech) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
+        if (c && !defaultedNight && !skippedSpeech && !defaultedVote) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
       }
     } finally {
       clearTimeout(timer); clearInterval(poll);
