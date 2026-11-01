@@ -72,6 +72,7 @@ async function cancel() {
   catch (cause) { error.value = cause instanceof Error ? cause.message : '取消失败'; }
   finally { busy.value = false; }
 }
+function copyRoomCode() { const code = state.value?.roomCode || state.value?.roomId; if (code) navigator.clipboard?.writeText(code).catch(() => undefined); }
 </script>
 
 <template>
@@ -79,7 +80,7 @@ async function cancel() {
     <header class="lobby-top"><BrandMark /><span class="connection">{{ store.roomId ? '已连接 · 山舍前厅' : '等待入座' }}</span></header>
     <section class="lobby-head">
       <p class="eyebrow">PRIVATE ROOM · WALDHÜTTE</p>
-      <div class="lobby-title"><h1>{{ state ? '真实房间' : '进入山舍' }}</h1><span v-if="state" class="room-chip">ROOM {{ state.roomId }}</span></div>
+      <div class="lobby-title"><h1>{{ state ? '真实房间' : '进入山舍' }}</h1><button v-if="state" class="room-chip" type="button" @click="copyRoomCode">房间码 {{ state.roomCode || state.roomId }} · 复制</button></div>
       <p class="muted">房间、座位、阶段和行动均由服务端实时控制。</p>
     </section>
 
@@ -88,7 +89,7 @@ async function cancel() {
         <span class="eyebrow">PLAYER IDENTITY</span>
         <h2>先登记玩家</h2>
         <label>昵称<input v-model="name" maxlength="24" autocomplete="nickname" /></label>
-        <label>房间号<input v-model="roomInput" placeholder="room_xxx" autocomplete="off" /></label>
+        <label>房间码或 UUID<input v-model="roomInput" placeholder="六位数字或 room_xxx" autocomplete="off" /></label>
         <div class="actions"><button class="btn gold" :disabled="busy" @click="create">创建房间</button><button class="btn ghost" :disabled="busy" @click="join">加入房间</button></div>
         <p v-if="error" class="action-notice">{{ error }}</p>
       </div>
@@ -108,7 +109,7 @@ async function cancel() {
         <div v-if="isHost && state.phase === 'LOBBY'" class="ai-add"><input v-model="aiName" placeholder="AI 玩家名称（可选）" maxlength="24" /><button class="secondary" :disabled="busy" @click="addAi">添加 AI</button></div>
       </div>
       <aside class="lobby-info panel">
-        <span class="eyebrow">ROOM {{ state.roomId }}</span>
+        <span class="eyebrow">房间码 {{ state.roomCode || state.roomId }}</span>
         <h2>{{ state.phase === 'LOBBY' ? '等待开局' : preparing ? '正在连接 AI' : '准备完成' }}</h2>
         <p class="lobby-copy" v-if="state.phase === 'LOBBY'">房主补齐座位后开始游戏。</p>
         <p class="lobby-copy" v-else>控制器状态：{{ state.controllerPhase }}（{{ connectedCount }}/{{ state.controllers.length }}）</p>

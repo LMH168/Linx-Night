@@ -27,6 +27,7 @@ export const useGameStore = defineStore('game', () => {
 
   const publicState = computed(() => room.publicState as RoomPublicState | null);
   const roomId = computed({ get: () => publicState.value?.roomId || roomIdRef.value, set: value => { roomIdRef.value = value; } });
+  const roomCode = computed(() => publicState.value?.roomCode || '');
   const privateState = computed(() => room.privateState as PrivateState | null);
   const phase = computed<GamePhase>(() => (publicState.value?.phase || 'LOBBY') as GamePhase);
   const day = computed(() => Math.max(1, (publicState.value?.round || 0) + 1));
@@ -147,5 +148,5 @@ export const useGameStore = defineStore('game', () => {
   function setPhase(next: GamePhase) { if (next === 'VOTE' || next === 'SPEECH') notice.value = '阶段由服务端推进，请等待实时事件。'; }
   function reset() { selectedSeatId.value = null; notice.value = ''; speech.value = ''; settlement.value = null; }
 
-  return { room, publicState, privateState, client, roomId, playerId, displayName, apiUrl, phase, day, night, selfSeatId, selfRole, selfMeta, selfAlive, selfSeat, publicSeats, revealedSeats, currentSpeakerId, currentSpeaker, actionDeadline, selectedSeatId, submittedVoteSeatId, speech, witchAction, seerChecks, wolfTeammates, phaseTitle, isMyAction, aliveCount, totalVotes, voteTally, leader, voteSubmitted, settlement, notice, actionBusy, publicSeatStates, restore, createRoom, joinRoom, openRoom, refresh, loadSettlement, addAi, renameAi, startGame, retryControllers, cancelControllers, retryTurn, endGame, submitSpeech, submitAction, confirmAction, skipAction, submitLastWords, announceDay, selectSeat, setPhase, reset };
+  return { room, publicState, privateState, client, roomId, roomCode, playerId, displayName, apiUrl, phase, day, night, selfSeatId, selfRole, selfMeta, selfAlive, selfSeat, publicSeats, revealedSeats, currentSpeakerId, currentSpeaker, actionDeadline, selectedSeatId, submittedVoteSeatId, speech, witchAction, seerChecks, wolfTeammates, phaseTitle, isMyAction, aliveCount, totalVotes, voteTally, leader, voteSubmitted, settlement, notice, actionBusy, publicSeatStates, restore, createRoom, joinRoom, openRoom, refresh, loadSettlement, addAi, renameAi, startGame, retryControllers, cancelControllers, retryTurn, endGame, submitSpeech, submitAction, confirmAction, skipAction, submitLastWords, announceDay, selectSeat, setPhase, reset };
 });

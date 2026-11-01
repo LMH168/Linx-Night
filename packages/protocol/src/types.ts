@@ -115,6 +115,7 @@ export interface RoomPublicState {
   speechPlayback?: { speechId: string; status: string; seatId?: string } | null;
   pk?: { round: number; stage: 'speech' | 'vote'; candidates: string[] } | null;
   roomId: string;
+  roomCode?: string | null;
   hostPlayerId: string;
   gameId: string | null;
   controllerEpoch: number;

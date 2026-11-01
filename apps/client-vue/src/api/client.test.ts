@@ -27,4 +27,13 @@ describe('GameApiClient', () => {
 
     await expect(client.roomState('missing')).rejects.toMatchObject({ status: 404, code: 'ROOM_NOT_FOUND', message: '房间不存在' } satisfies Partial<ApiRequestError>);
   });
+
+  it('reads the six-digit room code from creation responses', async () => {
+    const client = new GameApiClient({
+      baseUrl: 'http://api.test',
+      fetchImpl: async () => new Response(JSON.stringify({ room_id: 'room-1', room_code: '482731', player_id: 'p1', state: { roomId: 'room-1', roomCode: '482731' } }), { status: 201 })
+    });
+
+    await expect(client.createRoom('房主')).resolves.toMatchObject({ room_id: 'room-1', room_code: '482731' });
+  });
 });

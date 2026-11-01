@@ -78,7 +78,7 @@ const checkRows = computed(() => store.seerChecks.slice(0, 2));
 const wolfRows = computed(() => store.wolfTeammates.slice(0, 3));
 
 function castVote() { store.confirmAction(); }
-function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => undefined); }
+function copyRoom() { navigator.clipboard?.writeText(store.roomCode || store.roomId).catch(() => undefined); }
 </script>
 
 <template>
@@ -88,7 +88,7 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
     <header class="topbar">
       <BrandMark />
       <div v-if="!isMobile" class="top-meta">
-        <span class="meta-item room"><span class="micro">ROOM</span><b>{{ store.roomId }}</b><button class="copy" aria-label="复制房间号" @click="copyRoom"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="10" height="11" rx="1.5" /><path d="M6 16H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 4h8a1.5 1.5 0 0 1 1.5 1.5V6" /></svg></button></span>
+        <span class="meta-item room"><span class="micro">ROOM</span><b>{{ store.roomCode || store.roomId }}</b><button class="copy" aria-label="复制房间码" @click="copyRoom"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="10" height="11" rx="1.5" /><path d="M6 16H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 4h8a1.5 1.5 0 0 1 1.5 1.5V6" /></svg></button></span>
         <span class="meta-divider"></span>
         <span class="meta-item phase"><span class="status-dot"></span><span>{{ store.phaseTitle }}</span></span>
         <span class="meta-divider"></span>
