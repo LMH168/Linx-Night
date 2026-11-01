@@ -115,6 +115,13 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (occupied) throw Object.assign(new Error('灵矽身份正在被其他房间使用，请先结束其他房间后再试'), { code: 'PROFILE_IN_USE', status: 409 });
       return { available: true, count: assigned.length };
     },
+    reserveAvailability(room) {
+      const assigned = assignedProfiles(room);
+      const occupied = assigned.find(name => reservations.has(name) && reservations.get(name) !== room.roomId);
+      if (occupied) throw Object.assign(new Error('灵矽身份正在被其他房间使用，请先结束其他房间后再试'), { code: 'PROFILE_IN_USE', status: 409 });
+      for (const name of assigned) reservations.set(name, room.roomId);
+      return { available: true, count: assigned.length };
+    },
     async ensureConnected(room, seat) {
       const adapter = adapterFor(room), c = room.controllers.find(c => c.seatId === seat.seatId);
       if (!c || c.status === 'failed') throw new Error('CONTROLLER_FAILED');
