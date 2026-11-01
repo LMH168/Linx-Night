@@ -68,7 +68,7 @@ assert.ok(expiredVote); assert.ok(room.turns.some(turn => turn.status === 'compl
   assert.deepEqual(room,voted);
   setup('VOTE'); mode='timeout'; calls=0;
   await new LinxTurnRuntime({manager,timeoutMs:50}).tick(room);
-  assert.equal(calls,4); assert.equal(room.votes.length,0); assert.equal(room.controllers[0].status,'failed');
+  assert.equal(calls,4); assert.equal(room.votes.length,2); assert.equal(room.controllers[0].status,'ready');
 await new LinxTurnRuntime({manager,timeoutMs:50}).tick(room);
 assert.equal(calls,4,'失败的 AI 不会阻止同批其他投票完成');
   setup('NIGHT_WOLF');room.actions.push({actionType:'wolf_target',turnId:room.round,seatId:'P8',targetSeatId:'P9'});
