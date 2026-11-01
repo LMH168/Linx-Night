@@ -130,6 +130,7 @@ export class LinxTurnRuntime {
       if (windowExpired && active()) expireResponse(room, Math.max(this.now(), responseDeadline));
       const cancelled = !active() || (turn && (room.phase !== turn.phase || room.round !== turn.round));
       const code = windowExpired ? expiredCode : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
+      const recoverableInput = ['TURN_TIMEOUT', 'LINX_INPUT_FAILED'].includes(error.message);
       retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
       recordTurn('finished',{...context,code});
       // A required night action cannot be left as a failed controller: the
@@ -137,8 +138,8 @@ export class LinxTurnRuntime {
       // server-side safety action used for an absent human, then complete the
       // lease exactly once. This does not impersonate an MCP call or alter a
       // successful Linx path; it only resolves a missed deadline.
-      const canDefaultNight = error.message === 'TURN_TIMEOUT' && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(room.phase);
-      const canSkipSpeech = error.message === 'TURN_TIMEOUT' && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'SPEECH';
+      const canDefaultNight = recoverableInput && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(room.phase);
+      const canSkipSpeech = recoverableInput && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'SPEECH';
       let defaultedNight = false;
       if (canDefaultNight) {
         try {
