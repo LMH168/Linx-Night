@@ -132,6 +132,7 @@ a { color: inherit; }
 .lobby-title { display: flex; align-items: center; gap: 18px; margin-top: 12px; }
 .lobby-title h1 { margin: 0; font-family: var(--g-serif); font-weight: 400; font-size: clamp(46px, 6vw, 76px); line-height: .9; letter-spacing: -.02em; }
 .room-chip { padding: 7px 11px; border: 1px solid rgba(212,178,122,.34); border-radius: 2px; color: var(--g-gold-bright); font-size: 8px; letter-spacing: .18em; white-space: nowrap; }
+button.room-chip { background: transparent; cursor: pointer; font: inherit; }
 .lobby-head .muted { margin: 14px 0 0; font-family: var(--g-serif); font-size: 15px; letter-spacing: .06em; color: rgba(236,226,203,.5); }
 .lobby-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .7fr); gap: 18px; margin-top: 5vh; align-items: stretch; }
 .lobby-roster, .lobby-info { border: 1px solid rgba(212,178,122,.18); border-radius: 7px; background: linear-gradient(155deg, rgba(10,18,13,.64), rgba(4,9,6,.56)); backdrop-filter: blur(14px); }

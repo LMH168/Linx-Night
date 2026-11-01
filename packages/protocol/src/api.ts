@@ -4,7 +4,7 @@ import type { HostTask, PrivateState, RoomPublicState, SettlementState } from '.
 export type StateResponse = { state: RoomPublicState };
 export type PrivateStateResponse = { private_state: PrivateState };
 export type CreateRoomRequest = { display_name: string };
-export type CreateRoomResponse = { room_id: string; player_id: string; state: RoomPublicState };
+export type CreateRoomResponse = { room_id: string; room_code: string; player_id: string; state: RoomPublicState };
 export type JoinRoomRequest = { display_name: string; player_id?: string };
 export type JoinRoomResponse = { player: { playerId: string; seatId: string; displayName?: string; playerType?: string }; state: RoomPublicState };
 export type AddPlayerRequest = { player_type: 'ai' | 'human'; display_name?: string; player_id?: string };

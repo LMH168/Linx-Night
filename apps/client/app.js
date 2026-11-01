@@ -31,10 +31,10 @@ function render(room) {
     state.settlementId = '';
     sessionStorage.removeItem('linx-settlement');
   }
-  state.room = room; linxVoice?.update(room);
+  state.room = room; if (room.roomId && state.roomId !== room.roomId) { state.roomId = room.roomId; sessionStorage.setItem('linx-room', room.roomId); } linxVoice?.update(room);
   const lobby = room.phase === 'LOBBY';
   show('entryCard',lobby || room.phase==='GAME_OVER');
-  $('#roomLabel').textContent = room.roomId;
+  $('#roomLabel').textContent = room.roomCode || room.roomId;
   $('#phase').textContent = phases[room.phase] || '对局进行中';
   const humans = room.seats.filter(s => s.playerType === 'human').length;
   const ais = room.seats.filter(s => s.playerType === 'ai').length;
@@ -182,7 +182,7 @@ async function loadPrivate() {
 function scheduleReconnect() { if (state.unloading || state.reconnectTimer || !state.roomId) return; state.reconnectTimer = setTimeout(() => { state.reconnectTimer = null; connectEvents(); }, state.reconnectDelay); state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30_000); }
 function connectEvents() { if (state.unloading || !state.roomId) return; state.source?.close(); const after = state.lastVersion ? `?after=${state.lastVersion}` : ''; state.source = new EventSource(`${api()}/api/rooms/${state.roomId}/events${after}`); state.source.onopen = () => { state.reconnectDelay = 1000; message('实时连接已恢复'); refresh(); }; state.source.onmessage = event => { const item = JSON.parse(event.data); state.lastVersion = Math.max(state.lastVersion, Number(item.version || 0)); state.hostNotify?.(); if (state.events.has(item.eventId)) return; state.events.add(item.eventId);  refresh(); }; state.source.onerror = () => { hostPlayer?.stop(); state.source?.close(); state.source = null; message('实时连接断开，正在自动重连。'); scheduleReconnect(); }; }
 async function refresh() { if (!state.roomId || state.refreshing) return; const roomId=state.roomId; state.refreshing=true; try { const body = await call(`/api/rooms/${roomId}/state`); if(roomId!==state.roomId)return; render(body.state); await loadPrivate(); } catch (error) { message(error.message); } finally {state.refreshing=false;} }
-$('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间号：${body.room_id}`); } catch (error) { message(error.message); } };
+$('#create').onclick = async () => { try { const body = await call('/api/rooms', { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家 1' }) }); state.playerId = body.player_id; $('#roomId').value = body.room_code || body.room_id; save(); render(body.state); connectEvents(); message(`房间已创建，房间码：${body.room_code || body.room_id}`); } catch (error) { message(error.message); } };
 $('#join').onclick = async () => { try { state.roomId = $('#roomId').value.trim(); if (!state.roomId) throw new Error('请填写房间号'); const body = await call(`/api/rooms/${state.roomId}/players`, { method: 'POST', body: JSON.stringify({ display_name: $('#displayName').value || '玩家' }) }); state.playerId = body.player.playerId; save(); render(body.state); connectEvents(); message('已加入房间'); } catch (error) { message(error.message); } };
 $('#aiName').addEventListener?.('input',()=>{ $('#aiName').dataset.edited='true'; });
 $('#addAi').onclick = async () => { const name=$('#aiName').value.trim(); try { const body=await call(`/api/rooms/${state.roomId}/players`,{method:'POST',body:JSON.stringify({player_type:'ai',...(name?{display_name:name}:{})})}); $('#aiName').value=''; delete $('#aiName').dataset.edited; render(body.state); message('AI 玩家已加入房间。'); } catch(error) { message(error.message); } };

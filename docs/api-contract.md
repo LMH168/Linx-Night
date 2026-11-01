@@ -20,6 +20,8 @@ GET  /api/rooms/{room_id}/settlement
 GET  /api/settlements/{settlement_id}
 ```
 
+创建房间响应同时返回内部 `room_id` 和对外使用的六位数字 `room_code`；公开状态中的对应字段为 `roomId` 和 `roomCode`。`{room_id}` 路径参数也接受六位数字房间码，服务端会统一解析为内部 UUID。房间码仅用于定位房间，现有 `x-player-id` 身份和权限校验保持不变。
+
 成功响应统一返回业务数据；失败响应格式为：
 
 ```json
