@@ -155,10 +155,16 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
       const inputRelay = room.phase === 'SPEECH' && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
-      const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: null, done: null } : null;
+      const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, stream: null, resolve: null, done: null } : null;
       if (relay) { relay.done = new Promise(resolve => { relay.resolve = resolve; }); room.speechAudioRelay = relay; }
       const previousAudio = client.onAudio;
-      if (relay) client.onAudio = chunk => { relay.chunks.push(chunk); relay.stream?.append(chunk); relay.target?.(chunk); };
+      if (relay) client.onAudio = chunk => {
+        if (!Buffer.isBuffer(chunk) || !chunk.length || chunk.length % 2 || relay.bytes + chunk.length > 1920000) return;
+        relay.chunks.push(chunk);
+        relay.bytes += chunk.length;
+        try { relay.stream?.append(chunk); } catch { /* Linx may finish with one late PCM frame. */ }
+        relay.target?.(chunk);
+      };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
