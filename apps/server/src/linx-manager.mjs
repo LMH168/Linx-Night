@@ -6,7 +6,7 @@ import { ota } from '../../linx/src/ota.mjs';
 import { LinxClient } from '../../linx/src/client.mjs';
 import { readProfile } from '../../linx/src/profile.mjs';
 import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
-import { parseTriggerWav, wavDurationMs } from '../../linx/src/wav.mjs';
+import { frames, parseTriggerWav, parseWav, wavDurationMs } from '../../linx/src/wav.mjs';
 import { waitForMcpDiscovery } from './mcp-discovery.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
@@ -144,6 +144,15 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       room.speechInputRelay = relay;
       source.target = push;
       for (const chunk of source.chunks) await push(chunk);
+      // A realtime listener can answer the previous speech conversationally
+      // without entering the game's MCP action loop. Append the same short
+      // action cue used by normal turns before stopping the listener so the
+      // single response is a game action. The cue is private to the next AI.
+      source.finish = async () => {
+        if (source.triggerSent) return;
+        source.triggerSent = true;
+        for (const chunk of frames(parseWav(audio))) await push(chunk);
+      };
       recordTurn('speech_pcm_relay_started', { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId, bytes: source.chunks.reduce((n, chunk) => n + chunk.length, 0) });
       return relay;
     },
