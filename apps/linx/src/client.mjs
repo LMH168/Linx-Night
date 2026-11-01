@@ -73,7 +73,7 @@ export class LinxClient {
     });
   }
 
-  async startRealtime() {
+  async startRealtime({ mode = 'realtime' } = {}) {
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
     let timer;
@@ -89,7 +89,7 @@ export class LinxClient {
     });
     this.stream.send = send; this.stream.timer = timer; this.stream.abort = abort;
     try {
-      await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'start', mode: 'realtime' }));
+      await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'start', mode }));
       this.event('input_start', { attemptId, mode: 'realtime' });
       return { attemptId, send: frame => send(frame), done: completion };
     } catch (error) {
@@ -97,13 +97,13 @@ export class LinxClient {
     }
   }
 
-  async stopRealtime() {
+  async stopRealtime({ waitForTts = true } = {}) {
     const stream = this.stream;
     if (!stream) throw new Error('没有实时监听');
     try {
       await stream.send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'stop' }));
       this.event('input_stop', { attemptId: stream.attemptId, mode: 'realtime' });
-      await stream.done;
+      if (waitForTts) await stream.done;
       return { attemptId: stream.attemptId, gameAccepted: 'unverified' };
     } catch (error) {
       this.close(); throw error;

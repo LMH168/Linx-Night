@@ -6,7 +6,7 @@ import { ota } from '../../linx/src/ota.mjs';
 import { LinxClient } from '../../linx/src/client.mjs';
 import { readProfile } from '../../linx/src/profile.mjs';
 import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
-import { frames, parseTriggerWav, parseWav, wavDurationMs } from '../../linx/src/wav.mjs';
+import { parseTriggerWav, wavDurationMs } from '../../linx/src/wav.mjs';
 import { waitForMcpDiscovery } from './mcp-discovery.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
@@ -137,22 +137,15 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (!source || source.seatId === nextSeat.seatId || room.speechInputRelay?.seatId === nextSeat.seatId) return room.speechInputRelay;
       const client = this.clientFor(room, nextSeat.seatId);
       if (!client) throw new Error('CONTROLLER_MISSING');
-      const stream = await client.startRealtime();
+      // Manual mode buffers the previous speaker without letting the model
+      // answer conversationally before the game turn is leased.
+      const stream = await client.startRealtime({ mode: 'manual' });
       const relay = { seatId: nextSeat.seatId, sourceSeatId: source.seatId, stream, queue: Promise.resolve(), closed: false };
       const push = chunk => { relay.queue = relay.queue.then(() => stream.send(chunk)).catch(() => {}); return relay.queue; };
       relay.push = push;
       room.speechInputRelay = relay;
       source.target = push;
       for (const chunk of source.chunks) await push(chunk);
-      // A realtime listener can answer the previous speech conversationally
-      // without entering the game's MCP action loop. Append the same short
-      // action cue used by normal turns before stopping the listener so the
-      // single response is a game action. The cue is private to the next AI.
-      source.finish = async () => {
-        if (source.triggerSent) return;
-        source.triggerSent = true;
-        for (const chunk of frames(parseWav(audio))) await push(chunk);
-      };
       recordTurn('speech_pcm_relay_started', { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId, bytes: source.chunks.reduce((n, chunk) => n + chunk.length, 0) });
       return relay;
     },
@@ -170,7 +163,12 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
-        if (inputRelay) { result = await client.stopRealtime(); room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null; }
+        if (inputRelay) {
+          await client.stopRealtime({ waitForTts: false });
+          room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
+          const work = client.send(wav); sends.set(key, work);
+          try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
+        }
         else { if (client.stream) throw Error('CLIENT_BUSY'); const work=client.send(wav);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
         if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
       catch (error) { if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
