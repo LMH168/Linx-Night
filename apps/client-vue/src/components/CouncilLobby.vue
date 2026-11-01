@@ -15,6 +15,7 @@ defineEmits([
   "update:code",
   "create",
   "join",
+  "copy",
   "add",
   "fill",
   "rename",
@@ -102,7 +103,7 @@ const statusNames: Record<string, string> = {
           </button>
           <div class="join">
             <label
-              >房间号<input
+              >房间码或 UUID<input
                 :value="code"
                 @input="
                   $emit(
@@ -110,7 +111,7 @@ const statusNames: Record<string, string> = {
                     ($event.target as HTMLInputElement).value,
                   )
                 "
-                placeholder="填写完整房间号"
+                placeholder="填写六位房间码或 UUID"
                 :disabled="busy" /></label
             ><button
               :disabled="busy || !code.trim() || !nickname.trim()"
@@ -125,7 +126,8 @@ const statusNames: Record<string, string> = {
           <p class="eyebrow">
             {{ host ? "你是房主" : "你是加入者" }} · {{ nickname }}
           </p>
-          <h2 class="display">房间 {{ state.roomId }}</h2>
+          <h2 class="display">房间 {{ state.roomCode || state.roomId }}</h2>
+          <button class="text-button" type="button" @click="$emit('copy')">复制房间码</button>
           <p class="muted">{{ occupied }} / 9 已入座 · 主持不占玩家席位</p>
           <div v-if="host && !state.preparing" class="buttons">
             <button @click="$emit('add')" :disabled="busy || occupied === 9">

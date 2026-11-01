@@ -236,6 +236,10 @@ const connectionLabel = computed(
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : "请求失败，请重试。";
 }
+function copyRoomCode() {
+  const code = state.value?.roomCode || roomId.value;
+  if (code) navigator.clipboard?.writeText(code).catch(() => undefined);
+}
 function saveSession() {
   sessionStorage.setItem("linx-room", roomId.value);
   sessionStorage.setItem("linx-player", playerId.value);
@@ -691,6 +695,7 @@ onBeforeUnmount(() => {
       :message="message"
       @create="createRoom"
       @join="joinRoom"
+      @copy="copyRoomCode"
       @add="addAi()"
       @fill="addAi(true)"
       @rename="
