@@ -97,12 +97,12 @@ async function cancel() {
 
     <section v-else class="lobby-grid">
       <div class="lobby-roster">
-        <div class="panel-head"><span class="eyebrow">THE TRAVELLERS</span><span>{{ seats.filter(seat => state.seats.find(item => item.seatId === seat.id)?.playerType).length }} / {{ seats.length }}</span></div>
+        <div class="panel-head"><span class="eyebrow">THE TRAVELLERS</span><span>{{ seats.filter(seat => state?.seats.find(item => item.seatId === seat.id)?.playerType).length }} / {{ seats.length }}</span></div>
         <div class="roster-grid">
           <article v-for="(seat, index) in seats" :key="seat.id" class="roster-seat" :style="{ '--tint': ['#8e9b79','#9b6a5d','#a89a6b','#8d7d68','#738b6a','#8a5d5d','#769b96','#b08a55','#786b5c'][index] }">
             <span class="rs-index">{{ seat.id }}</span><span class="rs-initial">{{ seat.initial }}</span><span class="rs-name">{{ seat.name }}</span>
-            <span class="rs-state">{{ seat.isSelf ? '你' : state.seats.find(item => item.seatId === seat.id)?.controlSource === 'linx' ? '灵矽 AI' : state.seats.find(item => item.seatId === seat.id)?.playerType ? '真人' : '空位' }}</span>
-            <button v-if="isHost && state.phase === 'LOBBY' && state.seats.find(item => item.seatId === seat.id)?.playerType === 'ai'" class="link-button" @click="rename(seat.id, seat.name)">改名</button>
+            <span class="rs-state">{{ seat.isSelf ? '你' : state?.seats.find(item => item.seatId === seat.id)?.controlSource === 'linx' ? '灵矽 AI' : state?.seats.find(item => item.seatId === seat.id)?.playerType ? '真人' : '空位' }}</span>
+            <button v-if="isHost && state.phase === 'LOBBY' && state?.seats.find(item => item.seatId === seat.id)?.playerType === 'ai'" class="link-button" @click="rename(seat.id, seat.name)">改名</button>
           </article>
         </div>
         <div v-if="isHost && state.phase === 'LOBBY'" class="ai-add"><input v-model="aiName" placeholder="AI 玩家名称（可选）" maxlength="24" /><button class="secondary" :disabled="busy" @click="addAi">添加 AI</button></div>
@@ -112,7 +112,7 @@ async function cancel() {
         <h2>{{ state.phase === 'LOBBY' ? '等待开局' : preparing ? '正在连接 AI' : '准备完成' }}</h2>
         <p class="lobby-copy" v-if="state.phase === 'LOBBY'">房主补齐座位后开始游戏。</p>
         <p class="lobby-copy" v-else>控制器状态：{{ state.controllerPhase }}（{{ connectedCount }}/{{ state.controllers.length }}）</p>
-        <div class="actions" v-if="isHost && state.phase === 'LOBBY'"><button class="btn gold" :disabled="busy || seats.some(seat => !state.seats.find(item => item.seatId === seat.id)?.playerType)" @click="start">开始游戏</button><button v-if="preparing" class="btn ghost" :disabled="busy" @click="cancel">取消准备</button><button v-if="state.controllerPhase === 'failed'" class="btn ghost" :disabled="busy" @click="retry">重试连接</button></div>
+        <div class="actions" v-if="isHost && state.phase === 'LOBBY'"><button class="btn gold" :disabled="busy || seats.some(seat => !state?.seats.find(item => item.seatId === seat.id)?.playerType)" @click="start">开始游戏</button><button v-if="preparing" class="btn ghost" :disabled="busy" @click="cancel">取消准备</button><button v-if="state.controllerPhase === 'failed'" class="btn ghost" :disabled="busy" @click="retry">重试连接</button></div>
         <p v-if="error || store.notice" class="action-notice">{{ error || store.notice }}</p>
       </aside>
     </section>

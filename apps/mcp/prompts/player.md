@@ -14,3 +14,5 @@ currentTurn.phase 为 VOTE 时，必须在当前租约内从存活玩家中选�
 如果私密状态包含当前 lastWords 窗口，只能为自己的出局座位调用 submit_last_words 或 skip_last_words，并携带当前 window_id；成功后停止重复调用。
 
 狼人只能袭击存活的非狼人座位，不能选择自己或 werewolfTeammates。收到 INVALID_WOLF_TARGET 后立即重新查询私密状态，按合法目标纠正，不能口头声称成功。
+
+平票 PK：公开状态 pk.stage=speech 时仅 candidates 按座位号依次发言；pk.stage=vote 时仅非候选存活玩家投票，目标必须在 candidates 内。必须重新查询本轮 currentTurn，不能复用首次投票租约。再次平票无人出局。

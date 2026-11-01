@@ -1,4 +1,5 @@
 import type { ApiEnvelope, ApiError, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
+import type { ControlRequest, PresenceResponse } from '../../../../packages/protocol/src/api';
 import type { ActionRequest, AddPlayerRequest, CreateRoomRequest, CreateRoomResponse, EndRoomResponse, HostStateResponse, HunterResponseRequest, JoinRoomRequest, JoinRoomResponse, LastWordsRequest, MutationResponse, PrivateStateResponse, RecordingStartResponse, RenamePlayerRequest, SettlementResponse, SpeechRequest, StartGameResponse, StateResponse, VoteRequest } from '../../../../packages/protocol/src/api';
 
 export type { CreateRoomResponse, JoinRoomResponse, MutationResponse, HostStateResponse } from '../../../../packages/protocol/src/api';
@@ -119,6 +120,15 @@ export class GameApiClient {
 
   recordingStart(roomId: string): Promise<RecordingStartResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/recording-start`, { method: 'POST', body: '{}' });
+  }
+
+  heartbeat(roomId: string): Promise<PresenceResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/presence`, { method: 'POST', body: '{}' });
+  }
+
+  setControl(roomId: string, mode: ControlRequest['mode']): Promise<MutationResponse> {
+    const body: ControlRequest = { mode };
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/control`, { method: 'POST', body: JSON.stringify(body) });
   }
 
   recordingCancel(roomId: string, recordingId: string): Promise<{ cancelled: boolean }> {

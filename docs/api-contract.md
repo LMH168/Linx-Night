@@ -50,6 +50,10 @@ GET  /api/settlements/{settlement_id}
 
 投票阶段公共状态提供 `submittedVoteRound` 和 `submittedVoteSeatIds`，只表示哪些座位已经提交投票。该投影不包含投票目标、票数或投票关系，结算后清空。
 
+首次平票后，公共状态 `pk` 为 `{ round, stage: "speech", candidates }`，仍使用 `SPEECH` 阶段，候选人按席位号码递增发言；之后 `pk.stage` 为 `vote`，仍通过原 `/votes` 接口重投。仅非候选的存活玩家可重投，目标限 `candidates`；再次平票无人出局，进入下一夜。每轮已投席位分别统计，`voteResolutions.pk` 区分同一天首轮与 PK 重投；两轮结果均只在各轮投完后公开。无人可重投时记录零票 PK 结算并进入下一夜。
+
+私密投影补充 `canAct` 表示本人当前行动资格；猎人仍以私密 `hunterAction` 窗口行动，公开阶段保持 `RESOLUTION`。真人发言窗口通过 `game.speech_window_opened` 通知刷新，`speechDeadline` 为实际服务端截止时间（兼容毫秒时间戳与 ISO 字符串）；PK 发言使用独立的截止时间和超时提交编号。
+
 ## 提前结束结算（#95）
 
 房主调用 `POST /api/rooms/{room_id}/end` 后，服务端生成一次 `HOST_ENDED` 结算记录并释放控制器、主持播放和 MCP 绑定。重复调用返回相同 `settlement_id`。原房间随后从活动房间移除，状态和写操作拒绝；参与者可通过 room ID 或 settlement ID 查询报告，陌生玩家返回 403。

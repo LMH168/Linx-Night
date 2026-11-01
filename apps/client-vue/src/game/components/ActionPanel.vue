@@ -35,7 +35,7 @@ const title = computed(() => {
   if (store.phase === 'NIGHT_WITCH') return '今夜，用哪瓶药？';
   return '等待阶段推进';
 });
-const eyebrow = computed(() => store.phase === 'SPEECH' ? 'SPEECH · ' + (store.selfSeat.id || '') : 'PHASE · ' + store.phase);
+const eyebrow = computed(() => store.phase === 'SPEECH' ? 'SPEECH · ' + (store.selfSeat.seatId || '') : 'PHASE · ' + store.phase);
 const copy = computed(() => {
   if (store.phase === 'NIGHT_WOLF') return '狼队共同选择一名非狼人玩家。确认后等待其他狼人。';
   if (store.phase === 'NIGHT_SEER') return '查验一名玩家的阵营，结果只显示在你的身份卡中。';
@@ -85,8 +85,8 @@ async function skip() { await store.skipAction(); }
 
     <template v-else-if="store.phase === 'SPEECH' && store.isMyAction">
       <div class="speech-compose"><textarea v-model="draft" maxlength="1200" aria-label="你的发言" placeholder="输入你的发言，或使用真人录音……"></textarea><span class="compose-count">{{ draft.length }} / 1200</span></div>
-      <p v-if="voice.draft.stage !== 'idle'" class="action-notice">{{ voice.draft.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs / 1000)} 秒` : voice.draft.stage === 'transcribing' ? '灵矽正在转写……' : voice.draft.stage === 'confirming' ? '转写完成，请确认文字后提交。' : voice.draft.error }}</p>
-      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="voice.busy" @click="voice.start">开始录音</button><button v-if="voice.draft.stage === 'recording'" class="btn ghost" @click="voice.stop">结束录音</button><button v-if="voice.draft.stage !== 'idle'" class="btn ghost" @click="voice.cancel">取消录音</button><button class="btn gold" :disabled="!draft.trim() || store.actionBusy || voice.busy" @click="submitSpeech">提交发言</button></div>
+      <p v-if="voice.draft.value.stage !== 'idle'" class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '灵矽正在转写……' : voice.draft.value.stage === 'confirming' ? '转写完成，请确认文字后提交。' : voice.draft.value.error }}</p>
+      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="voice.busy.value" @click="voice.start">开始录音</button><button v-if="voice.draft.value.stage === 'recording'" class="btn ghost" @click="voice.stop">结束录音</button><button v-if="voice.draft.value.stage !== 'idle'" class="btn ghost" @click="voice.cancel()">取消录音</button><button class="btn gold" :disabled="!draft.trim() || store.actionBusy || voice.busy.value" @click="submitSpeech">提交发言</button></div>
     </template>
 
     <template v-else-if="store.phase === 'LAST_WORDS' && store.isMyAction">
