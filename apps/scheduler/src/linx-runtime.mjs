@@ -131,12 +131,30 @@ export class LinxTurnRuntime {
       const code = windowExpired ? expiredCode : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
       retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
       recordTurn('finished',{...context,code});
-      if (turn) expireTurn(room, turn.turnId, code);
+      // A required night action cannot be left as a failed controller: the
+      // phase would otherwise wait forever for this seat. Apply the same
+      // server-side safety action used for an absent human, then complete the
+      // lease exactly once. This does not impersonate an MCP call or alter a
+      // successful Linx path; it only resolves a missed deadline.
+      const canDefaultNight = error.message === 'TURN_TIMEOUT' && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(room.phase);
+      let defaultedNight = false;
+      if (canDefaultNight) {
+        try {
+          if (defaultTurn(room, seat)) {
+            if (turn) completeTurn(room, turn.turnId);
+            defaultedNight = true;
+            recordTurn('default_action', {...context,reason:'TURN_TIMEOUT',phase:room.phase});
+          }
+        } catch (fallbackError) {
+          recordTurn('default_action_failed', {...context,reason:'TURN_TIMEOUT',code:fallbackError.message});
+        }
+      }
+      if (turn && !defaultedNight) expireTurn(room, turn.turnId, code);
       if (error.message === 'TURN_TIMEOUT' && seat.controlSource === 'human' && active() && actionAvailable(room, seat)) {
         try { defaultTurn(room, seat); completeTurn(room, turn.turnId); } catch { expireTurn(room, turn.turnId, 'TURN_DEFAULT_FAILED'); }
       } else if (!windowExpired && !cancelled && active() && actionAvailable(room, seat) && seat.controlSource === 'linx') {
         const c = room.controllers.find(c => c.seatId === seat.seatId);
-        if (c) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
+        if (c && !defaultedNight) updateController(room, seat.seatId, { status: 'failed', errorCode: code });
       }
     } finally {
       clearTimeout(timer); clearInterval(poll);

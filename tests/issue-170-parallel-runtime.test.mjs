@@ -60,4 +60,21 @@ await new LinxTurnRuntime({ manager: failingManager, timeoutMs: 100 }).tick(fail
 assert.equal(failedVotes.votes.length, 2, '单个 AI 失败时同批其他投票仍应提交');
 assert.equal(failedVotes.controllers.find(controller => controller.seatId === 'P2').status, 'failed');
 
+const timedWolf = fixture('NIGHT_WOLF');
+timedWolf.seats[0].role = 'villager'; timedWolf.seats[0].camp = 'good';
+const timedWolfManager = {
+  async ensureConnected() {},
+  async sendTurn(room, seat) {
+    if (seat.seatId === 'P2') return new Promise(() => {});
+    await delay(10);
+    const turn = room.turns.find(item => item.status === 'active' && item.seatId === seat.seatId);
+    wolfTarget(room, seat.seatId, 'P9', `timeout-wolf-${seat.seatId}`);
+    completeTurn(room, turn.turnId);
+  },
+};
+await new LinxTurnRuntime({ manager: timedWolfManager, timeoutMs: 40 }).tick(timedWolf);
+assert.equal(timedWolf.actions.filter(action => action.actionType === 'wolf_target').length, 3, '狼人超时应使用已有提案完成安全默认行动');
+assert.notEqual(timedWolf.phase, 'NIGHT_WOLF', '狼人超时不能把房间卡在狼人阶段');
+assert.equal(timedWolf.controllers.find(controller => controller.seatId === 'P2').status, 'ready', '安全默认行动不应把控制器标记为失败');
+
 console.log('Issue 170 parallel wolf and AI vote batches passed');
