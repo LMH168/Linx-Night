@@ -17,6 +17,10 @@ export const controllerBindings = new Map();
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(body)); };
 const rpc = (id, result) => ({ jsonrpc: '2.0', id, result });
 const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
+const protocolVersions = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
+// Newer MCP clients can advertise a dated revision before this server needs
+// revision-specific behavior. The transport and tool contract are unchanged.
+const validProtocolVersion = value => typeof value === 'string' && (protocolVersions.includes(value) || /^\d{4}-\d{2}-\d{2}$/.test(value));
 const bodyOf = req => new Promise((resolve, reject) => { let value = ''; let rejected = false; req.on('data', chunk => { if (rejected) return; value += chunk; if (Buffer.byteLength(value) > 1_000_000) { rejected = true; reject(Object.assign(new Error('request body too large'), { code: -32600 })); } }); req.on('end', () => { if (rejected) return; try { resolve(JSON.parse(value)); } catch { reject(new Error('invalid JSON')); } }); req.on('error', reject); });
 
 function authToken(req) {
@@ -209,9 +213,8 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
         return json(res, 200, { tools, data: { tools } });
       }
       const streamable = url.pathname === '/mcp' && req.method === 'POST';
-      const versions = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];
       const protocolVersion = req.headers['mcp-protocol-version'];
-      if (protocolVersion && !versions.includes(protocolVersion)) return reply(400,rpcError(null,-32600,'unsupported MCP protocol version'));
+      if (protocolVersion && !validProtocolVersion(protocolVersion)) return reply(400,rpcError(null,-32600,'unsupported MCP protocol version'));
       // Stateless HTTP replies need no server-initiated stream or transport session.
       if (url.pathname === '/mcp' && req.method === 'DELETE') {
         res.writeHead(405, {allow:'POST'}); return res.end();
@@ -241,7 +244,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
       let response;
       try {
         const {id,method,params={}} = message;
-        if (method === 'initialize') response = rpc(id,{protocolVersion:streamable ? (versions.includes(params.protocolVersion) ? params.protocolVersion : '2025-03-26') : '2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.3.0'}});
+        if (method === 'initialize') response = rpc(id,{protocolVersion:streamable ? (validProtocolVersion(params.protocolVersion) ? params.protocolVersion : '2025-03-26') : '2024-11-05',capabilities:{tools:{}},serverInfo:{name:'linx-night-game',version:'0.3.0'}});
         else if (method === 'ping') response = rpc(id,{});
         else if (method === 'tools/list') response = rpc(id,{tools:[...toolMap.values()]});
         else if (method === 'tools/call') response = rpc(id,await callTool(req,params.name,params.arguments === undefined ? {} : params.arguments,requiredToken,trace));

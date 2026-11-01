@@ -22,6 +22,8 @@ try {
     assert.equal(response.headers.get('mcp-session-id'),null);
     const init=await response.json();assert.equal(init.id,1);assert.equal(init.result.protocolVersion,version);
   }
+  const future=await send({jsonrpc:'2.0',id:4,method:'initialize',params:{protocolVersion:'2026-02-01',capabilities:{},clientInfo:{name:'new-client',version:'1.0'}}},{'mcp-protocol-version':'2026-02-01'});
+  assert.equal(future.status,200);assert.equal((await future.json()).result.protocolVersion,'2026-02-01');
   const negotiated={'mcp-protocol-version':'2025-03-26'};
   const notified=await send({jsonrpc:'2.0',method:'notifications/initialized'},negotiated);
   assert.equal(notified.status,202);assert.equal(await notified.text(),'');
