@@ -39,6 +39,19 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
   const voteAudioPath = env.LINX_VOTE_WAV;
   let audio, hunterAudio, voteAudio;
+  const assignedProfiles = room => {
+    const count = room.controllers?.length ? room.controllers.filter(controller => controller.seatId !== 'HOST').length : room.seats.filter(seat => seat.playerType === 'ai').length;
+    const assigned = names.slice(0, count);
+    if (room.controllers?.some(controller => controller.seatId === 'HOST')) {
+      required(env.LINX_HOST_PROFILE, 'LINX_HOST_PROFILE');
+      required(env.LINX_HOST_AGENT_ID, 'LINX_HOST_AGENT_ID');
+      if (assigned.includes(env.LINX_HOST_PROFILE) || env.LINX_HOST_PROFILE === env.LINX_VOICE_PROFILE || env.LINX_HOST_AGENT_ID === env.LINX_AGENT_ID) throw Object.assign(new Error('主持身份与 Agent 必须独立'), { code: 'PROFILE_POOL_DUPLICATE' });
+      assigned.push(env.LINX_HOST_PROFILE);
+    }
+    if (assigned.length !== count + (room.controllers?.some(controller => controller.seatId === 'HOST') ? 1 : 0)) throw Object.assign(new Error('not enough activated profiles configured'), { code: 'PROFILE_POOL_INSUFFICIENT' });
+    if (new Set(assigned).size !== assigned.length) throw Object.assign(new Error('duplicate profiles configured'), { code: 'PROFILE_POOL_DUPLICATE' });
+    return assigned;
+  };
   const adapterFor = room => {
     if (!adapters.has(room.roomId)) {
       const profileBySeat = new Map(room.controllers.map((c, i) => [c.seatId, c.seatId==='HOST' ? env.LINX_HOST_PROFILE : names[i]]));
@@ -73,15 +86,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
         room.controllers.filter(c => c.seatId !== 'HOST').forEach((c,i) => { room.publicVoices[c.seatId] = voices.players[names[i]]; });
       }
       if (!room.controllers.length) { room.controllerPhase = 'ready'; return room; }
-      const count=room.controllers.filter(c=>c.seatId!=='HOST').length;
-      const assigned = names.slice(0,count);
-      if(room.controllers.some(c=>c.seatId==='HOST')) {
-        required(env.LINX_HOST_PROFILE,'LINX_HOST_PROFILE');required(env.LINX_HOST_AGENT_ID,'LINX_HOST_AGENT_ID');
-        if(names.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE||env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)throw new Error('主持身份与 Agent 必须独立');
-        assigned.push(env.LINX_HOST_PROFILE);
-      }
-      if (assigned.length !== room.controllers.length) throw Object.assign(new Error('not enough activated profiles configured'), {code:'PROFILE_POOL_INSUFFICIENT'});
-      if (new Set(assigned).size !== assigned.length) throw Object.assign(new Error('duplicate profiles configured'), {code:'PROFILE_POOL_DUPLICATE'});
+      const assigned = assignedProfiles(room);
       if (assigned.some(name => reservations.has(name) && reservations.get(name) !== room.roomId)) throw Object.assign(new Error('profile reserved by another room'), {code:'PROFILE_IN_USE'});
       const gameId = room.gameId;
       required(env.LINX_AGENT_ID, 'LINX_AGENT_ID');
@@ -103,6 +108,12 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       }
       if (room.invalidated || adapters.get(room.roomId) !== adapter) throw new Error('PREPARATION_CANCELLED');
       room.controllerPhase = 'ready'; return room;
+    },
+    checkAvailability(room) {
+      const assigned = assignedProfiles(room);
+      const occupied = assigned.find(name => reservations.has(name) && reservations.get(name) !== room.roomId);
+      if (occupied) throw Object.assign(new Error('灵矽身份正在被其他房间使用，请先结束其他房间后再试'), { code: 'PROFILE_IN_USE', status: 409 });
+      return { available: true, count: assigned.length };
     },
     async ensureConnected(room, seat) {
       const adapter = adapterFor(room), c = room.controllers.find(c => c.seatId === seat.seatId);

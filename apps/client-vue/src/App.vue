@@ -234,6 +234,8 @@ const connectionLabel = computed(
     })[store.connectionStatus],
 );
 function errorText(error: unknown) {
+  if (error instanceof ApiRequestError && error.code === "PROFILE_IN_USE")
+    return "灵矽身份正在被其他房间使用，请先结束其他房间，再取消本次准备后重试。";
   return error instanceof Error ? error.message : "请求失败，请重试。";
 }
 function copyRoomCode() {
