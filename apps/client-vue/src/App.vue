@@ -6,6 +6,7 @@ import { useHumanVoice } from './composables/useHumanVoice';
 import { useHostPlayback } from './composables/useHostPlayback';
 import { useRoomStore } from './stores/room';
 import type { SeatState } from '../../../packages/protocol/src/types';
+import type { ActionRequest, HunterResponseRequest, LastWordsRequest, SpeechRequest, VoteRequest } from '../../../packages/protocol/src/api';
 
 const store = useRoomStore();
 const entryQuery = new URLSearchParams(location.search);
@@ -130,7 +131,8 @@ async function renameAi(seat: SeatState) {
 
 async function hostMutation(path: string, notice: string) {
   if (!client.value) return;
-  try { const response = await client.value.mutate(roomId.value, path); if (response.state) store.publicState = response.state; message.value = notice; await refresh(); }
+  const request = path === '/start' ? client.value.startRoom(roomId.value) : path === '/controllers/retry' ? client.value.retryControllers(roomId.value) : path === '/controllers/cancel' ? client.value.cancelControllers(roomId.value) : client.value.retryTurn(roomId.value);
+  try { const response = await request; if (response.state) store.publicState = response.state; message.value = notice; await refresh(); }
   catch (cause) { message.value = errorMessage(cause); }
 }
 
@@ -145,10 +147,12 @@ async function endGame() {
   catch (cause) { message.value = errorMessage(cause); }
 }
 
-async function submitAction(path: string, body: Record<string, unknown>, notice: string) {
+async function submitAction(path: string, body: ActionRequest | VoteRequest | SpeechRequest | HunterResponseRequest | LastWordsRequest, notice: string) {
   if (!client.value || actionBusy.value) return;
   actionBusy.value = true; actionMessage.value = '正在提交…';
-  try { await client.value.mutate(roomId.value, path, { ...body, action_id: `${path.replaceAll('/', '_')}_${Date.now()}` }); actionMessage.value = notice; await refresh(); }
+  const payload = { ...body, action_id: `${path.replaceAll('/', '_')}_${Date.now()}` };
+  const request = path === '/actions' ? client.value.submitAction(roomId.value, payload as ActionRequest) : path === '/votes' ? client.value.submitVote(roomId.value, payload as VoteRequest) : path === '/speeches' ? client.value.submitSpeech(roomId.value, payload as SpeechRequest) : path === '/hunter-response' ? client.value.submitHunterResponse(roomId.value, payload as HunterResponseRequest) : client.value.submitLastWords(roomId.value, payload as LastWordsRequest);
+  try { await request; actionMessage.value = notice; await refresh(); }
   catch (cause) { actionMessage.value = `提交失败：${errorMessage(cause)}`; }
   finally { actionBusy.value = false; }
 }

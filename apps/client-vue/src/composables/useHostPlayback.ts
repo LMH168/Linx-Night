@@ -1,17 +1,8 @@
 import { computed, ref, type Ref } from 'vue';
 import type { GameApiClient, HostStateResponse } from '../api/client';
+import type { HostTask } from '../../../../packages/protocol/src/types';
 
-export interface PlaybackTask {
-  id: string;
-  attemptId?: string;
-  gameId?: string;
-  eventId?: string;
-  seatId?: string | null;
-  kind?: string;
-  text: string;
-  status: string;
-  errorCode?: string | null;
-}
+export type PlaybackTask = HostTask;
 
 export interface PcmPlaybackOptions {
   signal?: AbortSignal;
