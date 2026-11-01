@@ -6,13 +6,13 @@ import { parseWav, frames } from './wav.mjs';
 
 export const pcm = { format: 'pcm', sample_rate: 16000, channels: 1, bit_depth: 16, endianness: 'little', frame_duration: 20, frame_size: 320, sample_format: 'signed_int16', play_buffer_duration: 1000 };
 export class LinxClient {
-  constructor(identity, { socketFactory = (url, options) => new WebSocket(url, options), record = () => {}, helloTimeoutMs = 10000, actionTimeoutMs = 60000 } = {}) {
-    this.identity = identity; this.socketFactory = socketFactory; this.record = record;
+  constructor(identity, { socketFactory = (url, options) => new WebSocket(url, options), record = () => {}, onAudio = () => {}, onMessage = () => {}, helloTimeoutMs = 10000, actionTimeoutMs = 60000 } = {}) {
+    this.identity = identity; this.socketFactory = socketFactory; this.record = record; this.onAudio = onAudio; this.onMessage = onMessage;
     this.helloTimeoutMs = helloTimeoutMs; this.actionTimeoutMs = actionTimeoutMs;
-    this.state = 'closed'; this.sessionId = undefined; this.pending = null;
+    this.state = 'closed'; this.sessionId = undefined; this.pending = null; this.stream = null;
   }
   event(type, data = {}) { this.record({ at: new Date().toISOString(), runId: this.runId, type, ...data }); }
-  status() { return { state: this.state, sessionPresent: Boolean(this.sessionId), runId: this.runId, audio: this.audio, busy: Boolean(this.pending) }; }
+  status() { return { state: this.state, sessionPresent: Boolean(this.sessionId), runId: this.runId, audio: this.audio, busy: Boolean(this.pending || this.stream) }; }
   async connect(config) {
     if (this.state !== 'closed') throw new Error('请先关闭当前连接');
     const url = secureSocketUrl(config.url);
@@ -26,7 +26,7 @@ export class LinxClient {
         finished = true;
         clearTimeout(timer);
         this.event('connection_failure', { code });
-        this.state = 'closed'; this.pending?.reject(new Error(code)); this.socket?.terminate();
+        this.state = 'closed'; this.pending?.reject(new Error(code)); this.stream?.reject(new Error(code)); this.socket?.terminate();
         if (!greeted) reject(new Error(code));
       };
       const runId = this.runId;
@@ -40,12 +40,12 @@ export class LinxClient {
         if (this.runId !== runId) return;
         finished = true;
         clearTimeout(timer); this.state = 'closed'; this.event('closed');
-        this.pending?.reject(new Error('CONNECTION_CLOSED'));
+        this.pending?.reject(new Error('CONNECTION_CLOSED')); this.stream?.reject(new Error('CONNECTION_CLOSED'));
         if (!greeted) reject(new Error('CONNECTION_CLOSED_BEFORE_HELLO'));
       });
       socket.on('message', (raw, binary) => {
         if (finished || this.runId !== runId) return;
-        if (binary) { this.event('audio_received', { bytes: raw.length }); return; }
+        if (binary) { this.event('audio_received', { bytes: raw.length }); this.onAudio(Buffer.from(raw), { attemptId: this.pending?.attemptId ?? this.stream?.attemptId }); return; }
         let message; try { message = JSON.parse(raw.toString()); } catch { fail('INVALID_JSON'); return; }
         if (!message || typeof message !== 'object') { fail('INVALID_MESSAGE'); return; }
         if (!greeted) {
@@ -57,20 +57,63 @@ export class LinxClient {
           greeted = true; clearTimeout(timer); this.state = 'ready'; this.event('hello', { sessionPresent: Boolean(this.sessionId), ...this.audio }); resolve(); return;
         }
         if (message.type === 'error') { fail('PLATFORM_ERROR'); return; }
-        if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId });
+        this.onMessage(message);
+        if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
         if (message.type === 'tts' && ['start', 'stop', 'sentence_start'].includes(message.state)) {
-          this.event(`tts_${message.state}`, { attemptId: this.pending?.attemptId });
-          if (message.state === 'stop' && this.pending?.sent) {
-            if (message.is_aborted) this.pending.reject(new Error('TURN_ABORTED'));
-            else this.pending.resolve();
+          this.event(`tts_${message.state}`, { attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
+          if (message.state === 'stop') {
+            const active = this.pending?.sent ? this.pending : this.stream;
+            if (active) {
+              if (message.is_aborted) active.reject(new Error('TURN_ABORTED'));
+              else active.resolve();
+            }
           }
         }
       });
     });
   }
+
+  async startRealtime() {
+    if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
+    const attemptId = randomUUID(), abort = new AbortController();
+    let timer;
+    const completion = new Promise((resolve, reject) => { this.stream = { resolve, reject, done: null, attemptId, mode: 'stream' }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
+    this.stream.done = completion;
+    completion.catch(() => abort.abort());
+    const send = data => new Promise((resolve, reject) => {
+      if (this.socket.readyState !== WebSocket.OPEN || this.socket.bufferedAmount > 640 * 50) { reject(new Error('SEND_BACKPRESSURE_OR_CLOSED')); return; }
+      const cancelled = () => reject(new Error('SEND_CANCELLED'));
+      if (abort.signal.aborted) { cancelled(); return; }
+      abort.signal.addEventListener('abort', cancelled, { once: true });
+      this.socket.send(data, error => { abort.signal.removeEventListener('abort', cancelled); error ? reject(new Error('SEND_FAILED')) : resolve(); });
+    });
+    this.stream.send = send; this.stream.timer = timer; this.stream.abort = abort;
+    try {
+      await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'start', mode: 'realtime' }));
+      this.event('input_start', { attemptId, mode: 'realtime' });
+      return { attemptId, send: frame => send(frame), done: completion };
+    } catch (error) {
+      this.stream = null; clearTimeout(timer); abort.abort(); this.close(); throw error;
+    }
+  }
+
+  async stopRealtime() {
+    const stream = this.stream;
+    if (!stream) throw new Error('没有实时监听');
+    try {
+      await stream.send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'stop' }));
+      this.event('input_stop', { attemptId: stream.attemptId, mode: 'realtime' });
+      await stream.done;
+      return { attemptId: stream.attemptId, gameAccepted: 'unverified' };
+    } catch (error) {
+      this.close(); throw error;
+    } finally {
+      clearTimeout(stream.timer); stream.abort.abort(); if (this.stream === stream) this.stream = null;
+    }
+  }
   async send(wav) {
     const audio = parseWav(wav);
-    if (this.state !== 'ready' || this.pending) throw new Error('连接未准备或已有行动等待结束');
+    if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
     let timer;
     const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
@@ -98,6 +141,7 @@ export class LinxClient {
   }
   close() {
     this.pending?.reject(new Error('CLIENT_CLOSED'));
+    this.stream?.reject(new Error('CLIENT_CLOSED'));
     if (this.socket && this.socket.readyState !== WebSocket.CLOSED) this.socket.terminate();
     this.state = 'closed'; this.sessionId = undefined;
   }

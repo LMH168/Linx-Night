@@ -7,6 +7,7 @@ import { publicNarration, readVoiceBody } from './voice.mjs';
 import { heartbeat, expirePresence, setHumanControl } from '../../../packages/domain/src/presence.mjs';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { WebSocketServer } from 'ws';
 import { addPlayer, appendEvent, assignRoles, beginControllerPreparation, createRoom, fillAiSeats, invalidateRoomControllers, privateState, publicState, CONTROLLER_STATES, defaultAiDisplayName, createSettlement, settlementReport, SETTLEMENT_TYPES } from '../../../packages/domain/src/model.mjs';
 import { announceDay, expireHunterResponse, expireLastWords, seerCheck, skipHunterResponse, skipLastWords, startGame, submitLastWords, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 import { EventHub, eventStream } from './realtime.mjs';
@@ -48,7 +49,7 @@ const storeSettlement = room => { const report = settlementReport(room); if (rep
 const settlementForReference = reference => [...settlements.values()].find(item => item.roomId === reference || item.roomCode === reference);
 const settlementActor = (req, settlementId) => { const playerId = req.headers['x-player-id']; if (!settlementParticipants.get(settlementId)?.has(playerId)) throw Object.assign(new Error('settlement access is unauthorized'), { status: 403 }); };
 
-export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, hostPlayback, linxSeats = configuredLinxSeats(process.env) } = {}) {
+export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, realtimeVoice, hostPlayback, linxSeats = configuredLinxSeats(process.env) } = {}) {
   const transcriptions = new Set();
   const server = createServer(async (req, res) => {
     try {
@@ -132,6 +133,39 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
     } catch (error) { return json(res, error.status || 400, { error: { code: error.code || (error.status === 403 ? 'FORBIDDEN' : 'INVALID_ACTION'), message: error.message, ...(error.occupied === undefined ? {} : { occupied: error.occupied, missing: error.missing }) } }); }
   });
+  const realtime = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url, 'http://localhost');
+    const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/voice\/realtime$/);
+    if (!match || !realtimeVoice) { socket.destroy(); return; }
+    let room, seat;
+    try { room = roomOrFail(decodeURIComponent(match[1])); seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id')); if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言'); }
+    catch { socket.destroy(); return; }
+    realtime.handleUpgrade(req, socket, head, ws => {
+      const recordingId = url.searchParams.get('recording_id'); let session, closed = false, submitted = false;
+      let resolveRelay; const done = new Promise(resolve => { resolveRelay = resolve; });
+      const relay = { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: resolveRelay, done };
+      room.speechAudioRelay = relay; room.realtimeSpeech = true;
+      const finish = () => { if (closed) return; closed = true; relay.ended = true; relay.resolve(); room.realtimeSpeech = false; session?.close?.(); ws.close(); };
+      ws.on('message', async (raw, binary) => {
+        try {
+          if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920) throw new Error('PCM 音频帧无效'); relay.chunks.push(frame); relay.stream?.append(frame); await session?.send(frame); return; }
+          const message = JSON.parse(raw.toString());
+          if (message.type === 'stop') { await session?.stop(); finish(); return; }
+          if (message.type !== 'start') throw new Error('实时语音控制消息无效');
+        } catch (error) { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } }
+      });
+      ws.on('close', finish);
+      void realtimeVoice({ onAudio: chunk => { /* Human input is the public stream; Linx TTS stays private. */ void chunk; }, onMessage: message => {
+        if (closed) return;
+        if (message.type === 'stt' && typeof message.text === 'string' && message.text.trim() && !submitted) {
+          try { submitted = true; if (recordingId) confirmRecording(room, seat, recordingId); submitSpeech(room, seat.seatId, message.text.trim(), `realtime_${randomUUID()}`); publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text: message.text.trim() })); }
+          catch (error) { ws.send(JSON.stringify({ type: 'error', message: error.message })); }
+        }
+        if (message.type === 'tts' && message.state === 'stop') ws.send(JSON.stringify({ type: 'tts_stop' }));
+      }}).then(value => { if (closed) return; session = value; ws.send(JSON.stringify({ type: 'ready' })); }).catch(error => { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } });
+    });
+  });
   let hunterTimer;
   server.on('listening', () => { hunterTimer = setInterval(() => {
     for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
@@ -141,4 +175,4 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   return { server, port };
 }
 
-export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) { events.publish(room.roomId, event); if (event.type === 'game.settlement_created') storeSettlement(room); if (['game.player_eliminated','game.hunter_response_opened','game.hunter_response_closed'].includes(event.type)) recordTurn(event.type,{roomId:room.roomId,gameId:room.gameId,eventId:event.eventId,seatId:event.data.seatId,windowId:event.data.windowId}); } if (room.settlement) { const stored=settlements.get(room.settlement.settlementId); const release=room.settlement.release, saved=stored?.release; if (!saved || saved.controllers!==release.controllers || saved.hostPlayback!==release.hostPlayback || saved.mcpBindings!==release.mcpBindings || saved.error!==release.error) storeSettlement(room); } room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); roomChanges.emit('changed', room); }
+export function publishNewEvents(room) { for (const event of room.events.filter(event => event.version > (room.lastPublishedVersion || 0))) { if (event.type === 'game.speech_submitted' && room.speechAudioRelay?.seatId === event.data.seatId) room.speechAudioRelay.speechId = event.data.speechId; events.publish(room.roomId, event); if (event.type === 'game.settlement_created') storeSettlement(room); if (['game.player_eliminated','game.hunter_response_opened','game.hunter_response_closed'].includes(event.type)) recordTurn(event.type,{roomId:room.roomId,gameId:room.gameId,eventId:event.eventId,seatId:event.data.seatId,windowId:event.data.windowId}); } if (room.settlement) { const stored=settlements.get(room.settlement.settlementId); const release=room.settlement.release, saved=stored?.release; if (!saved || saved.controllers!==release.controllers || saved.hostPlayback!==release.hostPlayback || saved.mcpBindings!==release.mcpBindings || saved.error!==release.error) storeSettlement(room); } room.lastPublishedVersion = room.version; if (room.hostCoordinatorEnabled) hostCoordinator.announce(room); roomChanges.emit('changed', room); }

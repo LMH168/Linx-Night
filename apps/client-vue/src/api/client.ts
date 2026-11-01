@@ -139,6 +139,11 @@ export class GameApiClient {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/transcribe`, { method: 'POST', body: JSON.stringify({ wav, ...(recordingId ? { recording_id: recordingId } : {}) }) });
   }
 
+  voiceRealtimeUrl(roomId: string, recordingId?: string): string {
+    const base = this.baseUrl.replace(/^http/, 'ws');
+    return `${base}/api/rooms/${encodeURIComponent(roomId)}/voice/realtime?player_id=${encodeURIComponent(this.playerId)}${recordingId ? `&recording_id=${encodeURIComponent(recordingId)}` : ''}`;
+  }
+
   hostState(roomId: string): Promise<HostStateResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/state`);
   }

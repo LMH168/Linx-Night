@@ -4,6 +4,7 @@ import {publicNarration} from './voice.mjs';
 import {speakPublic} from '../../linx/src/host-audio.mjs';
 import {recordTurn} from './turn-diagnostics.mjs';
 import {completeSpeechPlayback, pauseSpeechPlayback, retrySpeechPlayback} from '../../../packages/domain/src/engine.mjs';
+import { wavFromPcm } from '../../linx/src/voice.mjs';
 
 const done = task => ['played','skipped'].includes(task.status);
 const current = room => room.hostTasks?.find(t => !done(t));
@@ -20,7 +21,7 @@ export class HostPlayback {
    if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
    if(!['game.speech_submitted','game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    const seat=room.seats.find(s=>s.seatId===e.data?.seatId);
-   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
+   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&!room.speechAudioRelay?.speechId){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>!done(t)).length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
    const speaker=e.type==='game.speech_submitted'&&seat?.playerType==='ai'?seat.seatId:'HOST';
@@ -58,6 +59,18 @@ export class HostPlayback {
   const stream=new AudioStream({gameId,taskId:task.id,attemptId:task.attemptId});this.streams.set(task.id,stream);
   const diagnostic=(type,data={})=>recordTurn('host_'+type,{roomId:room.roomId,gameId,taskId:task.id,attemptId:task.attemptId,...data});diagnostic('dequeued');this.publish(room);
   try{
+   const relay = task.kind === 'speech' ? room.speechAudioRelay : null;
+   if (task.kind === 'speech' && relay && relay.speechId === room.speechPlayback?.speechId) {
+    relay.stream = stream;
+    for (const chunk of relay.chunks) stream.append(chunk);
+    if (!relay.ended) await relay.done;
+    if (!stream.bytes) throw Error('AI_SPEECH_AUDIO_EMPTY');
+    stream.end();
+    this.audio.set(task.id, wavFromPcm(Buffer.concat(relay.chunks)));
+    task.status='ready'; this.armWatchdog(task);
+    recordTurn('ai_tts_ready',{roomId:room.roomId,gameId:room.gameId,seatId:task.seatId,eventId:task.eventId,taskId:task.id,bytes:stream.bytes,watchdogDeadlineAt:new Date(task.watchdogDeadlineAt).toISOString()});
+    return;
+   }
    diagnostic('connection_start');await this.manager.ensureConnected(room,{seatId:'HOST'});diagnostic('connection_end');
    if(room.invalidated||room.gameId!==gameId||abort.signal.aborted)return;
    if(task.text.length>1200)throw Error('PUBLIC_TEXT_TOO_LONG');

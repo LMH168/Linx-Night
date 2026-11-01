@@ -14,6 +14,7 @@ export interface HumanVoiceOptions {
   onDraft?: (text: string) => void;
   onBusyStart?: () => void;
   onBusyEnd?: () => void;
+  realtime?: boolean;
 }
 
 const emptyDraft = (): VoiceDraft => ({ recordingId: null, stage: 'idle', text: '', expiresAt: null, error: null });
@@ -68,9 +69,16 @@ export function useHumanVoice(options: HumanVoiceOptions) {
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let abort: AbortController | null = null;
   let recordingKey = '';
+  let realtimeSocket: WebSocket | null = null;
+  let realtimeContext: AudioContext | null = null;
+  let realtimeProcessor: ScriptProcessorNode | null = null;
+  let realtimeSource: MediaStreamAudioSourceNode | null = null;
+  let realtimeBytes = new Uint8Array(0);
 
   const clearTimer = () => { if (timer) clearTimeout(timer); timer = null; if (countdownTimer) clearInterval(countdownTimer); countdownTimer = null; };
   const closeStream = () => { mediaStream?.getTracks().forEach(track => track.stop()); mediaStream = null; };
+  const stopRealtimeCapture = () => { realtimeProcessor?.disconnect(); realtimeSource?.disconnect(); realtimeProcessor = null; realtimeSource = null; void realtimeContext?.close().catch(() => undefined); realtimeContext = null; realtimeBytes = new Uint8Array(0); };
+  const closeRealtime = () => { stopRealtimeCapture(); realtimeSocket?.close(); realtimeSocket = null; };
   const setError = (error: unknown) => {
     draft.value = { ...draft.value, stage: 'failed', error: error instanceof Error ? error.message : '录音或转写失败' };
   };
@@ -81,7 +89,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     abort?.abort(); abort = null;
     const current = draft.value;
     recorder?.stop(); recorder = null;
-    closeStream();
+    closeRealtime(); closeStream();
     if (current.recordingId && options.client.value && options.roomId.value) {
       await options.client.value.recordingCancel(options.roomId.value, current.recordingId).catch(() => undefined);
     }
@@ -131,6 +139,20 @@ export function useHumanVoice(options: HumanVoiceOptions) {
       draft.value = { recordingId: recording.recordingId, stage: 'recording', text: '', expiresAt: new Date(deadline).toISOString(), error: null };
       remainingMs.value = Math.max(0, deadline - Date.now());
       countdownTimer = setInterval(() => { remainingMs.value = Math.max(0, deadline - Date.now()); }, 250);
+      if (options.realtime) {
+        const context = new AudioContext({ sampleRate: 16_000 }); realtimeContext = context;
+        const socket = new WebSocket(client.voiceRealtimeUrl(roomId, recording.recordingId)); realtimeSocket = socket; socket.binaryType = 'arraybuffer';
+        socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'accepted' && message.text) { options.onDraft?.(message.text); draft.value = { ...draft.value, stage: 'confirming', text: message.text }; markSubmitted(); } else if (message.type === 'error') setError(new Error(message.message || '实时语音失败')); };
+        socket.onerror = () => { if (run === generation) setError(new Error('实时语音连接失败')); };
+        await new Promise<void>((resolve, reject) => { socket.onopen = () => { socket.send(JSON.stringify({ type: 'start' })); resolve(); }; socket.addEventListener('error', () => reject(new Error('实时语音连接失败')), { once: true }); });
+        if (run !== generation || key !== options.contextKey()) return;
+        realtimeSource = context.createMediaStreamSource(mediaStream); realtimeProcessor = context.createScriptProcessor(4096, 1, 1);
+        const send = (data: Uint8Array) => { if (socket.readyState === WebSocket.OPEN) socket.send(data); };
+        realtimeProcessor.onaudioprocess = event => { if (run !== generation || socket.readyState !== WebSocket.OPEN) return; const input = event.inputBuffer.getChannelData(0); const ratio = event.inputBuffer.sampleRate / 16_000; const samples = new Int16Array(Math.floor(input.length / ratio)); for (let i = 0; i < samples.length; i += 1) { const value = input[Math.min(input.length - 1, Math.floor(i * ratio))]; samples[i] = Math.max(-1, Math.min(1, value)) * 32767; } const next = new Uint8Array(realtimeBytes.length + samples.byteLength); next.set(realtimeBytes); next.set(new Uint8Array(samples.buffer), realtimeBytes.length); realtimeBytes = next; while (realtimeBytes.length >= 640) { send(realtimeBytes.slice(0, 640)); realtimeBytes = realtimeBytes.slice(640); } };
+        realtimeSource.connect(realtimeProcessor); realtimeProcessor.connect(context.destination);
+        timer = setTimeout(() => stop(), Math.max(1, remainingMs.value - 200));
+        return;
+      }
       const chunks: Blob[] = [];
       recorder = new MediaRecorder(mediaStream);
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
@@ -143,9 +165,9 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     }
   };
 
-  const stop = () => { clearTimer(); if (recorder?.state === 'recording') recorder.stop(); else closeStream(); };
+  const stop = () => { clearTimer(); if (realtimeSocket) { if (realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'stop' })); stopRealtimeCapture(); closeStream(); options.onBusyEnd?.(); setTimeout(() => { if (realtimeSocket) closeRealtime(); }, 10000); } else if (recorder?.state === 'recording') recorder.stop(); else closeStream(); };
   const reset = () => { void cancel(); draft.value = emptyDraft(); remainingMs.value = 0; };
-  const markSubmitted = () => { clearTimer(); closeStream(); abort?.abort(); abort = null; draft.value = emptyDraft(); remainingMs.value = 0; };
+  const markSubmitted = () => { clearTimer(); closeRealtime(); closeStream(); abort?.abort(); abort = null; draft.value = emptyDraft(); remainingMs.value = 0; };
 
   return { draft, remainingMs, busy, start, stop, cancel, reset, markSubmitted };
 }

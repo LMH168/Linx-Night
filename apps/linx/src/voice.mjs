@@ -55,3 +55,17 @@ export function createVoiceService({env=process.env,readIdentity=readProfile,con
     finally {clearTimeout(timer);if(abortHandler)bounded.removeEventListener('abort',abortHandler);client?.close();busy=false;}
   };
 }
+
+/** Opens one long-lived realtime microphone session for a human speaker. */
+export function createRealtimeVoiceService({env=process.env,readIdentity=readProfile,connectInfo=ota,clientFactory=identity=>new LinxClient(identity),timeoutMs=60000}={}) {
+  return async ({onAudio=()=>{},onMessage=()=>{},signal}={}) => {
+    const profile=env.LINX_VOICE_PROFILE;
+    if(!profile || profile===env.LINX_HOST_PROFILE || String(env.LINX_PROFILES||'player-a,player-b').split(',').map(s=>s.trim()).includes(profile)) throw new Error('请配置独立 LINX_VOICE_PROFILE');
+    const bounded=signal?AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)]):AbortSignal.timeout(timeoutMs);
+    const identity=await readIdentity(profile); bounded.throwIfAborted();
+    const config=await connectInfo(identity,{signal:bounded}); if(config.state!=='bound')throw new Error('语音身份尚未激活');
+    const client=clientFactory(identity); client.onAudio=onAudio; client.onMessage=onMessage; await client.connect(config); bounded.throwIfAborted();
+    const stream=await client.startRealtime();
+    return { client, attemptId:stream.attemptId, send:stream.send, stop:()=>client.stopRealtime(), close:()=>client.close() };
+  };
+}

@@ -109,3 +109,25 @@ test('two clients keep distinct sessions; reconnect refreshes session and interr
     await assert.rejects(a.send(wav())); assert.equal(a.state, 'closed'); assert.equal(b.state, 'ready');
   } finally { a.close(); b.close(); await mock.close(); }
 });
+test('realtime input accepts PCM frames and exposes returned TTS PCM for chaining', async () => {
+  const received = [], audio = [];
+  const mock = await mockServer(socket => socket.on('message', (raw, binary) => {
+    received.push({ binary, data: binary ? raw.length : JSON.parse(raw.toString()) });
+    if (!binary && JSON.parse(raw.toString()).type === 'hello') socket.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 'realtime-session', audio_params: pcm }));
+    if (!binary && JSON.parse(raw.toString()).state === 'stop') {
+      socket.send(JSON.stringify({ type: 'stt', text: '上一位发言' }));
+      socket.send(JSON.stringify({ type: 'tts', state: 'start' }));
+      socket.send(Buffer.alloc(640));
+      socket.send(JSON.stringify({ type: 'tts', state: 'stop' }));
+    }
+  }));
+  const client = new LinxClient(identity, { socketFactory: mock.factory, onAudio: chunk => audio.push(chunk) });
+  try {
+    await client.connect(config);
+    const stream = await client.startRealtime();
+    await stream.send(Buffer.alloc(640));
+    await client.stopRealtime();
+    assert.deepEqual(received.map(item => item.binary ? item.data : item.data.type + (item.data.state || '')), ['hello', 'listenstart', 640, 'listenstop']);
+    assert.equal(audio.length, 1); assert.equal(audio[0].length, 640);
+  } finally { client.close(); await mock.close(); }
+});
