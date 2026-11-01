@@ -11,11 +11,16 @@ export const useRoomStore = defineStore('room', () => {
   const cursor = ref<SseCursor>({ version: 0, eventIds: [] });
   const recentEvents = ref<RoomEvent[]>([]);
   let refreshPromise: Promise<void> | null = null;
+  let generation = 0;
+  let refreshAgain = false;
 
   const roomId = computed(() => publicState.value?.roomId || '');
   const phase = computed(() => publicState.value?.phase || 'LOBBY');
 
   function reset() {
+    generation += 1;
+    refreshPromise = null;
+    refreshAgain = false;
     publicState.value = null;
     privateState.value = null;
     connectionStatus.value = 'idle';
@@ -25,11 +30,14 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   async function hydrate(client: GameApiClient, nextRoomId = publicState.value?.roomId || '') {
+    const run = generation;
     connectionStatus.value = 'loading';
     error.value = null;
     try {
       if (!nextRoomId) throw new Error('缺少房间号');
       const [nextPublic, nextPrivate] = await Promise.all([client.roomState(nextRoomId), client.privateState(nextRoomId)]);
+      if (run !== generation) return;
+      if (publicState.value?.roomId === nextRoomId && publicState.value.version > nextPublic.version) return;
       publicState.value = nextPublic;
       privateState.value = nextPrivate;
       const history = (nextPublic.events || []).slice(-100);
@@ -37,6 +45,7 @@ export const useRoomStore = defineStore('room', () => {
       recentEvents.value = history;
       connectionStatus.value = 'connected';
     } catch (cause) {
+      if (run !== generation) return;
       connectionStatus.value = 'error';
       error.value = cause instanceof Error ? cause.message : '状态读取失败';
       throw cause;
@@ -53,8 +62,14 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   async function refreshAfterEvent(client: GameApiClient, nextRoomId = publicState.value?.roomId || '') {
-    if (refreshPromise) return refreshPromise;
-    refreshPromise = hydrate(client, nextRoomId).finally(() => { refreshPromise = null; });
+    if (refreshPromise) { refreshAgain = true; return refreshPromise; }
+    const run = generation;
+    refreshPromise = (async () => {
+      do {
+        refreshAgain = false;
+        await hydrate(client, nextRoomId);
+      } while (run === generation && refreshAgain);
+    })().finally(() => { if (run === generation) refreshPromise = null; });
     return refreshPromise;
   }
 

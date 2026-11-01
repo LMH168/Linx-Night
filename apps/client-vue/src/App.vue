@@ -1,261 +1,1257 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { ApiRequestError, GameApiClient } from './api/client';
-import { useRoomStream } from './composables/useRoomStream';
-import { useHumanVoice } from './composables/useHumanVoice';
-import { useHostPlayback } from './composables/useHostPlayback';
-import { useRoomStore } from './stores/room';
-import type { SeatState } from '../../../packages/protocol/src/types';
-import type { ActionRequest, HunterResponseRequest, LastWordsRequest, SpeechRequest, VoteRequest } from '../../../packages/protocol/src/api';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+} from "vue";
+import { ApiRequestError, GameApiClient } from "./api/client";
+import { useRoomStream } from "./composables/useRoomStream";
+import { useHumanVoice } from "./composables/useHumanVoice";
+import { useHostPlayback } from "./composables/useHostPlayback";
+import { useRoomStore } from "./stores/room";
+import { legalTargets, playerAction, visibleRole } from "./game/permissions";
+import type {
+  Role,
+  SeatState,
+  SettlementState,
+} from "../../../packages/protocol/src/types";
+import type {
+  ActionRequest,
+  HunterResponseRequest,
+  LastWordsRequest,
+  SpeechRequest,
+  VoteRequest,
+} from "../../../packages/protocol/src/api";
+import CouncilLobby from "./components/CouncilLobby.vue";
+import SceneBackground from "./components/scene/SceneBackground.vue";
+import RoleSilhouette from "./components/seats/RoleSilhouette.vue";
 
 const store = useRoomStore();
-const entryQuery = new URLSearchParams(location.search);
-const buildId = import.meta.env.VITE_LINX_BUILD_ID || 'unknown';
-const isLocalClient = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-const defaultApiUrl = isLocalClient ? 'http://127.0.0.1:5100' : location.origin;
-// Production serves the web client and API through the same origin. Keep an
-// explicit query override for local development, while avoiding a stale
-// localhost value from a previous browser session on the public site.
-const apiUrl = ref(entryQuery.get('api') || (isLocalClient ? sessionStorage.getItem('linx-api') : '') || defaultApiUrl);
-const roomId = ref(sessionStorage.getItem('linx-room') || entryQuery.get('room') || '');
-const playerId = ref(sessionStorage.getItem('linx-player') || '');
-const displayName = ref(sessionStorage.getItem('linx-name') || '玩家');
-const aiName = ref('');
-const targetSeatId = ref('');
-const speechText = ref('');
-const lastWordsText = ref('');
-const witchAction = ref<'skip' | 'save' | 'poison'>('skip');
-const client = ref<GameApiClient | null>(null);
-const stream = ref<ReturnType<typeof useRoomStream> | null>(null);
-const settlement = ref<Record<string, unknown> | null>(null);
-const loading = ref(false);
+const query = new URLSearchParams(location.search);
+const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+const apiUrl =
+  query.get("api") ||
+  (local ? sessionStorage.getItem("linx-api") : "") ||
+  (local ? "http://127.0.0.1:5100" : location.origin);
+const roomId = ref(sessionStorage.getItem("linx-room") || "");
+const playerId = ref(sessionStorage.getItem("linx-player") || "");
+const joinCode = ref(query.get("room") || "");
+const displayName = ref(sessionStorage.getItem("linx-name") || "");
+const client = shallowRef<GameApiClient | null>(null);
+let stream: ReturnType<typeof useRoomStream> | null = null;
+let generation = 0;
+let pendingCommand: { key: string; id: string } | null = null;
+const busy = ref(false);
 const actionBusy = ref(false);
-const message = ref('创建房间或填写房间号加入。');
-const actionMessage = ref('');
-const showSplash = ref(true);
-const forestSceneReady = ref(false);
-const forestSceneFrame = ref<HTMLIFrameElement | null>(null);
-
-const phaseNames: Record<string, string> = { LOBBY: '等待开局', ROLE_ASSIGNMENT: '分配身份', NIGHT_WOLF: '狼人行动', NIGHT_SEER: '预言家行动', NIGHT_WITCH: '女巫行动', DAY_ANNOUNCEMENT: '天亮了', HUNTER_RESPONSE: '猎人响应', LAST_WORDS: '遗言', SPEECH: '依次发言', VOTE: '放逐投票', RESOLUTION: '结算中', GAME_OVER: '本局结束' };
-const roleNames: Record<string, string> = { werewolf: '狼人', seer: '预言家', witch: '女巫', hunter: '猎人', villager: '平民' };
-const roleArt: Record<string, { name: string; en: string; avatar: string; accent: string }> = {
-  werewolf: { name: '狼人', en: 'THE WEREWOLF', avatar: '/assets/werewolf/avatars/werewolf.webp', accent: '#d78b4e' },
-  seer: { name: '预言家', en: 'THE SEER', avatar: '/assets/werewolf/avatars/seer.webp', accent: '#7ca8a2' },
-  witch: { name: '女巫', en: 'THE WITCH', avatar: '/assets/werewolf/avatars/witch.webp', accent: '#82a35e' },
-  hunter: { name: '猎人', en: 'THE HUNTER', avatar: '/assets/werewolf/avatars/hunter.webp', accent: '#b45d3d' },
-  villager: { name: '村民', en: 'THE VILLAGER', avatar: '/assets/werewolf/avatars/villager.webp', accent: '#d0b178' },
+const message = ref("");
+const actionMessage = ref("");
+const targetSeatId = ref("");
+const speechText = ref("");
+const lastWordsText = ref("");
+const witchAction = ref<"skip" | "save" | "poison">("skip");
+const settlement = ref<SettlementState | null>(null);
+const settlementError = ref("");
+const identityOpen = ref(false);
+const showRules = ref(false);
+const endConfirm = ref(false);
+const renameSeat = ref<SeatState | null>(null);
+const renameText = ref("");
+const now = ref(Date.now());
+let ticker: ReturnType<typeof setInterval>;
+let heartbeatTimer: ReturnType<typeof setInterval>;
+const phaseNames: Record<string, string> = {
+  LOBBY: "等待开局",
+  ROLE_ASSIGNMENT: "分配身份",
+  NIGHT_WOLF: "狼人行动",
+  NIGHT_SEER: "预言家行动",
+  NIGHT_WITCH: "女巫行动",
+  DAY_ANNOUNCEMENT: "天亮了",
+  LAST_WORDS: "遗言",
+  SPEECH: "依次发言",
+  VOTE: "放逐投票",
+  RESOLUTION: "结算中",
+  GAME_OVER: "本局结束",
 };
-const previewRoles = Object.values(roleArt).slice(0, 5);
-const avatarCatalog = Object.values(roleArt);
-function seatAvatar(seat: SeatState, index: number) {
-  const mine = store.privateState?.seatId === seat.seatId ? roleArt[store.privateState?.role || ''] : null;
-  return (mine || avatarCatalog[index % avatarCatalog.length]).avatar;
-}
-function seatAvatarAlt(seat: SeatState, index: number) {
-  const mine = store.privateState?.seatId === seat.seatId ? roleArt[store.privateState?.role || ''] : null;
-  return mine ? `${mine.name}头像` : `${avatarCatalog[index % avatarCatalog.length].name}头像`;
-}
-const privateRoleArt = computed(() => roleArt[store.privateState?.role || 'villager'] || roleArt.villager);
-const phaseName = computed(() => phaseNames[store.publicState?.phase || 'LOBBY'] || store.publicState?.phase || '等待连接');
-const isHost = computed(() => Boolean(store.publicState && playerId.value && store.publicState.hostPlayerId === playerId.value));
-const mySeat = computed(() => store.publicState?.seats.find(seat => seat.seatId === store.privateState?.seatId));
-const aliveTargets = computed(() => (store.publicState?.seats || []).filter(seat => seat.alive && seat.seatId !== store.privateState?.seatId));
-const canSpeak = computed(() => Boolean(store.publicState?.phase === 'SPEECH' && store.publicState.currentSeatId === store.privateState?.seatId && mySeat.value?.controlSource === 'human' && store.privateState?.alive));
-const canVote = computed(() => Boolean(store.publicState?.phase === 'VOTE' && store.privateState?.alive && mySeat.value?.controlSource === 'human'));
-const canSkill = computed(() => {
-  const role = store.privateState?.role;
-  const phase = store.publicState?.phase;
-  return Boolean(store.privateState?.alive && mySeat.value?.controlSource === 'human' && ((phase === 'NIGHT_WOLF' && role === 'werewolf') || (phase === 'NIGHT_SEER' && role === 'seer') || (phase === 'NIGHT_WITCH' && role === 'witch')));
-});
-const canHunter = computed(() => Boolean(store.publicState?.phase === 'HUNTER_RESPONSE' && store.privateState?.hunterAction && mySeat.value?.controlSource === 'human'));
-const canLastWords = computed(() => Boolean(store.publicState?.phase === 'LAST_WORDS' && store.privateState?.lastWords && (store.privateState.lastWords as { seatId?: string }).seatId === store.privateState?.seatId && mySeat.value?.controlSource === 'human'));
-const canAnnounce = computed(() => Boolean(isHost.value && store.publicState?.phase === 'DAY_ANNOUNCEMENT'));
-const actionVisible = computed(() => canSpeak.value || canVote.value || canSkill.value || canHunter.value || canLastWords.value || canAnnounce.value);
+const roleNames: Record<string, string> = {
+  werewolf: "狼人",
+  seer: "预言家",
+  witch: "女巫",
+  hunter: "猎人",
+  villager: "平民",
+};
+const state = computed(() => store.publicState);
+const mine = computed(() => store.privateState);
+const isHost = computed(() =>
+  Boolean(state.value && state.value.hostPlayerId === playerId.value),
+);
+const mySeat = computed(() =>
+  state.value?.seats.find((s) => s.seatId === mine.value?.seatId),
+);
+const finished = computed(() =>
+  Boolean(settlement.value || state.value?.phase === "GAME_OVER"),
+);
+const inLobby = computed(
+  () =>
+    !finished.value &&
+    (!state.value || state.value.phase === "LOBBY" || state.value.preparing),
+);
+const round = computed(() => (state.value?.round || 0) + 1);
+const actionKey = computed(() =>
+  [
+    state.value?.roomId,
+    state.value?.gameId,
+    state.value?.round,
+    state.value?.phase,
+    state.value?.currentSeatId,
+    state.value?.pk?.stage,
+    mine.value?.seatId,
+    mine.value?.hunterAction?.windowId,
+    mine.value?.lastWords?.windowId,
+  ].join(":"),
+);
+const submittedKey = ref("");
+const action = computed(() =>
+  submittedKey.value === actionKey.value
+    ? null
+    : playerAction(state.value, mine.value),
+);
+const targets = computed(() =>
+  legalTargets(state.value, mine.value, action.value),
+);
+const needsTarget = computed(
+  () =>
+    action.value === "vote" ||
+    action.value === "hunter" ||
+    (action.value === "skill" &&
+      (mine.value?.role !== "witch" || witchAction.value === "poison")),
+);
+const disconnected = computed(() =>
+  ["reconnecting", "error"].includes(store.connectionStatus),
+);
+const aiFailed = computed(() => state.value?.controllers.some(c => c.status === "failed"));
+const actionDisabled = computed(
+  () =>
+    actionBusy.value || busy.value || store.connectionStatus !== "connected" || aiFailed.value || timeExpired.value,
+);
+const scene = computed(() =>
+  inLobby.value
+    ? "lobby"
+    : finished.value
+      ? "vote"
+      : state.value?.phase.startsWith("NIGHT_")
+        ? "night"
+        : state.value?.phase === "VOTE"
+          ? "vote"
+          : "day",
+);
+const phaseName = computed(() =>
+  mine.value?.hunterAction
+    ? "猎人响应"
+    : state.value?.pk
+      ? state.value.pk.stage === "speech"
+        ? "PK 候选发言"
+        : "PK 再投票"
+      : scene.value === "night" && !action.value
+        ? "夜间行动中"
+        : phaseNames[state.value?.phase || "LOBBY"] || "结算中",
+);
+const deadline = computed(
+  () =>
+    mine.value?.hunterAction?.expiresAt ||
+    mine.value?.lastWords?.expiresAt ||
+    (action.value === "speech" ? state.value?.speechDeadline : null),
+);
+const secondsLeft = computed(() =>
+  deadline.value
+    ? Math.max(
+        0,
+        Math.ceil(
+          ((typeof deadline.value === "number"
+            ? deadline.value
+            : Date.parse(deadline.value)) -
+            now.value) /
+            1000,
+        ),
+      )
+    : null,
+);
+const timeExpired = computed(() => secondsLeft.value === 0);
+const waiting = computed(() =>
+  disconnected.value
+    ? "连接中断，正在恢复最新状态。"
+    : state.value?.controllers.some((c) => c.status === "failed")
+      ? "AI 回合失败，等待房主处理。"
+      : mySeat.value?.controlSource === "rule_bot"
+        ? "当前由规则机器人托管，可恢复本人控制。"
+        : state.value?.submittedVoteSeatIds.includes(mine.value?.seatId || "")
+          ? "你已投票，等待其他存活玩家。"
+          : state.value?.pk?.candidates.includes(mine.value?.seatId || "") &&
+              state.value.pk.stage === "vote"
+            ? "你是 PK 候选人，由台下存活玩家投票。"
+            : !mine.value?.alive
+              ? "你已出局，可继续旁观公开流程。"
+              : state.value?.currentSeatId
+                ? `等待 ${seatName(state.value.currentSeatId)} 完成发言。`
+                : "等待其他玩家行动及服务端推进。",
+);
 const voice = useHumanVoice({
   client,
   roomId,
-  contextKey: () => [roomId.value, store.publicState?.gameId, store.publicState?.round, store.publicState?.phase, store.publicState?.currentSeatId, store.privateState?.seatId].join(':'),
-  canRecord: () => canSpeak.value,
+  contextKey: () => actionKey.value,
+  canRecord: () => action.value === "speech" && !actionDisabled.value,
   onBusyStart: () => hostPlayback.suspend(),
   onBusyEnd: () => hostPlayback.resume(),
-  onDraft: text => { speechText.value = text; actionMessage.value = '转写已填入草稿，请检查后提交。'; }
+  onDraft: (text) => {
+    speechText.value = text;
+    actionMessage.value = "转写已填入草稿，请编辑确认后提交。";
+    void refresh();
+  },
 });
-const hostPlayback = useHostPlayback({ client, roomId, isHost: () => isHost.value, suspended: () => voice.busy.value });
-
-function newClient(nextPlayerId = playerId.value) { return new GameApiClient({ baseUrl: apiUrl.value, playerId: nextPlayerId }); }
-
-async function openRoom(nextRoomId: string, nextPlayerId = playerId.value, notice = '已连接房间。') {
-  roomId.value = nextRoomId.trim(); playerId.value = nextPlayerId;
-  client.value = newClient(nextPlayerId);
-  stream.value?.close();
-  stream.value = null;
+const hostPlayback = useHostPlayback({
+  client,
+  roomId,
+  isHost: () => isHost.value,
+  suspended: () => voice.busy.value,
+});
+const artRole = (role?: Role | null) =>
+  role === "werewolf" ? ("wolf" as const) : role || null;
+const seatName = (id: string) =>
+  `${id.replace("P", "")} 号 · ${state.value?.seats.find((s) => s.seatId === id)?.displayName || id}`;
+const shownRole = (id: string) =>
+  visibleRole(id, mine.value, identityOpen.value);
+const connectionLabel = computed(
+  () =>
+    ({
+      idle: "未连接",
+      loading: "同步中",
+      connected: "已连接",
+      reconnecting: "重连中",
+      error: "连接异常",
+    })[store.connectionStatus],
+);
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请重试。";
+}
+function saveSession() {
+  sessionStorage.setItem("linx-room", roomId.value);
+  sessionStorage.setItem("linx-player", playerId.value);
+  sessionStorage.setItem("linx-name", displayName.value);
+  sessionStorage.setItem("linx-api", apiUrl);
+}
+async function loadSettlement() {
+  if (!client.value || !roomId.value) return;
+  const run = generation;
+  try {
+    const result = await client.value.settlement(roomId.value);
+    if (run !== generation) return;
+    settlement.value = result.settlement;
+    settlementError.value = "";
+  } catch (error) {
+    if (run === generation) settlementError.value = errorText(error);
+  }
+}
+async function refresh() {
+  if (!client.value || !roomId.value) return;
+  try {
+    await store.refreshAfterEvent(client.value, roomId.value);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404)
+      await loadSettlement();
+    else message.value = errorText(error);
+  }
+}
+async function openRoom(id: string, player: string) {
+  generation++;
+  const run = generation;
+  actionBusy.value = false;
+  stream?.close();
+  voice.reset();
+  hostPlayback.stop();
   store.reset();
-  sessionStorage.setItem('linx-api', apiUrl.value.replace(/\/$/, ''));
-  sessionStorage.setItem('linx-room', roomId.value);
-  sessionStorage.setItem('linx-player', playerId.value);
-  sessionStorage.setItem('linx-name', displayName.value);
-  await store.hydrate(client.value, roomId.value);
-  stream.value = useRoomStream(client.value, roomId.value);
-  message.value = notice;
+  settlement.value = null;
+  identityOpen.value = false;
+  roomId.value = id;
+  playerId.value = player;
+  client.value = new GameApiClient({ baseUrl: apiUrl, playerId: player });
+  saveSession();
+  try {
+    await store.hydrate(client.value, id);
+    if (run !== generation) return;
+    stream = useRoomStream(client.value, id);
+    message.value = "已连接房间。";
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      await loadSettlement();
+      if (settlement.value) return;
+    }
+    throw error;
+  }
 }
-
+async function run(task: () => Promise<void>) {
+  if (busy.value) return;
+  busy.value = true;
+  try {
+    await task();
+  } catch (error) {
+    message.value = errorText(error);
+  } finally {
+    busy.value = false;
+  }
+}
 async function createRoom() {
-  loading.value = true;
-  try { const response = await newClient().createRoom(displayName.value.trim() || '玩家'); await openRoom(response.room_id, response.player_id, `房间已创建：${response.room_id}`); }
-  catch (cause) { message.value = errorMessage(cause); }
-  finally { loading.value = false; }
+  await run(async () => {
+    if (!displayName.value.trim()) return;
+    const r = await new GameApiClient({ baseUrl: apiUrl }).createRoom(
+      displayName.value.trim(),
+    );
+    await openRoom(r.room_id, r.player_id);
+  });
 }
-
 async function joinRoom() {
-  if (!roomId.value.trim()) { message.value = '请先填写房间号。'; return; }
-  loading.value = true;
-  try { const response = await newClient().joinRoom(roomId.value.trim(), displayName.value.trim() || '玩家'); await openRoom(roomId.value, response.player.playerId, '已加入房间。'); }
-  catch (cause) { message.value = errorMessage(cause); }
-  finally { loading.value = false; }
+  await run(async () => {
+    if (!displayName.value.trim() || !joinCode.value.trim()) return;
+    const id = joinCode.value.trim();
+    const r = await new GameApiClient({ baseUrl: apiUrl }).joinRoom(
+      id,
+      displayName.value.trim(),
+    );
+    await openRoom(id, r.player.playerId);
+  });
 }
-
-async function refresh() { if (client.value && roomId.value) await store.refreshAfterEvent(client.value, roomId.value).catch(cause => { message.value = errorMessage(cause); }); }
-
-async function addAi() {
-  if (!client.value || !store.publicState) return;
-  try { const response = await client.value.addAi(roomId.value, aiName.value.trim() || undefined); store.publicState = response.state; aiName.value = ''; message.value = 'AI 玩家已加入。'; }
-  catch (cause) { message.value = errorMessage(cause); }
+async function addAi(fill = false) {
+  await run(async () => {
+    if (!client.value || !isHost.value) return;
+    let count = fill
+      ? 9 - (state.value?.seats.filter((s) => s.playerType).length || 0)
+      : 1;
+    while (count-- > 0) {
+      const r = await client.value.addAi(roomId.value);
+      store.publicState = r.state;
+    }
+    message.value = "AI 已入座。";
+  });
 }
-
-async function renameAi(seat: SeatState) {
-  const name = globalThis.prompt('修改 AI 名称', seat.displayName || '灵矽 AI 玩家');
-  if (name === null || !client.value) return;
-  try { const response = await client.value.renameAi(roomId.value, seat.seatId, name); store.publicState = response.state; }
-  catch (cause) { message.value = errorMessage(cause); }
+async function renameAi() {
+  await run(async () => {
+    if (!client.value || !renameSeat.value || !renameText.value.trim()) return;
+    const r = await client.value.renameAi(
+      roomId.value,
+      renameSeat.value.seatId,
+      renameText.value.trim(),
+    );
+    store.publicState = r.state;
+    renameSeat.value = null;
+  });
 }
-
-async function hostMutation(path: string, notice: string) {
-  if (!client.value) return;
-  const request = path === '/start' ? client.value.startRoom(roomId.value) : path === '/controllers/retry' ? client.value.retryControllers(roomId.value) : path === '/controllers/cancel' ? client.value.cancelControllers(roomId.value) : client.value.retryTurn(roomId.value);
-  try { const response = await request; if (response.state) store.publicState = response.state; message.value = notice; await refresh(); }
-  catch (cause) { message.value = errorMessage(cause); }
+async function hostMutation(kind: "start" | "retry" | "cancel" | "turn") {
+  await run(async () => {
+    if (!client.value || !isHost.value) return;
+    const r = await (kind === "start"
+      ? client.value.startRoom(roomId.value)
+      : kind === "retry"
+        ? client.value.retryControllers(roomId.value)
+        : kind === "cancel"
+          ? client.value.cancelControllers(roomId.value)
+          : client.value.retryTurn(roomId.value));
+    if (r.state) store.publicState = r.state;
+    if (kind === "retry") {
+      const started = await client.value.startRoom(roomId.value);
+      if (started.state) store.publicState = started.state;
+    }
+    await refresh();
+  });
 }
-
-async function startGame() { await hostMutation('/start', '已开始准备 AI 玩家连接，等待全部会话就绪。'); }
-async function retryControllers() { await hostMutation('/controllers/retry', '已重新准备 AI 会话。'); }
-async function cancelControllers() { await hostMutation('/controllers/cancel', '已取消准备，可以重新开始。'); }
-async function retryTurn() { await hostMutation('/controllers/retry-turn', '已重试失败的 AI 回合。'); }
-
 async function endGame() {
-  if (!client.value || !globalThis.confirm('确定提前结束本局并释放所有 AI 会话吗？')) return;
-  try { const response = await client.value.endRoom(roomId.value); settlement.value = (response.settlement || null) as Record<string, unknown> | null; stream.value?.close(); if (store.publicState) store.publicState = { ...store.publicState, phase: 'GAME_OVER', preparing: false }; message.value = '本局已结束，结算报告已生成。'; }
-  catch (cause) { message.value = errorMessage(cause); }
+  await run(async () => {
+    if (!client.value || !isHost.value) return;
+    const r = await client.value.endRoom(roomId.value);
+    settlement.value = r.settlement || null;
+    stream?.close();
+    voice.reset();
+    hostPlayback.stop();
+    endConfirm.value = false;
+    if (state.value)
+      store.publicState = {
+        ...state.value,
+        phase: "GAME_OVER",
+        preparing: false,
+      };
+  });
 }
-
-async function submitAction(path: string, body: ActionRequest | VoteRequest | SpeechRequest | HunterResponseRequest | LastWordsRequest, notice: string) {
-  if (!client.value || actionBusy.value) return;
-  actionBusy.value = true; actionMessage.value = '正在提交…';
-  const payload = { ...body, action_id: `${path.replaceAll('/', '_')}_${Date.now()}` };
-  const request = path === '/actions' ? client.value.submitAction(roomId.value, payload as ActionRequest) : path === '/votes' ? client.value.submitVote(roomId.value, payload as VoteRequest) : path === '/speeches' ? client.value.submitSpeech(roomId.value, payload as SpeechRequest) : path === '/hunter-response' ? client.value.submitHunterResponse(roomId.value, payload as HunterResponseRequest) : client.value.submitLastWords(roomId.value, payload as LastWordsRequest);
-  try { await request; actionMessage.value = notice; await refresh(); }
-  catch (cause) { actionMessage.value = `提交失败：${errorMessage(cause)}`; }
-  finally { actionBusy.value = false; }
+function leaveRoom() {
+  generation++;
+  actionBusy.value = false;
+  stream?.close();
+  stream = null;
+  voice.reset();
+  hostPlayback.cleanup();
+  client.value = null;
+  store.reset();
+  settlement.value = null;
+  settlementError.value = "";
+  roomId.value = "";
+  playerId.value = "";
+  joinCode.value = "";
+  identityOpen.value = false;
+  submittedKey.value = "";
+  for (const k of ["linx-room", "linx-player", "linx-settlement"])
+    sessionStorage.removeItem(k);
+  message.value = "创建新房间，或加入朋友的房间。";
 }
-
-async function submitSpeech() { if (voice.busy.value) { actionMessage.value = '请先结束录音或等待转写完成。'; return; } if (!speechText.value.trim()) { actionMessage.value = '发言不能为空。'; return; } await submitAction('/speeches', { text: speechText.value.trim() }, '发言已提交。'); if (!actionMessage.value.startsWith('提交失败')) { speechText.value = ''; voice.markSubmitted(); } }
-async function startVoiceRecording() { try { await voice.start(); } catch (cause) { actionMessage.value = errorMessage(cause); } }
-async function submitVote() { if (!targetSeatId.value) { actionMessage.value = '请选择投票目标。'; return; } await submitAction('/votes', { target_seat_id: targetSeatId.value }, '投票已提交。'); }
+async function submit(
+  path: "actions" | "votes" | "speeches" | "hunter-response" | "last-words",
+  body:
+    | ActionRequest
+    | VoteRequest
+    | SpeechRequest
+    | HunterResponseRequest
+    | LastWordsRequest,
+) {
+  if (!client.value || actionDisabled.value) return false;
+  const key = actionKey.value;
+  const run = generation;
+  const commandKey = key + JSON.stringify(body);
+  if (pendingCommand?.key !== commandKey)
+    pendingCommand = { key: commandKey, id: crypto.randomUUID() };
+  const payload = { ...body, action_id: pendingCommand.id };
+  actionBusy.value = true;
+  actionMessage.value = "正在提交…";
+  try {
+    const c = client.value;
+    const r = await (path === "actions"
+      ? c.submitAction(roomId.value, payload as ActionRequest)
+      : path === "votes"
+        ? c.submitVote(roomId.value, payload as VoteRequest)
+        : path === "speeches"
+          ? c.submitSpeech(roomId.value, payload as SpeechRequest)
+          : path === "hunter-response"
+            ? c.submitHunterResponse(
+                roomId.value,
+                payload as HunterResponseRequest,
+              )
+            : c.submitLastWords(roomId.value, payload as LastWordsRequest));
+    if (run !== generation) return false;
+    submittedKey.value = key;
+    pendingCommand = null;
+    if (r.state && (!state.value || r.state.version >= state.value.version))
+      store.publicState = r.state;
+    actionMessage.value = "已提交，等待流程推进。";
+    await refresh();
+    return true;
+  } catch (error) {
+    if (run === generation) {
+      actionMessage.value = "提交失败：" + errorText(error);
+      await refresh();
+    }
+    return false;
+  } finally {
+    if (run === generation) actionBusy.value = false;
+  }
+}
+async function submitSpeech() {
+  if (voice.busy.value || !speechText.value.trim()) return;
+  if (await submit("speeches", { text: speechText.value.trim() })) {
+    speechText.value = "";
+    voice.markSubmitted();
+  }
+}
 async function submitSkill() {
-  const role = store.privateState?.role;
-  const type = role === 'werewolf' ? 'wolf_target' : role === 'seer' ? 'seer_check' : role === 'witch' ? 'witch_action' : '';
-  if (!type) return;
-  const body: Record<string, unknown> = { type };
-  if (type !== 'witch_action' || witchAction.value === 'poison') body.target_seat_id = targetSeatId.value;
-  if (type === 'witch_action') body.action = witchAction.value;
-  await submitAction('/actions', body, '行动已提交。');
+  const role = mine.value?.role;
+  if (role === "werewolf")
+    await submit("actions", {
+      type: "wolf_target",
+      target_seat_id: targetSeatId.value,
+    });
+  else if (role === "seer")
+    await submit("actions", {
+      type: "seer_check",
+      target_seat_id: targetSeatId.value,
+    });
+  else if (role === "witch")
+    await submit("actions", {
+      type: "witch_action",
+      action: witchAction.value,
+      ...(witchAction.value === "poison"
+        ? { target_seat_id: targetSeatId.value }
+        : {}),
+    });
 }
-async function submitHunter(action: 'shoot' | 'skip') { const windowId = (store.privateState?.hunterAction as { windowId?: string } | null)?.windowId; await submitAction('/hunter-response', { action, ...(windowId ? { window_id: windowId } : {}), ...(action === 'shoot' ? { target_seat_id: targetSeatId.value } : {}) }, action === 'shoot' ? '猎人开枪已提交。' : '已放弃开枪。'); }
-async function submitLastWords(action: 'submit' | 'skip') { const windowId = (store.privateState?.lastWords as { windowId?: string } | null)?.windowId; await submitAction('/last-words', { action, window_id: windowId, ...(action === 'submit' ? { text: lastWordsText.value.trim() } : {}) }, action === 'submit' ? '遗言已提交。' : '已跳过遗言。'); if (action === 'submit') lastWordsText.value = ''; }
-async function announceDay() { await submitAction('/actions', { type: 'announce_day' }, '已宣布天亮。'); }
-
-function handleForestSceneLoad() {
-  forestSceneReady.value = true;
-  let settled = false;
-  const syncScene = () => {
-    const scene = (forestSceneFrame.value?.contentWindow as Window & { __forestCabin?: any })?.__forestCabin;
-    if (!scene) {
-      if (!settled) window.setTimeout(syncScene, 120);
-      return;
+async function submitHunter(shoot: boolean) {
+  const window_id = mine.value?.hunterAction?.windowId;
+  if (!window_id) return;
+  await submit(
+    "hunter-response",
+    shoot
+      ? { action: "shoot", target_seat_id: targetSeatId.value, window_id }
+      : { action: "skip", window_id },
+  );
+}
+async function submitLastWords(skip = false) {
+  const window_id = mine.value?.lastWords?.windowId;
+  if (!window_id) return;
+  if (
+    await submit(
+      "last-words",
+      skip
+        ? { action: "skip", window_id }
+        : { action: "submit", text: lastWordsText.value.trim(), window_id },
+    )
+  )
+    lastWordsText.value = "";
+}
+async function startRecording() {
+  try {
+    await voice.start();
+    await refresh();
+  } catch (error) {
+    actionMessage.value = errorText(error);
+  }
+}
+async function cancelRecording() {
+  await voice.cancel();
+  await refresh();
+}
+async function audioControl(kind: "retry" | "skip") {
+  try {
+    await hostPlayback[kind]();
+  } catch (error) {
+    actionMessage.value = errorText(error);
+  }
+}
+async function heartbeat() {
+  if (!client.value || !state.value || finished.value) return;
+  try {
+    await client.value.heartbeat(roomId.value);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404)
+      await loadSettlement();
+  }
+}
+async function restoreControl() {
+  await run(async () => {
+    if (!client.value) return;
+    await client.value.setControl(roomId.value, "human");
+    await refresh();
+  });
+}
+function downloadReport() {
+  if (!settlement.value) return;
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(settlement.value, null, 2)], {
+      type: "application/json",
+    }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `月蚀议会-${settlement.value.roomId}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function eventText(event: { type: string; data: Record<string, unknown> }) {
+  const d = event.data;
+  if (event.type === "game.pk_started") return "首次平票，进入候选人 PK 发言";
+  if (event.type === "game.phase_changed")
+    return String(d.phase).startsWith("NIGHT_")
+      ? "夜间行动中"
+      : phaseNames[String(d.phase)] || "流程推进";
+  if (event.type === "game.player_eliminated")
+    return `${seatName(String(d.seatId))} 已出局`;
+  if (event.type === "game.vote_resolved")
+    return `${d.pk ? "PK" : "首轮"}投票结算：${d.eliminatedSeatId ? seatName(String(d.eliminatedSeatId)) + " 出局" : "平票，无人出局"}`;
+  if (event.type === "game.night_resolved")
+    return `昨夜出局：${((d.deathSeatIds as string[]) || []).join("、") || "平安夜"}`;
+  if (event.type === "game.last_words_submitted")
+    return `${seatName(String(d.seatId))} 遗言：${d.text}`;
+  if (event.type === "game.vote_submitted")
+    return `${seatName(String(d.seatId))} 已投票`;
+  return "";
+}
+const events = computed(() =>
+  store.recentEvents
+    .map((e) => ({ ...e, text: eventText(e) }))
+    .filter((e) => e.text)
+    .reverse(),
+);
+const reportSeats = computed(
+  () =>
+    (settlement.value?.seats || []) as Array<{
+      seatId: string;
+      displayName: string;
+      role: Role;
+      alive: boolean;
+    }>,
+);
+const reportEliminations = computed(
+  () =>
+    (settlement.value?.eliminations || []) as Array<{
+      seatId: string;
+      cause: string;
+    }>,
+);
+const reportVotes = computed(
+  () => settlement.value?.voteResolutions || state.value?.voteResolutions || [],
+);
+const reportSpeeches = computed(
+  () => settlement.value?.speeches || state.value?.speeches || [],
+);
+watch(actionKey, () => {
+  targetSeatId.value = "";
+  speechText.value = "";
+  lastWordsText.value = "";
+  witchAction.value = "skip";
+  actionMessage.value = "";
+  submittedKey.value = "";
+  pendingCommand = null;
+  voice.reset();
+});
+watch(targets, () => {
+  if (!targets.value.some((s) => s.seatId === targetSeatId.value))
+    targetSeatId.value = "";
+});
+watch(
+  () => state.value?.version,
+  () => hostPlayback.notify(),
+);
+watch(
+  () => state.value?.phase,
+  (phase) => {
+    if (phase === "GAME_OVER") void loadSettlement();
+  },
+);
+watch(
+  () => store.error,
+  (error) => {
+    if (error) message.value = error;
+  },
+);
+watch([showRules, endConfirm, renameSeat], async () => {
+  await nextTick();
+  document
+    .querySelector<HTMLElement>(
+      '[aria-modal="true"] button,[aria-modal="true"] input',
+    )
+    ?.focus();
+});
+function keyboard(event: KeyboardEvent) {
+  const dialog = document.querySelector<HTMLElement>('[aria-modal="true"]');
+  if (event.key === "Escape") {
+    showRules.value = false;
+    endConfirm.value = false;
+    renameSeat.value = null;
+  }
+  if (event.key === "Tab" && dialog) {
+    const items = [
+      ...dialog.querySelectorAll<HTMLElement>(
+        "button:not(:disabled),input,textarea",
+      ),
+    ];
+    if (items.length) {
+      event.preventDefault();
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      items[
+        (i + (event.shiftKey ? -1 : 1) + items.length) % items.length
+      ]?.focus();
     }
-    settled = true;
-    // Keep the original timeline: camera intro first, then the three visitors
-    // enter from the path and walk toward the cabin door.
-    scene.hideUi?.();
-  };
-  syncScene();
-  window.setTimeout(() => {
-    if (!settled) {
-      settled = true;
-      forestSceneFrame.value?.classList.add('forest-splash-scene-failed');
-    }
-  }, 5000);
+  }
 }
-function enterGame() {
-  showSplash.value = false;
-  forestSceneFrame.value?.contentWindow?.postMessage({ type: 'linx-cabin-pause' }, '*');
-}
-function errorMessage(cause: unknown) { return cause instanceof ApiRequestError ? cause.message : cause instanceof Error ? cause.message : '请求失败'; }
-function eventText(event: { type: string; data: Record<string, unknown> }) { const data = event.data; if (event.type === 'game.phase_changed') return `阶段：${phaseNames[String(data.phase)] || data.phase}`; if (event.type === 'game.player_eliminated') return `${data.seatId} 已出局`; if (event.type === 'game.vote_resolved') return `投票结算：${data.eliminatedSeatId || '平票'}`; if (event.type === 'game.night_resolved') return data.deathSeatIds ? `昨夜出局：${(data.deathSeatIds as string[]).join('、') || '平安夜'}` : '夜间结算'; if (event.type === 'game.last_words_submitted') return `${data.seatId} 完成遗言`; if (event.type === 'game.settlement_created') return `本局结束：${data.winner === 'good' ? '好人阵营' : data.winner === 'werewolf' ? '狼人阵营' : '房主结束'}`; return event.type; }
-
-watch(() => stream.value?.lastError.value, value => { if (value) message.value = value; });
-watch(() => store.publicState?.phase, () => { targetSeatId.value = ''; });
-watch(() => store.recentEvents.length, () => hostPlayback.notify());
-watch(() => roomId.value, () => { voice.reset(); hostPlayback.stop(); });
-onBeforeUnmount(() => { stream.value?.close(); voice.reset(); hostPlayback.cleanup(); });
+onMounted(() => {
+  ticker = setInterval(() => {
+    now.value = Date.now();
+  }, 250);
+  heartbeatTimer = setInterval(() => void heartbeat(), 10000);
+  window.addEventListener("keydown", keyboard);
+  if (!state.value && roomId.value && playerId.value)
+    void run(() => openRoom(roomId.value, playerId.value));
+});
+onBeforeUnmount(() => {
+  generation++;
+  stream?.close();
+  voice.reset();
+  hostPlayback.cleanup();
+  clearInterval(ticker);
+  clearInterval(heartbeatTimer);
+  window.removeEventListener("keydown", keyboard);
+});
 </script>
 
 <template>
-  <Transition name="splash-fade">
-    <section v-if="showSplash" class="forest-splash" aria-label="暮林山舍游戏启动画面">
-      <iframe ref="forestSceneFrame" class="forest-splash-scene" src="/assets/splash/forest-cabin.html?linx-launch=1" title="暮林山舍动态森林场景" @load="handleForestSceneLoad"></iframe>
-      <div class="forest-splash-bg"></div>
-      <div class="forest-splash-mist"></div>
-      <div class="forest-splash-content">
-        <p class="forest-splash-kicker">WALDHÜTTE · LINX NIGHT</p>
-        <h1>暮林<span>山舍</span></h1>
-        <p class="forest-splash-copy">松风穿过檐角，木烟缓缓升起。<br>一盏灯，留给晚归的人。</p>
-        <button class="forest-enter" type="button" @click="enterGame">进入林间 <span>↗</span></button>
-        <p class="forest-splash-hint">THE FOREST ROLES · 5 ROLES</p>
+  <div class="council" :data-scene="scene">
+    <SceneBackground :scene="scene" />
+    <CouncilLobby
+      v-if="inLobby"
+      :state="state"
+      v-model:nickname="displayName"
+      v-model:code="joinCode"
+      :host="isHost"
+      :busy="busy"
+      :message="message"
+      @create="createRoom"
+      @join="joinRoom"
+      @add="addAi()"
+      @fill="addAi(true)"
+      @rename="
+        (seat) => {
+          renameSeat = seat;
+          renameText = seat.displayName;
+        }
+      "
+      @start="hostMutation('start')"
+      @retry="hostMutation('retry')"
+      @cancel="hostMutation('cancel')"
+      @leave="leaveRoom"
+      @rules="showRules = true"
+    />
+    <template v-else>
+      <header class="council-header">
+        <div class="brand">
+          <span>☾</span>
+          <div>
+            <h1 class="display">月蚀议会</h1>
+            <small>九人预巫猎 · 第 {{ round }} 轮</small>
+          </div>
+        </div>
+        <p class="phase-label">{{ phaseName }}</p>
+        <div class="header-actions">
+          <span :title="state?.roomId">{{ connectionLabel }}</span
+          ><button @click="showRules = true">规则</button
+          ><button v-if="isHost && !finished" @click="endConfirm = true">
+            结束本局
+          </button>
+        </div>
+      </header>
+      <div
+        v-if="disconnected && !finished"
+        class="connection-banner"
+        role="alert"
+      >
+        连接中断，自动重连中；操作暂不可用。<button @click="refresh">
+          重新同步
+        </button>
       </div>
-      <div class="forest-splash-roles" aria-hidden="true">
-        <article v-for="role in previewRoles" :key="role.name" class="forest-role-preview" :style="{ '--role-accent': role.accent }">
-          <img :src="role.avatar" :alt="role.name" />
-          <div><strong>{{ role.name }}</strong><small>{{ role.en }}</small></div>
-        </article>
-      </div>
-      <div class="forest-splash-mark">◒</div>
-    </section>
-  </Transition>
-  <main class="shell game-shell" :class="{ 'game-shell-visible': !showSplash }">
-    <header class="hero"><div><p class="eyebrow">LINX NIGHT · VUE CLIENT</p><h1>AI 狼人杀</h1><p class="muted">Vue 客户端使用现有 Node API、MCP 和 SSE 协议。</p></div><span class="connection" :class="store.connectionStatus">{{ store.connectionStatus }}</span></header>
-    <section class="card entry-card">
-      <div class="section-title"><h2>{{ store.publicState ? `房间 ${store.publicState.roomId}` : '入座之前' }}</h2><span class="muted">{{ store.publicState ? '连接已建立' : '创建房间或加入朋友的房间' }}</span></div>
-        <div class="entry-grid"><label>你的昵称<input v-model="displayName" maxlength="24" /></label><label>房间号<input v-model="roomId" placeholder="room_xxx" /></label></div>
-      <div class="actions"><button :disabled="loading" @click="createRoom">创建房间</button><button class="secondary" :disabled="loading" @click="joinRoom">加入房间</button></div>
-      <p class="message" role="status">{{ message }}</p>
-    </section>
-    <template v-if="store.publicState">
-      <section class="card phase-card"><div><span class="eyebrow">当前阶段</span><h2>{{ phaseName }}</h2></div><div class="phase-meta">版本 {{ store.publicState.version }} · 第 {{ store.publicState.round }} 轮<span v-if="store.publicState.currentSeatId"> · {{ store.publicState.currentSeatId }} 行动</span></div></section>
-      <section class="card"><div class="section-title"><h2>座位</h2><span>{{ store.publicState.seats.filter(seat => seat.playerType).length }} / {{ store.publicState.seats.length }}</span></div><div class="seats"><article v-for="(seat, seatIndex) in store.publicState.seats" :key="seat.seatId" class="seat" :class="{ dead: !seat.alive, active: store.publicState?.currentSeatId === seat.seatId }"><img class="seat-avatar" :src="seatAvatar(seat, seatIndex)" :alt="seatAvatarAlt(seat, seatIndex)" /><div class="seat-copy"><strong>{{ seat.seatId }}</strong><span>{{ seat.displayName || '等待入座' }}</span><small>{{ !seat.playerType ? '空位' : !seat.alive ? '已出局' : seat.controlSource === 'linx' ? '灵矽 AI' : '真人' }}</small></div><button v-if="isHost && store.publicState.phase === 'LOBBY' && seat.playerType === 'ai'" class="link-button" @click="renameAi(seat)">改名</button></article></div><div v-if="isHost && store.publicState.phase === 'LOBBY'" class="ai-add"><input v-model="aiName" placeholder="AI 玩家名称（可选）" maxlength="24" /><button class="secondary" @click="addAi">添加 AI</button></div></section>
-      <section v-if="isHost && store.publicState.phase === 'LOBBY'" class="card lobby-actions"><p class="muted">{{ store.publicState.seats.some(seat => !seat.playerType) ? '请补齐九个座位后开始。' : '九席已满，可以开始游戏。' }}</p><div class="actions"><button :disabled="store.publicState.seats.some(seat => !seat.playerType) || store.publicState.preparing" @click="startGame">开始游戏</button><button v-if="store.publicState.preparing" class="secondary" @click="cancelControllers">取消准备</button><button v-if="store.publicState.controllerPhase === 'failed'" class="secondary" @click="retryControllers">重试连接</button></div></section>
-      <section v-if="!['LOBBY', 'GAME_OVER'].includes(store.publicState.phase)" class="card lobby-actions"><div class="actions"><button v-if="isHost && store.publicState.controllerPhase === 'failed'" class="secondary" @click="retryTurn">重试 AI 回合</button><button v-if="isHost" class="secondary" @click="endGame">提前结束本局</button></div><p v-if="store.publicState.controllers.some(controller => controller.status === 'failed')" class="message">AI 行动失败，房主可以重试。</p></section>
-      <section v-if="store.privateState" class="card private-card"><div class="private-identity"><img class="private-avatar" :src="privateRoleArt.avatar" :alt="`${privateRoleArt.name}头像`" /><div><p class="eyebrow">我的私密状态 · 仅你可见 · {{ store.privateState.seatId }}</p><h2>{{ privateRoleArt.name }}</h2><small>{{ privateRoleArt.en }}</small></div></div><p>身份：<strong>{{ store.privateState.role ? roleNames[store.privateState.role] || store.privateState.role : '等待分配' }}</strong></p><p>阵营：{{ store.privateState.camp || '—' }} · {{ store.privateState.alive ? '存活' : '已出局' }}</p><p v-if="store.privateState.role === 'seer'">查验记录：{{ store.privateState.seerResults.length ? store.privateState.seerResults.map(result => `${result.targetSeatId} ${result.result}`).join('、') : '暂无' }}</p></section>
-      <section v-if="actionVisible" class="card action-card"><div class="section-title"><h2>行动</h2><span class="live-dot">●</span></div><p class="muted">{{ canSpeak ? '轮到你发言，提交后进入下一席。' : canVote ? '选择一名存活玩家投票。' : canSkill ? '选择技能目标并确认行动。' : canHunter ? '猎人可以开枪或放弃。' : canLastWords ? '留下最后的话，或跳过遗言。' : '房主可以宣布天亮。' }}</p><p class="message" role="status">{{ actionMessage }}</p>
-        <label v-if="canSpeak">公开发言<textarea v-model="speechText" rows="4" maxlength="1200" placeholder="输入你的判断"></textarea></label>
-        <div v-if="canSpeak" class="voice-panel"><p class="muted">真人语音只生成可编辑草稿，确认提交后才会公开。</p><p class="message" role="status">{{ voice.draft.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs / 1000)} 秒` : voice.draft.stage === 'transcribing' ? '灵矽正在转写，请稍候……' : voice.draft.stage === 'confirming' ? '转写完成，请检查文字后提交。' : voice.draft.error || '可以录音或直接输入文字。' }}</p><div class="actions"><button class="secondary" :disabled="voice.busy" @click="startVoiceRecording">开始录音</button><button v-if="voice.draft.stage === 'recording'" class="secondary" @click="voice.stop">结束录音</button><button v-if="['recording','transcribing','confirming','failed'].includes(voice.draft.stage)" class="secondary" @click="voice.cancel">取消录音/转写</button></div></div>
-        <label v-if="canLastWords">遗言<textarea v-model="lastWordsText" rows="3" maxlength="200" placeholder="留下最后的话"></textarea></label>
-        <label v-if="canSkill && store.privateState?.role === 'witch'">女巫行动<select v-model="witchAction"><option value="skip">今晚不用药</option><option value="save">使用解药</option><option value="poison">使用毒药</option></select></label>
-        <label v-if="canSkill || canVote || canHunter">选择目标<select v-model="targetSeatId"><option value="">请选择</option><option v-for="seat in aliveTargets" :key="seat.seatId" :value="seat.seatId">{{ seat.seatId }} · {{ seat.displayName }}</option></select></label>
-        <div class="actions"><button v-if="canSpeak" :disabled="actionBusy" @click="submitSpeech">提交发言</button><button v-if="canSkill" :disabled="actionBusy || ((store.privateState?.role !== 'witch' || witchAction === 'poison') && !targetSeatId)" @click="submitSkill">确认行动</button><button v-if="canVote" :disabled="actionBusy || !targetSeatId" @click="submitVote">确认投票</button><button v-if="canHunter" :disabled="actionBusy || !targetSeatId" @click="submitHunter('shoot')">确认开枪</button><button v-if="canHunter" class="secondary" :disabled="actionBusy" @click="submitHunter('skip')">放弃开枪</button><button v-if="canLastWords" :disabled="actionBusy || !lastWordsText.trim()" @click="submitLastWords('submit')">提交遗言</button><button v-if="canLastWords" class="secondary" :disabled="actionBusy" @click="submitLastWords('skip')">跳过遗言</button><button v-if="canAnnounce" @click="announceDay">宣布天亮</button></div>
-      </section>
-      <section class="card"><div class="section-title"><h2>桌边记录</h2><span>{{ store.recentEvents.length }}</span></div><ol class="events"><li v-for="event in store.recentEvents.slice().reverse()" :key="event.eventId"><span>{{ eventText(event) }}</span><code>v{{ event.version }}</code></li><li v-if="!store.recentEvents.length" class="muted">暂无新事件</li></ol></section>
-      <section class="card host-card"><div class="section-title"><h2>公共语音</h2><span :class="hostPlayback.enabled.value ? 'live-dot' : 'muted'">{{ hostPlayback.enabled.value ? '已启用' : '未启用' }}</span></div><p class="muted">主持和已提交的 AI 发言按服务端事件顺序播放；私密状态和原始模型回复不会播放。客户端构建：{{ buildId }}</p><p class="message" role="status">{{ hostPlayback.status.value }}</p><p v-if="hostPlayback.task.value" class="host-task"><strong>{{ hostPlayback.task.value.seatId || '主持' }}</strong>：{{ hostPlayback.task.value.text }}</p><div class="actions"><button @click="hostPlayback.enabled.value ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled.value ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage.value && hostPlayback.error.value" class="secondary" @click="hostPlayback.retry">重试音频</button><button v-if="hostPlayback.canManage.value && hostPlayback.task.value" class="secondary" @click="hostPlayback.skip">跳过当前音频</button></div></section>
-      <section v-if="store.publicState.phase === 'GAME_OVER' || settlement" class="card result-card"><p class="eyebrow">THE END / 本局结算</p><h2>本局结束</h2><p class="muted">结算报告包含公开身份、出局顺序、投票结果和资源释放状态。</p><pre v-if="settlement">{{ JSON.stringify(settlement, null, 2) }}</pre></section>
+      <main v-if="!finished" class="council-stage">
+        <section class="ring-zone" aria-label="九人席位">
+          <div class="council-ring">
+            <div class="ring-line"></div>
+            <button
+              v-for="(seat, index) in state?.seats"
+              :key="seat.seatId"
+              class="council-seat"
+              :class="{
+                dead: !seat.alive,
+                self: seat.seatId === mine?.seatId,
+                speaking:
+                  state?.phase === 'SPEECH' &&
+                  state.currentSeatId === seat.seatId,
+                candidate: state?.pk?.candidates.includes(seat.seatId),
+                selectable:
+                  needsTarget && targets.some((s) => s.seatId === seat.seatId),
+                selected: targetSeatId === seat.seatId,
+              }"
+              :style="{
+                '--sin': Math.sin((index / 9) * Math.PI * 2),
+                '--cos': -Math.cos((index / 9) * Math.PI * 2),
+              }"
+              :aria-label="`${index + 1} 号 ${seat.displayName} ${!seat.alive ? '已出局' : ''}`"
+              :aria-pressed="targetSeatId === seat.seatId"
+              :disabled="
+                !needsTarget ||
+                actionDisabled ||
+                !targets.some((s) => s.seatId === seat.seatId)
+              "
+              @click="targetSeatId = seat.seatId"
+            >
+              <div class="seat-art">
+                <RoleSilhouette
+                  :role="artRole(shownRole(seat.seatId))"
+                  :veiled="!shownRole(seat.seatId)"
+                /><b>{{ index + 1 }}</b
+                ><span v-if="!seat.alive" class="dead-mark">出局</span>
+              </div>
+              <span class="seat-name">{{ seat.displayName }}</span
+              ><small
+                >{{ seat.seatId === mine?.seatId ? "你 · " : ""
+                }}{{
+                  state?.submittedVoteSeatIds.includes(seat.seatId)
+                    ? "已投票"
+                    : seat.playerType === "ai"
+                      ? "灵矽 AI"
+                      : "真人"
+                }}</small
+              >
+            </button>
+            <div class="council-hub">
+              <span>{{ scene === "night" ? "☾" : state?.pk ? "✕" : "✧" }}</span>
+              <h2 class="display">{{ phaseName }}</h2>
+              <p>{{ state?.seats.filter((s) => s.alive).length }} / 9 存活</p>
+              <p v-if="state?.phase === 'VOTE'">
+                {{ state.submittedVoteSeatIds.length }} 人已投票
+              </p>
+            </div>
+          </div>
+          <p class="ring-note">
+            暗牌对局 · 出局不翻牌<span v-if="state?.pk">
+              · PK 候选 {{ state.pk.candidates.join("、") }}</span
+            >
+          </p>
+        </section>
+        <aside class="council-dock">
+          <section class="glass identity-panel">
+            <div class="panel-title">
+              <h2>我的私密状态</h2>
+              <button @click="identityOpen = !identityOpen">
+                {{ identityOpen ? "收起身份" : "查看身份" }}
+              </button>
+            </div>
+            <div v-if="identityOpen && mine?.role" class="identity-card">
+              <RoleSilhouette :role="artRole(mine.role)" />
+              <div>
+                <h3 class="display">{{ roleNames[mine.role] }}</h3>
+                <p>{{ mine.seatId }} · {{ mine.alive ? "存活" : "已出局" }}</p>
+              </div>
+            </div>
+            <p v-else class="muted">身份已收起，只有你能查看。</p>
+            <template v-if="identityOpen"
+              ><p v-if="mine?.role === 'werewolf'" class="private-note">
+                狼队友：{{
+                  mine.werewolfTeammates?.map(seatName).join("、") ||
+                  "暂无存活队友"
+                }}<br /><span v-if="mine.wolfProposal"
+                  >队友已选择
+                  {{ seatName(mine.wolfProposal) }}，请确认一致目标。</span
+                >
+              </p>
+              <p v-if="mine?.role === 'seer'" class="private-note">
+                查验记录：<span v-if="!mine.seerResults.length">暂无</span
+                ><span v-for="(r, i) in mine.seerResults" :key="i"
+                  >{{ r.targetSeatId || r.seatId }} ·
+                  {{ r.result === "werewolf" ? "狼人" : "好人" }}；</span
+                >
+              </p>
+              <p v-if="mine?.role === 'witch'" class="private-note">
+                解药 {{ mine.skills.antidoteAvailable ? "可用" : "已用" }} ·
+                毒药 {{ mine.skills.poisonAvailable ? "可用" : "已用"
+                }}<br />今晚刀口：{{
+                  mine.nightVictim ? seatName(mine.nightVictim) : "无"
+                }}
+                · 每夜限一种行动
+              </p></template
+            >
+          </section>
+          <section class="glass action-panel">
+            <div class="panel-title">
+              <h2>{{ action ? "轮到你行动" : "等待中" }}</h2>
+              <span v-if="secondsLeft !== null" class="countdown"
+                >{{ secondsLeft }} 秒</span
+              >
+            </div>
+            <p v-if="aiFailed" class="error" role="alert">AI 回合失败，已暂停操作，等待房主重试。</p>
+            <p v-if="!action" class="muted" role="status">{{ waiting }}</p>
+            <p v-if="timeExpired" class="error">
+              响应时间已到，等待服务端结算。
+            </p>
+            <template v-if="action === 'speech'"
+              ><p class="muted">
+                {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·
+                草稿确认后才公开
+              </p>
+              <label
+                >公开发言<textarea
+                  v-model="speechText"
+                  rows="4"
+                  maxlength="1200"
+                  placeholder="说出你的判断"
+                  :disabled="actionDisabled"
+                />
+              </label>
+              <div class="voice-controls">
+                <p role="status">
+                  {{
+                    voice.draft.value.stage === "recording"
+                      ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒`
+                      : voice.draft.value.stage === "transcribing"
+                        ? "正在转写，请稍候"
+                        : voice.draft.value.stage === "confirming"
+                          ? "转写完成，请检查文字后提交"
+                          : voice.draft.value.error ||
+                            "支持录音转写，也可直接输入。"
+                  }}
+                </p>
+                <div class="buttons">
+                  <button
+                    :disabled="voice.busy.value || actionDisabled"
+                    @click="startRecording"
+                  >
+                    开始录音</button
+                  ><button
+                    v-if="voice.draft.value.stage === 'recording'"
+                    @click="voice.stop"
+                  >
+                    结束录音</button
+                  ><button
+                    v-if="voice.draft.value.stage !== 'idle'"
+                    @click="cancelRecording"
+                  >
+                    取消录音/转写
+                  </button>
+                </div>
+              </div>
+              <button
+                class="gold"
+                :disabled="
+                  actionDisabled || voice.busy.value || !speechText.trim()
+                "
+                @click="submitSpeech"
+              >
+                确认提交发言
+              </button></template
+            >
+            <template v-if="action === 'lastwords'"
+              ><p class="muted">遗言最多 200 字，确认提交后公开。</p>
+              <label
+                >遗言<textarea
+                  v-model="lastWordsText"
+                  maxlength="200"
+                  rows="3"
+                  :disabled="actionDisabled"
+                />
+              </label>
+              <div class="buttons">
+                <button
+                  class="gold"
+                  :disabled="actionDisabled || !lastWordsText.trim()"
+                  @click="submitLastWords()"
+                >
+                  提交遗言</button
+                ><button
+                  :disabled="actionDisabled"
+                  @click="submitLastWords(true)"
+                >
+                  跳过遗言
+                </button>
+              </div></template
+            >
+            <template v-if="action === 'skill' && mine?.role === 'witch'"
+              ><label
+                >女巫行动<select
+                  v-model="witchAction"
+                  :disabled="actionDisabled"
+                >
+                  <option value="skip">今晚不用药</option>
+                  <option
+                    value="save"
+                    :disabled="!mine.skills.antidoteAvailable"
+                  >
+                    使用解药
+                  </option>
+                  <option
+                    value="poison"
+                    :disabled="!mine.skills.poisonAvailable"
+                  >
+                    使用毒药
+                  </option>
+                </select></label
+              ></template
+            >
+            <label v-if="needsTarget"
+              >{{
+                action === "vote"
+                  ? "投票目标"
+                  : action === "hunter"
+                    ? "开枪目标"
+                    : "行动目标"
+              }}<select v-model="targetSeatId" :disabled="actionDisabled">
+                <option value="">点击席位或选择目标</option>
+                <option v-for="s in targets" :key="s.seatId" :value="s.seatId">
+                  {{ seatName(s.seatId) }}
+                </option>
+              </select></label
+            >
+            <p v-if="action === 'vote'" class="muted">
+              {{
+                state?.pk
+                  ? "仅台下存活玩家重投平票候选；再次平票无人出局。"
+                  : "投票结束前只公开已投席位，不公开选票。"
+              }}
+            </p>
+            <div class="buttons">
+              <button
+                v-if="action === 'skill'"
+                class="gold"
+                :disabled="actionDisabled || (needsTarget && !targetSeatId)"
+                @click="submitSkill"
+              >
+                确认行动</button
+              ><button
+                v-if="action === 'vote'"
+                class="gold"
+                :disabled="actionDisabled || !targetSeatId"
+                @click="submit('votes', { target_seat_id: targetSeatId })"
+              >
+                确认投票</button
+              ><button
+                v-if="action === 'hunter'"
+                class="gold"
+                :disabled="
+                  actionDisabled ||
+                  !targetSeatId ||
+                  mine?.hunterAction?.canShoot === false
+                "
+                @click="submitHunter(true)"
+              >
+                确认开枪</button
+              ><button
+                v-if="action === 'hunter'"
+                :disabled="actionDisabled"
+                @click="submitHunter(false)"
+              >
+                放弃开枪
+              </button>
+            </div>
+            <p v-if="actionMessage" class="action-message" role="status">
+              {{ actionMessage }}
+            </p>
+            <button
+              v-if="mySeat?.controlSource === 'rule_bot'"
+              :disabled="busy"
+              @click="restoreControl"
+            >
+              恢复本人控制
+            </button>
+            <button
+              v-if="
+                isHost && state?.controllers.some((c) => c.status === 'failed')
+              "
+              :disabled="busy"
+              @click="hostMutation('turn')"
+            >
+              重试失败 AI 回合
+            </button>
+          </section>
+          <section class="glass audio-panel">
+            <div class="panel-title">
+              <h2>公共语音</h2>
+              <small>{{
+                hostPlayback.enabled.value ? "已启用" : "未启用"
+              }}</small>
+            </div>
+            <p class="muted" role="status">{{ hostPlayback.status.value }}</p>
+            <p
+              v-if="state?.hostPlaybackBlocked && !hostPlayback.enabled.value"
+              class="private-note"
+            >
+              等待主持播报；房主请启用公共声音以继续。
+            </p>
+            <div class="buttons">
+              <button
+                @click="
+                  hostPlayback.enabled.value
+                    ? hostPlayback.stop()
+                    : hostPlayback.start()
+                "
+              >
+                {{
+                  hostPlayback.enabled.value ? "暂停公共声音" : "启用公共声音"
+                }}</button
+              ><button
+                v-if="hostPlayback.canManage.value && hostPlayback.error.value"
+                @click="audioControl('retry')"
+              >
+                重试音频</button
+              ><button
+                v-if="hostPlayback.canManage.value && hostPlayback.task.value"
+                @click="audioControl('skip')"
+              >
+                跳过当前音频
+              </button>
+            </div>
+          </section>
+          <p class="muted" role="status">{{ message }}</p>
+        </aside>
+      </main>
+      <main v-else class="council-result">
+        <p class="eyebrow">THE END · 身份公开</p>
+        <h2 class="display">
+          {{
+            settlement?.winner === "good"
+              ? "好人阵营获胜"
+              : settlement?.winner === "werewolf"
+                ? "狼人阵营获胜"
+                : "本局结束"
+          }}
+        </h2>
+        <p class="muted">{{ settlement?.reason || "正在获取结算报告…" }}</p>
+        <p v-if="settlementError" class="error">
+          {{ settlementError }}
+          <button @click="loadSettlement">重试结算</button>
+        </p>
+        <div class="result-roles">
+          <article v-for="s in reportSeats" :key="s.seatId" class="glass">
+            <RoleSilhouette :role="artRole(s.role)" /><strong>{{
+              roleNames[s.role] || "身份未知"
+            }}</strong
+            ><span>{{ s.seatId }} · {{ s.displayName }}</span
+            ><small>{{ s.alive ? "存活" : "已出局" }}</small>
+          </article>
+        </div>
+        <section class="result-audio">
+          <p class="muted">{{ hostPlayback.status.value }}</p>
+          <button
+            @click="
+              hostPlayback.enabled.value
+                ? hostPlayback.stop()
+                : hostPlayback.start()
+            "
+          >
+            {{
+              hostPlayback.enabled.value ? "暂停公共声音" : "启用公共声音"
+            }}</button
+          ><button
+            v-if="hostPlayback.canManage.value && hostPlayback.error.value"
+            @click="audioControl('retry')"
+          >
+            重试音频
+          </button>
+        </section>
+        <div class="buttons result-buttons">
+          <button class="gold" @click="leaveRoom">返回大厅</button
+          ><button :disabled="!settlement" @click="downloadReport">
+            下载本局记录
+          </button>
+        </div>
+        <div class="result-records">
+          <section class="glass">
+            <h3>出局顺序</h3>
+            <p v-for="(e, i) in reportEliminations" :key="i">
+              {{ i + 1 }}. {{ e.seatId }} ·
+              {{
+                e.cause === "night"
+                  ? "夜间出局"
+                  : e.cause === "vote"
+                    ? "放逐出局"
+                    : "技能出局"
+              }}
+            </p>
+            <p v-if="!reportEliminations.length" class="muted">暂无出局记录</p>
+          </section>
+          <section class="glass">
+            <h3>投票记录</h3>
+            <p v-for="r in reportVotes" :key="r.resolutionId">
+              第 {{ r.round + 1 }} 轮 {{ r.pk ? "PK" : "首轮" }}：{{
+                r.entries.map((e) => `${e.seatId} ${e.votes}票`).join("、")
+              }}
+              · {{ r.eliminatedSeatId || "无人出局" }}
+            </p>
+          </section>
+          <section class="glass">
+            <h3>公开发言</h3>
+            <p v-for="s in reportSpeeches" :key="s.speechId">
+              <strong>{{ s.seatId }}</strong
+              >：{{ s.text }}
+            </p>
+          </section>
+        </div>
+      </main>
+      <details v-if="!finished" class="public-log">
+        <summary>桌边记录 · {{ events.length }} 条公开动态</summary>
+        <div class="log-columns">
+          <section>
+            <h3>公开动态</h3>
+            <p v-for="e in events" :key="e.eventId">{{ e.text }}</p>
+          </section>
+          <section>
+            <h3>公开发言</h3>
+            <p v-for="s in state?.speeches" :key="s.speechId">
+              <strong>{{ s.seatId }}</strong
+              >：{{ s.text }}
+            </p>
+          </section>
+          <section>
+            <h3>已结算投票</h3>
+            <p v-for="r in state?.voteResolutions" :key="r.resolutionId">
+              第 {{ r.round + 1 }} 轮 {{ r.pk ? "PK" : "首轮" }}：{{
+                r.entries.map((e) => `${e.seatId} ${e.votes}票`).join("、")
+              }}
+            </p>
+          </section>
+        </div>
+      </details>
     </template>
-  </main>
+    <div
+      v-if="showRules || endConfirm || renameSeat"
+      class="dialog-backdrop"
+      @click.self="
+        showRules = false;
+        endConfirm = false;
+        renameSeat = null;
+      "
+    >
+      <section
+        class="glass dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="
+          showRules ? '本局规则' : endConfirm ? '提前结束确认' : '修改 AI 名称'
+        "
+      >
+        <template v-if="showRules"
+          ><h2 class="display">本局规则</h2>
+          <p>
+            九人预巫猎：三狼、预言家、女巫、猎人、三平民；无警长、无自爆，死亡不自动翻牌。
+          </p>
+          <p>
+            白天按存活席位号码递增发言。首次平票由候选人 PK
+            发言，台下存活玩家重投候选；再次平票无人出局。
+          </p>
+          <p>
+            狼人必须确认一致目标，不能攻击自己或队友。查验结果仅预言家本人可见。女巫每夜限一种行动；药品、自救和刀口以服务端状态为准。
+          </p>
+          <p>
+            猎人响应与遗言均由服务端计时。遗言最多 200
+            字；首夜死亡、白天放逐可留遗言。AI 失败由房主重试。
+          </p>
+          <button class="gold" @click="showRules = false">
+            知道了
+          </button></template
+        >
+        <template v-else-if="endConfirm"
+          ><h2 class="display">提前结束本局？</h2>
+          <p>
+            将结束当前房间、生成结算报告并释放 AI 会话。新一局需要创建新房间。
+          </p>
+          <div class="buttons">
+            <button class="gold" :disabled="busy" @click="endGame">
+              确认结束</button
+            ><button :disabled="busy" @click="endConfirm = false">
+              继续游戏
+            </button>
+          </div>
+          <p class="error" role="status">{{ message }}</p></template
+        >
+        <template v-else
+          ><h2 class="display">修改 AI 名称</h2>
+          <label
+            >新昵称<input
+              v-model="renameText"
+              maxlength="24"
+              :disabled="busy"
+              @keydown.enter="renameAi"
+          /></label>
+          <div class="buttons">
+            <button
+              class="gold"
+              :disabled="busy || !renameText.trim()"
+              @click="renameAi"
+            >
+              保存名称</button
+            ><button :disabled="busy" @click="renameSeat = null">取消</button>
+          </div>
+          <p class="error" role="status">{{ message }}</p></template
+        >
+      </section>
+    </div>
+  </div>
 </template>

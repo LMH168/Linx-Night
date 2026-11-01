@@ -96,6 +96,15 @@ export function submitSpeech(room, seatId, text, actionId) {
 }
 
 function advanceSpeech(room, seat) {
+  if (room.pk?.stage === 'speech' && room.pk.round === room.round) {
+    const next = room.pk.candidates[room.pk.candidates.indexOf(seat.seatId) + 1];
+    if (next) transition(room, PHASES.SPEECH, { seatId: next, pk: true, candidates: [...room.pk.candidates] });
+    else {
+      room.pk.stage = 'vote'; transition(room, PHASES.VOTE, { pk: true, candidates: [...room.pk.candidates] });
+      if (!voteEligibleSeats(room).length) resolveVotes(room);
+    }
+    return;
+  }
   const next = aliveSeats(room).find(item => item.seatId > seat.seatId);
   if (next) transition(room, PHASES.SPEECH, { seatId: next.seatId });
   else transition(room, PHASES.VOTE);
@@ -128,10 +137,14 @@ export function retrySpeechPlayback(room, { speechId, taskId } = {}) {
 export function submitVote(room, seatId, targetSeatId, voteId) {
   if (room.phase !== PHASES.VOTE) throw new RuleError('vote is not allowed now');
   if (commandKey(room, voteId)) throw new RuleError('duplicate action');
-  requireAlive(room, seatId); requireAlive(room, targetSeatId); if (room.votes.some(vote => vote.round === room.round && vote.seatId === seatId)) throw new RuleError('seat already voted');
-  room.votes.push({ voteId, round: room.round, seatId, targetSeatId }); room.submittedVoteRound = room.round; room.submittedVoteSeatIds ??= []; if (!room.submittedVoteSeatIds.includes(seatId)) room.submittedVoteSeatIds.push(seatId); room.version += 1;
+  requireAlive(room, seatId); requireAlive(room, targetSeatId);
+  const pk = room.pk?.stage === 'vote';
+  if (pk && room.pk.candidates.includes(seatId)) throw new RuleError('pk candidates cannot vote');
+  if (pk && !room.pk.candidates.includes(targetSeatId)) throw new RuleError('pk vote must target a candidate');
+  if (room.votes.some(vote => vote.round === room.round && Boolean(vote.pk) === pk && vote.seatId === seatId)) throw new RuleError('seat already voted');
+  room.votes.push({ voteId, round: room.round, seatId, targetSeatId, pk }); room.submittedVoteRound = room.round; room.submittedVoteSeatIds ??= []; if (!room.submittedVoteSeatIds.includes(seatId)) room.submittedVoteSeatIds.push(seatId); room.version += 1;
   appendEvent(room, { type: 'game.vote_submitted', data: { voteId, seatId } });
-  if (room.votes.filter(vote => vote.round === room.round).length === aliveSeats(room).length) resolveVotes(room); return room;
+  if (room.votes.filter(vote => vote.round === room.round && Boolean(vote.pk) === pk).length === voteEligibleSeats(room).length) resolveVotes(room); return room;
 }
 
 export { submitHunterResponse as hunterShot };
@@ -243,22 +256,46 @@ export function expireHunterResponse(room, now = Date.now()) {
   continueAfterHunter(room); return true;
 }
 
-function resolveVotes(room) {
-  const round = room.round;
-  if (room.voteResolutions?.some(resolution => resolution.round === round)) throw new RuleError('vote already resolved');
-  const votes = room.votes.filter(vote => vote.round === round); const counts = new Map();
-  for (const vote of votes) counts.set(vote.targetSeatId, (counts.get(vote.targetSeatId) ?? 0) + 1);
-  const maxVotes = Math.max(...counts.values());
-  const entries = [...counts].map(([seatId, votes]) => ({ seatId, votes })).sort((a, b) => b.votes - a.votes || a.seatId.localeCompare(b.seatId));
-  const leaders = entries.filter(entry => entry.votes === maxVotes).map(entry => entry.seatId); const eliminatedSeatId = leaders.length === 1 ? leaders[0] : null;
-  const eventId = `vote_resolved_${round}_${room.events.length + 1}`; const resolution = { resolutionId: eventId, round, entries, totalVotes: votes.length, maxVotes, leaders, eliminatedSeatId };
-  room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution }); room.submittedVoteRound = null; room.submittedVoteSeatIds = [];
-  if (eliminatedSeatId) eliminate(room, eliminatedSeatId, 'vote');
+export function voteEligibleSeats(room) {
+  return aliveSeats(room).filter(seat => room.pk?.stage !== 'vote' || !room.pk.candidates.includes(seat.seatId));
+}
+
+export function voteTargetSeats(room) {
+  return aliveSeats(room).filter(seat => room.pk?.stage !== 'vote' || room.pk.candidates.includes(seat.seatId));
+}
+
+function finishVoteDay(room) {
+  room.pk = null;
+  room.submittedVoteRound = null; room.submittedVoteSeatIds = [];
   if (room.hunterResponse?.status === 'open') return room;
   room.lastWordsContinuation = PHASES.NIGHT_WOLF;
   if (openNextLastWords(room)) return room;
   const winner = checkWinner(room); if (winner) return winner;
   room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
+}
+
+function resolveVotes(room) {
+  const round = room.round;
+  const pk = room.pk?.stage === 'vote';
+  if (room.voteResolutions?.some(resolution => resolution.round === round && Boolean(resolution.pk) === pk)) throw new RuleError('vote already resolved');
+  const votes = room.votes.filter(vote => vote.round === round && Boolean(vote.pk) === pk); const counts = new Map();
+  for (const vote of votes) counts.set(vote.targetSeatId, (counts.get(vote.targetSeatId) ?? 0) + 1);
+  const maxVotes = Math.max(0, ...counts.values());
+  const entries = [...counts].map(([seatId, votes]) => ({ seatId, votes })).sort((a, b) => b.votes - a.votes || a.seatId.localeCompare(b.seatId));
+  const leaders = entries.filter(entry => entry.votes === maxVotes).map(entry => entry.seatId); const eliminatedSeatId = leaders.length === 1 ? leaders[0] : null;
+  const eventId = `vote_resolved_${round}_${room.events.length + 1}`; const resolution = { resolutionId: eventId, round, entries, totalVotes: votes.length, maxVotes, leaders, eliminatedSeatId, pk, ...(pk ? { candidates: [...room.pk.candidates] } : {}) };
+  room.voteResolutions ??= []; room.voteResolutions.push(resolution); appendEvent(room, { eventId, type: 'game.vote_resolved', data: resolution }); room.submittedVoteRound = null; room.submittedVoteSeatIds = [];
+  if (!eliminatedSeatId && !pk) {
+    const candidates = [...leaders].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    room.pk = { round, stage: 'speech', candidates };
+    // A PK speech is a new window even if this seat spoke earlier this day.
+    room.speechClock = null; room.speechPrewarm = null;
+    appendEvent(room, { type: 'game.pk_started', data: { round, candidates } });
+    transition(room, PHASES.SPEECH, { seatId: candidates[0], pk: true, candidates }); return room;
+  }
+  room.pk = null;
+  if (eliminatedSeatId) eliminate(room, eliminatedSeatId, 'vote');
+  return finishVoteDay(room);
 }
 
 function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); queueLastWords(room, seatId, cause); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }

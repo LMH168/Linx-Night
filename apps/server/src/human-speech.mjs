@@ -1,4 +1,5 @@
 import { submitSpeech } from '../../../packages/domain/src/engine.mjs';
+import { appendEvent } from '../../../packages/domain/src/model.mjs';
 import { randomUUID } from 'node:crypto';
 
 export function tickHumanSpeech(room, now = Date.now()) {
@@ -9,11 +10,12 @@ export function tickHumanSpeech(room, now = Date.now()) {
   if (!clock || clock.gameId !== room.gameId || clock.round !== room.round || clock.seatId !== seat.seatId) {
     room.speechClock = null;
     clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', expiresAt: now + 30000 };
+    appendEvent(room, { type: 'game.speech_window_opened', data: { seatId: seat.seatId, expiresAt: clock.expiresAt } });
   }
   if (now >= clock.expiresAt) {
     if(clock.stage==='recording'){clock.stage='transcribing';clock.expiresAt+=60000;room.version++;if(now<clock.expiresAt)return;}
     if(clock.stage==='transcribing'){clock.stage='confirming';clock.expiresAt+=15000;room.version++;if(now<clock.expiresAt)return;}
-    submitSpeech(room, seat.seatId, '发言时间已到，结束本轮发言。', `speech_timeout_${room.gameId}_${room.round}_${seat.seatId}`);
+    submitSpeech(room, seat.seatId, '发言时间已到，结束本轮发言。', `speech_timeout_${room.gameId}_${room.round}_${seat.seatId}${room.pk ? '_pk' : ''}`);
     room.speechClock = null;
   }
 }

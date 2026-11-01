@@ -3,3 +3,5 @@ apps/client-vue/dist/
 .env
 .env.*
 !.env.example
+
+artifacts/eclipse-live/

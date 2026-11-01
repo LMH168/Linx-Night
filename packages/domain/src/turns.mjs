@@ -1,10 +1,14 @@
 export function actionAvailable(room, seat) {
   if (room.preparing || room.invalidated) return false;
   if (room.phase === 'HUNTER_RESPONSE') return room.hunterResponse?.status === 'open' && room.hunterResponse.seatId === seat.seatId;
+  if (room.phase === 'LAST_WORDS') return room.lastWords?.status === 'open' && room.lastWords.seatId === seat.seatId;
   const nightEligible = (room.pendingNight?.eligibleSeatIds?.includes(seat.seatId) || (room.pendingNight && room.pendingNight.eligibleSeatIds === undefined && seat.alive)) && ['NIGHT_SEER','NIGHT_WITCH'].includes(room.phase);
   if (!seat.alive && !nightEligible) return false;
   if (room.phase === 'SPEECH') return room.currentSeatId === seat.seatId && !room.speechPlayback;
-  if (room.phase === 'VOTE') return !room.votes.some(v => v.round === room.round && v.seatId === seat.seatId);
+  if (room.phase === 'VOTE') {
+    const pk = room.pk?.stage === 'vote';
+    return !(pk && room.pk.candidates.includes(seat.seatId)) && !room.votes.some(v => v.round === room.round && Boolean(v.pk) === pk && v.seatId === seat.seatId);
+  }
   if (room.phase === 'NIGHT_WOLF') return seat.role === 'werewolf' && !room.actions.some(a => a.turnId === room.round && a.actionType === 'wolf_target' && a.seatId === seat.seatId);
   const eligible = role => (room.pendingNight?.eligibleSeatIds?.includes(seat.seatId) || (room.pendingNight && room.pendingNight.eligibleSeatIds === undefined && seat.alive)) && seat.role === role;
   return (room.phase === 'NIGHT_SEER' && eligible('seer')) || (room.phase === 'NIGHT_WITCH' && eligible('witch'));

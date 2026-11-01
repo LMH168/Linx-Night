@@ -72,6 +72,8 @@ try {
   setup('VOTE'); mode='timeout'; calls=0;
   await new LinxTurnRuntime({manager,timeoutMs:50}).tick(room);
   assert.equal(calls,2); assert.equal(room.votes.length,0); assert.equal(room.controllers[0].status,'failed');
+  await new LinxTurnRuntime({manager,timeoutMs:50}).tick(room);
+  assert.equal(calls,2,'a failed AI pauses other pending AI votes until host retry');
   setup('NIGHT_WOLF');room.actions.push({actionType:'wolf_target',turnId:room.round,seatId:'P8',targetSeatId:'P9'});
   assert.equal(privateState(room,room.seats[1].playerId).wolfProposal,'P9');
   assert.equal(privateState(room,room.seats[2].playerId).wolfProposal,null);
@@ -85,5 +87,19 @@ try {
     if(phase.startsWith('NIGHT')) assert.ok(!publicState(room).turns.some(t=>t.seatId==='P2'));
     await work;assert.equal(room.turns[0].status,'completed',name);
   }
-  console.log('Runtime: serial seats, MCP lease rejection, accepted action beats pending TTS, failure pause, new epoch and wolf privacy passed (simulated)');
+  setup('VOTE'); mode='success';toolName='submit_vote';calls=0;
+  room.pk={round:room.round,stage:'vote',candidates:['P2','P9']};
+  await runtime.tick(room);
+  assert.equal(room.votes.at(-1).seatId,'P3','AI PK candidate cannot act; next eligible AI receives a turn');
+  assert.equal(room.votes.at(-1).targetSeatId,'P9');
+  assert.equal(calls,1);
+  setup('LAST_WORDS');mode='timeout';calls=0;
+  room.seats[1].alive=false;
+  room.lastWords={windowId:'last-window',lastWordsId:'last-window',seatId:'P2',round:room.round,status:'open',expiresAt:new Date(Date.now()+40).toISOString()};
+  room.lastWordsContinuation='NIGHT_WOLF';
+  await new LinxTurnRuntime({manager,timeoutMs:500}).tick(room);
+  assert.equal(room.lastWords,null);
+  assert.equal(room.phase,'NIGHT_WOLF');
+  assert.equal(room.controllers[0].status,'ready','expired AI last words must not pause the next round');
+  console.log('Runtime: serial seats, MCP lease rejection, PK eligibility, last-words timeout, failure pause and wolf privacy passed (simulated)');
 } finally { rooms.clear(); sessions.clear();server.closeAllConnections();await new Promise(r=>server.close(r)); }

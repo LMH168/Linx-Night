@@ -21,7 +21,7 @@ const updateViewport = () => { isMobile.value = window.innerWidth < 760; };
 onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport); clock = setInterval(() => { now.value = Date.now(); }, 250); });
 onBeforeUnmount(() => { window.removeEventListener('resize', updateViewport); if (clock) clearInterval(clock); });
 
-const currentSpeakerName = computed(() => store.currentSpeaker ? `${store.currentSpeaker.id} · ${store.currentSpeaker.name}` : '等待投票');
+const currentSpeakerName = computed(() => store.currentSpeaker ? `${store.currentSpeaker.seatId} · ${store.currentSpeaker.displayName}` : '等待投票');
 const selectedSeat = computed(() => store.publicSeats.find(seat => seat.id === store.selectedSeatId));
 const leaderSeat = computed(() => {
   const row = store.leader; if (!row) return null;
@@ -99,7 +99,7 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
       </div>
       <div v-else class="mobile-top-right">
         <span class="phase-pill">{{ phaseShort }}</span>
-        <span class="mobile-role-pill">{{ store.selfSeat.id }} · {{ store.selfMeta.name }}</span>
+        <span class="mobile-role-pill">{{ store.selfSeat.seatId }} · {{ store.selfMeta.name }}</span>
         <button class="icon-btn sound" aria-label="环境声"><span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i></span></button>
       </div>
     </header>
@@ -146,7 +146,7 @@ function copyRoom() { navigator.clipboard?.writeText(store.roomId).catch(() => u
           <div class="check-head"><span class="label">本局记录</span><span class="check-count">仅你可见</span></div>
           <div class="check-row"><i class="sigil good"></i><span>{{ store.selfRole === 'witch' ? '女巫药剂状态由私密状态显示' : store.selfRole === 'hunter' ? '猎人技能在死亡窗口开放' : '没有夜间技能' }}</span><b class="ok">{{ store.selfMeta.name }}</b></div>
         </div>
-        <div class="identity-foot"><span>身份牌 · 不可转让</span><span class="tiny">SEAT {{ store.selfSeat.id }}</span></div>
+        <div class="identity-foot"><span>身份牌 · 不可转让</span><span class="tiny">SEAT {{ store.selfSeat.seatId }}</span></div>
       </div>
     </aside>
 

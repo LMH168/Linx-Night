@@ -1,5 +1,5 @@
 import { recordTurn } from '../../server/src/turn-diagnostics.mjs';
-import { expireHunterResponse } from '../../../packages/domain/src/engine.mjs';
+import { expireHunterResponse, expireLastWords } from '../../../packages/domain/src/engine.mjs';
 import { completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { defaultTurn } from './local.mjs';
@@ -30,6 +30,7 @@ export class LinxTurnRuntime {
     }
     // Host playback gates public day turns only; private night turns are independent.
     // This runtime drives Linx seats only; human seats act from the web client.
+    if (room.controllers.some(c => c.status === 'failed')) return Promise.resolve();
     const seat = room.seats.find(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
     if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
     if (!seat) return Promise.resolve();
@@ -38,7 +39,7 @@ export class LinxTurnRuntime {
   prewarmNext(room) {
     if (this.prewarming?.has(room.roomId) || !room.currentSeatId) return;
     const current = room.seats.find(seat => seat.seatId === room.currentSeatId);
-    const next = room.seats.filter(seat => seat.alive && seat.seatId > room.currentSeatId).find(seat => seat.controlSource === 'linx');
+    const next = room.seats.filter(seat => seat.alive && (!room.pk || room.pk.candidates.includes(seat.seatId)) && seat.seatId > room.currentSeatId).find(seat => seat.controlSource === 'linx');
     if (!current || !next) return;
     const controller = room.controllers.find(item => item.seatId === next.seatId);
     if (!controller) return;
@@ -84,7 +85,11 @@ export class LinxTurnRuntime {
     const gameId = room.gameId;
     let turn, timer, poll, stored, acceptedRecorded = false, retryVote = false;
     const hunterWindow = room.phase === 'HUNTER_RESPONSE' ? room.hunterResponse : null;
-    const context = {roomId:room.roomId,gameId,seatId:seat.seatId,windowId:hunterWindow?.windowId};
+    const lastWordsWindow = room.phase === 'LAST_WORDS' ? room.lastWords : null;
+    const responseWindow = hunterWindow || lastWordsWindow;
+    const expireResponse = hunterWindow ? expireHunterResponse : expireLastWords;
+    const expiredCode = hunterWindow ? 'HUNTER_WINDOW_EXPIRED' : 'LAST_WORDS_WINDOW_EXPIRED';
+    const context = {roomId:room.roomId,gameId,seatId:seat.seatId,windowId:responseWindow?.windowId};
     recordTurn('selected',context);
     const active = () => !room.invalidated && room.gameId === gameId && room.phase !== 'LOBBY';
     try {
@@ -96,14 +101,14 @@ export class LinxTurnRuntime {
         await this.manager.ensureConnected(room, seat);
         recordTurn('connection_ready', {...context,durationMs:this.now() - connectionStartedAt});
       }
-      if (active() && hunterWindow && this.now() >= Date.parse(hunterWindow.expiresAt)) { expireHunterResponse(room,this.now()); recordTurn('finished',{...context,code:'HUNTER_WINDOW_EXPIRED'}); return; }
+      if (active() && responseWindow && this.now() >= Date.parse(responseWindow.expiresAt)) { expireResponse(room,this.now()); recordTurn('finished',{...context,code:expiredCode}); return; }
       if (!active() || !actionAvailable(room, seat)) return;
       const c = room.controllers.find(c => c.seatId === seat.seatId);
       turn = createTurn(room, { seatId: seat.seatId, controlSource: seat.controlSource, controllerEpoch: c?.controllerEpoch ?? null });
       context.turnId = turn.turnId; recordTurn('lease_created',context);
       stored = room.turns.find(t => t.turnId === turn.turnId);
       const timeout = seat.controlSource === 'human' && room.phase.startsWith('NIGHT_') && this.timeoutMs >= 1000 ? Math.min(this.timeoutMs, this.nightTimeoutMs) : this.timeoutMs;
-      stored.expiresAt = Math.min(this.now() + timeout, room.phase === 'HUNTER_RESPONSE' ? Date.parse(room.hunterResponse.expiresAt) : Infinity);
+      stored.expiresAt = Math.min(this.now() + timeout, room.phase === 'HUNTER_RESPONSE' ? Date.parse(room.hunterResponse.expiresAt) : room.phase === 'LAST_WORDS' ? Date.parse(room.lastWords.expiresAt) : Infinity);
       this.publish(room);
       await new Promise((resolve, reject) => {
         const check = () => {
@@ -116,14 +121,12 @@ export class LinxTurnRuntime {
         if (seat.controlSource === 'linx') Promise.resolve().then(() => this.manager.sendTurn(room, seat)).catch(() => { if (!check()) reject(new Error('LINX_INPUT_FAILED')); });
       });
     } catch (error) {
-      const hunterDeadline = hunterWindow ? Date.parse(hunterWindow.expiresAt) : null;
-      // A timer can fire one millisecond before Date.now() reaches the ISO
-      // deadline. The turn deadline is authoritative in that case; otherwise
-      // an already timed-out hunter window can remain open indefinitely.
-      const windowExpired = hunterWindow && (this.now() >= hunterDeadline || (error.message === 'TURN_TIMEOUT' && turn?.phase === 'HUNTER_RESPONSE' && stored?.expiresAt === hunterDeadline));
-      if (windowExpired && active()) expireHunterResponse(room, Math.max(this.now(), hunterDeadline));
+      const responseDeadline = responseWindow ? Date.parse(responseWindow.expiresAt) : null;
+      // Honor the leased response deadline even if its timer fires one millisecond early.
+      const windowExpired = responseWindow && (this.now() >= responseDeadline || (error.message === 'TURN_TIMEOUT' && ['HUNTER_RESPONSE','LAST_WORDS'].includes(turn?.phase) && stored?.expiresAt === responseDeadline));
+      if (windowExpired && active()) expireResponse(room, Math.max(this.now(), responseDeadline));
       const cancelled = !active() || (turn && (room.phase !== turn.phase || room.round !== turn.round));
-      const code = windowExpired ? 'HUNTER_WINDOW_EXPIRED' : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
+      const code = windowExpired ? expiredCode : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
       retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
       recordTurn('finished',{...context,code});
       if (turn) expireTurn(room, turn.turnId, code);

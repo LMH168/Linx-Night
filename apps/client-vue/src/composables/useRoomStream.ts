@@ -32,11 +32,14 @@ export function useRoomStream(client: GameApiClient | null, roomId: string) {
     if (stopped || !client || !roomId) return;
     source?.close();
     source = new EventSource(client.eventsUrl(roomId, store.cursor.version));
-    source.onopen = () => { connected.value = true; delay = 500; store.markConnected(); };
+    const refresh = () => store.refreshAfterEvent(client, roomId).catch(cause => {
+      if (!stopped) lastError.value = cause instanceof Error ? cause.message : '状态同步失败';
+    });
+    source.onopen = () => { connected.value = true; delay = 500; store.markConnected(); void refresh(); };
     source.onmessage = event => {
       try {
         const payload = JSON.parse(event.data) as RoomEvent;
-        if (store.acceptEvent(payload)) void store.refreshAfterEvent(client, roomId);
+        if (store.acceptEvent(payload)) void refresh();
       } catch (cause) {
         lastError.value = cause instanceof Error ? cause.message : '事件解析失败';
       }

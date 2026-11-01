@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 const legacyRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 // Vue is the production entry after Issue #124. Set CLIENT_UI=legacy only for rollback.
 const useVue = process.env.CLIENT_UI !== 'legacy';
-const staticRoot = useVue ? resolve(process.env.CLIENT_DIST || join(legacyRoot, 'dist')) : legacyRoot;
+const staticRoot = useVue ? resolve(process.env.CLIENT_DIST || join(legacyRoot, '../client-vue/dist')) : legacyRoot;
 const port = Number(process.env.CLIENT_PORT || 5010);
 const clientBuild = process.env.LINX_BUILD_ID || 'unknown';
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
 createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const requested = pathname === '/' ? 'index.html' : pathname.slice(1);

@@ -1,5 +1,6 @@
+import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { randomUUID } from 'node:crypto';
-import { announceDay, skipSeerAction, witchAction, wolfTarget, submitSpeech, submitVote, skipAbsentRoles } from '../../../packages/domain/src/engine.mjs';
+import { announceDay, skipSeerAction, witchAction, wolfTarget, submitSpeech, submitVote, skipAbsentRoles, voteTargetSeats } from '../../../packages/domain/src/engine.mjs';
 export function defaultTurn(room, seat) {
   const id = randomUUID();
   const living = room.seats.filter(s => s.alive);
@@ -12,7 +13,7 @@ export function defaultTurn(room, seat) {
   } else if (room.phase === 'NIGHT_SEER' && seat.role === 'seer') skipSeerAction(room,seat.seatId,id);
   else if (room.phase === 'NIGHT_WITCH' && seat.role === 'witch') witchAction(room,seat.seatId,'skip',null,id);
   else if (room.phase === 'SPEECH' && room.currentSeatId === seat.seatId) submitSpeech(room,seat.seatId,'本地规则机器人：暂无补充，交给下一位。',id);
-  else if (room.phase === 'VOTE' && !room.votes.some(v => v.round === room.round && v.seatId === seat.seatId)) submitVote(room,seat.seatId,target.seatId,id);
+  else if (room.phase === 'VOTE' && actionAvailable(room, seat)) submitVote(room,seat.seatId,voteTargetSeats(room)[0].seatId,id);
   else return false;
   return true;
 }

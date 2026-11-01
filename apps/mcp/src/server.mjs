@@ -1,3 +1,4 @@
+import { voteTargetSeats } from '../../../packages/domain/src/engine.mjs';
 import { recordTurn, turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
 import { createServer } from 'node:http';
@@ -90,7 +91,7 @@ async function callTool(req, name, args, requiredToken, trace) {
         state.requiredAction = {
           tool: 'submit_vote',
           arguments: { turn_id: turn.turnId },
-          targetSeatIds: room.seats.filter(s => s.alive && s.playerId).map(s => s.seatId),
+          targetSeatIds: voteTargetSeats(room).filter(s => s.playerId).map(s => s.seatId),
           instruction: '现在必须调用 submit_vote。自行从 targetSeatIds 选择一名玩家，将其座位号填入 target_player_id，并携带 arguments.turn_id。即使线索不足也必须选择；不能只查询、口头投票或等待其他玩家。只有 accepted:true 才算提交成功。',
         };
       }

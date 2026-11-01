@@ -34,7 +34,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
-      if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,OPTIONS' }); return res.end(); }
+      if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' }); return res.end(); }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'linx-night-server', version: '0.1.0' });
       if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRoom({ hostPlayerId: playerId }); room.hostCoordinatorEnabled = true; room.hostPlaybackEnabled=Boolean(hostPlayback); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); rooms.set(room.roomId, room); return json(res, 201, { room_id: room.roomId, player_id: playerId, state: publicState(room) }); }
       if (parts[0] === 'api' && parts[1] === 'settlements' && parts[2]) { const report = settlements.get(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, parts[2]); return json(res, 200, { settlement: structuredClone(report) }); }

@@ -72,6 +72,9 @@ export interface LastWordsState {
 }
 
 export interface SettlementState {
+  eliminations?: Array<{ seatId: string; cause: string; eventId?: string }>;
+  speeches?: SpeechRecord[];
+  voteResolutions?: VoteResolution[];
   settlementId: string;
   roomId?: string;
   gameId?: string | null;
@@ -97,6 +100,8 @@ export interface VoteEntry {
 }
 
 export interface VoteResolution {
+  pk?: boolean;
+  candidates?: string[];
   resolutionId: string;
   round: number;
   entries: VoteEntry[];
@@ -107,6 +112,8 @@ export interface VoteResolution {
 }
 
 export interface RoomPublicState {
+  speechPlayback?: { speechId: string; status: string; seatId?: string } | null;
+  pk?: { round: number; stage: 'speech' | 'vote'; candidates: string[] } | null;
   roomId: string;
   hostPlayerId: string;
   gameId: string | null;
@@ -119,7 +126,7 @@ export interface RoomPublicState {
   currentSeatId: string | null;
   submittedVoteRound: number | null;
   submittedVoteSeatIds: string[];
-  speechDeadline?: string | null;
+  speechDeadline?: string | number | null;
   seats: SeatState[];
   controllers: ControllerState[];
   hostController?: ControllerState | null;
@@ -144,6 +151,10 @@ export interface CurrentTurn {
 }
 
 export interface PrivateState {
+  canAct?: boolean;
+  werewolfTeammates?: string[];
+  wolfProposal?: string | null;
+  nightVictim?: string | null;
   roomId: string;
   seatId: string;
   playerId: string;
@@ -151,7 +162,7 @@ export interface PrivateState {
   camp: Camp | null;
   alive: boolean;
   skills: Record<string, unknown>;
-  seerResults: Array<{ targetSeatId: string; result: Role | Camp | string }>;
+  seerResults: Array<{ seatId?: string; targetSeatId?: string; round?: number; result: Role | Camp | string }>;
   currentTurn: CurrentTurn | null;
   hunterAction: HunterActionState | null;
   speechSession?: Record<string, unknown> | null;

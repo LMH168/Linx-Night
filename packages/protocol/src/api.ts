@@ -20,6 +20,8 @@ export type ActionRequest =
   | { type: 'announce_day'; action_id?: string };
 export type VoteRequest = { target_seat_id: string; action_id?: string };
 export type SpeechRequest = { text: string; action_id?: string };
+export type PresenceResponse = { ok: boolean };
+export type ControlRequest = { mode: 'human' };
 export type HunterResponseRequest =
   | { action: 'skip'; window_id: string; action_id?: string }
   | { action: 'shoot'; target_seat_id: string; window_id: string; action_id?: string };
