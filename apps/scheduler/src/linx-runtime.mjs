@@ -31,10 +31,12 @@ export class LinxTurnRuntime {
     // Host playback gates public day turns only; private night turns are independent.
     // This runtime drives Linx seats only; human seats act from the web client.
     if (room.controllers.some(c => c.status === 'failed')) return Promise.resolve();
-    const seat = room.seats.find(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
+    const eligible = room.seats.filter(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
     if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
-    if (!seat) return Promise.resolve();
-    return this.track(room, () => this.play(room, seat));
+    if (!eligible.length) return Promise.resolve();
+    const concurrent = room.phase === 'NIGHT_WOLF' || room.phase === 'VOTE';
+    const seats = concurrent ? eligible : eligible.slice(0, 1);
+    return this.track(room, () => Promise.allSettled(seats.map(seat => this.play(room, seat))));
   }
   prewarmNext(room) {
     if (this.prewarming?.has(room.roomId) || !room.currentSeatId) return;
