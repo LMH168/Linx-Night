@@ -218,7 +218,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       catch (error) {
         if (relay) {
           relay.ended = true; relay.resolve();
-          if (speech && relay.bytes && turn?.status === 'active' && room.currentSeatId === seat.seatId) {
+          if (error.message === 'SPEECH_LIMIT' && speech && relay.bytes && active()) {
             completeTurn(room, turn.turnId);
             recordTurn('speech_voice_completed', {...context, bytes: relay.bytes, partial: true});
             onChange(room);

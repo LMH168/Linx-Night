@@ -4,6 +4,7 @@ import {HostPlayback} from '../src/host-playback.mjs';
 import {LinxTurnRuntime} from '../../scheduler/src/linx-runtime.mjs';
 import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation} from '../../../packages/domain/src/model.mjs';
 import {wavFromPcm} from '../../linx/src/voice.mjs';
+for (const limited of [false, true]) {
 const room=createRoom({hostPlayerId:'human'});
 addPlayer(room,{playerId:'human',displayName:'真人'});fillAiSeats(room);
 beginControllerPreparation(room,{aiSeatIds:['P2','P3']});
@@ -26,6 +27,7 @@ const manager=createLinxControllerManager({
    this.onAudio(Buffer.alloc(640));
    lateMessage=this.onMessage;lateAudio=this.onAudio;
    await voiceEnd;
+   if (limited) throw Error('SPEECH_LIMIT');
    this.onMessage({type:'tts',state:'sentence_start',text:'请大家继续观察投票。'});
    this.onAudio(Buffer.alloc(640));
    return {attemptId:'voice'};
@@ -48,7 +50,7 @@ try {
  assert.equal(sends,1);
  releaseVoice();await work;await playback.running.get(room.roomId);
  assert.equal(room.turns[0].status,'completed');
- assert.equal(room.speeches[0].text,'我听到了上一位发言。请大家继续观察投票。');
+ assert.equal(room.speeches[0].text,limited?'我听到了上一位发言。':'我听到了上一位发言。请大家继续观察投票。');
  assert.equal(playback.state(room).task.status,'ready');
  assert.equal(room.currentSeatId,'P2','TTS completion cannot bypass browser playback');
  const before=room.speeches[0].text,bytes=room.speechAudioRelay.bytes;
@@ -61,4 +63,5 @@ try {
  assert.equal(room.hostPlaybackBlocked,true);
  await runtime.tick(room);assert.equal(sends,1);
 } finally {room.invalidated=true;releaseVoice();playback.cancel(room);await manager.release(room);}
+}
 console.log('TTS alone streams public PCM, records transcript, prewarms next seat and waits for playback without MCP speech');

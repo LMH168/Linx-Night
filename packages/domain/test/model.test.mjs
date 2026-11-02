@@ -22,6 +22,13 @@ assert.equal(visible.seats[0].role, undefined);
 assert.equal(visible.seats[0].camp, undefined);
 assert.equal(mine.playerId, 'p1');
 assert.throws(() => privateState(room, 'missing'), /not found/);
+const beforeNight = room.phase;
+room.phase = 'NIGHT_WOLF';
+for (const seat of room.seats) {
+  const targets = privateState(room, seat.playerId).actionTargetSeatIds;
+  assert.deepEqual(targets, seat.role === ROLES.WEREWOLF ? room.seats.filter(s=>s.camp!==CAMPS.WEREWOLF).map(s=>s.seatId) : []);
+}
+room.phase = beforeNight;
 appendEvent(room, { eventId: 'evt_test', type: 'room.updated', data: { ok: true } });
 assert.throws(() => appendEvent(room, { eventId: 'evt_test', type: 'room.updated' }), /duplicate event/);
 const settlement = createSettlement(room, { settlementType: SETTLEMENT_TYPES.HOST_ENDED, reason: '房主提前结束本局' }); assert.equal(settlement.settlementType, SETTLEMENT_TYPES.HOST_ENDED); assert.equal(settlement.winner, null); assert.equal(settlement.seats[0].role, room.seats[0].role); assert.ok(settlement.publicEvents.every(event => !JSON.stringify(event).match(/token|session|device|agent|audio|modelReply/i))); assert.throws(() => createSettlement(room, { settlementType: SETTLEMENT_TYPES.HOST_ENDED }), /already exists/); assert.deepEqual(settlementReport(room), settlement); assert.equal(publicState(room).settlement.settlementType, SETTLEMENT_TYPES.HOST_ENDED); assert.equal(publicState(room).settlement.seats, undefined);
