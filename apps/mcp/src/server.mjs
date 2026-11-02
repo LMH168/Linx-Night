@@ -102,7 +102,6 @@ async function callTool(req, name, args, requiredToken, trace) {
       audit.ok = true; return resultText(state);
     }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
-    if (name === 'submit_speech' && room.realtimeAiSpeech) throw new RuleError('Public speech is recorded from TTS automatically. Speak directly; do not call submit_speech.');
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {
       turn = currentTurn(room, seat.seatId);
@@ -113,7 +112,7 @@ async function callTool(req, name, args, requiredToken, trace) {
     trace.actionId = actionId;
     const target = args.target_player_id ? targetSeat(room, args.target_player_id) : null;
     let result;
-    if (name === 'submit_speech') submitSpeech(room, seat.seatId, args.text, actionId);
+    if (name === 'submit_speech') { submitSpeech(room, seat.seatId, args.text, actionId); recordTurn('speech_submitted', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, turnId: turn?.turnId, eventId: room.events.at(-1)?.eventId }); }
     else if (name === 'submit_wolf_target') wolfTarget(room, seat.seatId, target, actionId);
     else if (name === 'submit_seer_check') result = seerCheck(room, seat.seatId, target, actionId);
     else if (name === 'submit_witch_action') witchAction(room, seat.seatId, args.action, target, actionId);
