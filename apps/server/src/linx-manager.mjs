@@ -8,6 +8,8 @@ import { readProfile } from '../../linx/src/profile.mjs';
 import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
 import { parseTriggerWav, wavDurationMs } from '../../linx/src/wav.mjs';
 import { waitForMcpDiscovery } from './mcp-discovery.mjs';
+import { submitSpeech } from '../../../packages/domain/src/engine.mjs';
+import { appendEvent, completeTurn } from '../../../packages/domain/src/model.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 async function requestAdmin(base, token, path, body, fetchImpl) {
@@ -80,6 +82,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   return {
     requireHost: true,
     async prepare(room) {
+      room.realtimeAiSpeech = true;
       if (room.hostPlaybackEnabled) {
         const voices = voiceConfig(env);
         room.publicVoices = { HOST: voices.host };
@@ -144,31 +147,50 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const push = chunk => { relay.queue = relay.queue.then(() => stream.send(chunk)).catch(() => {}); return relay.queue; };
       relay.push = push;
       room.speechInputRelay = relay;
+      for (const chunk of [...source.chunks]) push(chunk);
       source.target = push;
-      for (const chunk of source.chunks) await push(chunk);
+      await relay.queue;
       recordTurn('speech_pcm_relay_started', { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId, bytes: source.chunks.reduce((n, chunk) => n + chunk.length, 0) });
       return relay;
     },
     async sendTurn(room, seat) {
       let client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
-      const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:room.turns.find(t=>t.status==='active'&&t.seatId===seat.seatId)?.turnId,windowId:room.hunterResponse?.windowId};
+      const turn = room.turns.find(t=>t.status==='active'&&t.gameId===room.gameId&&t.round===room.round&&t.phase===room.phase&&t.seatId===seat.seatId);
+      const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:turn?.turnId,windowId:room.hunterResponse?.windowId};
       client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
       const inputRelay = room.phase === 'SPEECH' && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
       const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, stream: null, resolve: null, done: null } : null;
       if (relay) { relay.done = new Promise(resolve => { relay.resolve = resolve; }); room.speechAudioRelay = relay; }
-      const previousAudio = client.onAudio;
-      if (relay) client.onAudio = chunk => {
+      const previousAudio = client.onAudio, previousMessage = client.onMessage;
+      const active = () => !room.invalidated && room.gameId === context.gameId && room.phase === 'SPEECH' && room.round === turn?.round && room.currentSeatId === seat.seatId && turn?.status === 'active' && Date.now() < turn.expiresAt && room.controllers.find(c=>c.seatId===seat.seatId)?.controllerEpoch === turn.controllerEpoch;
+      let speech;
+      const receiveAudio = chunk => {
+        if (!active() || relay.ended) return;
         if (!Buffer.isBuffer(chunk) || !chunk.length || chunk.length % 2 || relay.bytes + chunk.length > 1920000) return;
         relay.chunks.push(chunk);
         relay.bytes += chunk.length;
         try { relay.stream?.append(chunk); } catch { /* Linx may finish with one late PCM frame. */ }
         relay.target?.(chunk);
       };
+      const receiveMessage = message => {
+        if (!active() || relay.ended || message.type !== 'tts' || message.state !== 'sentence_start' || typeof message.text !== 'string' || !message.text.trim()) return;
+        if (!speech) {
+          const id=`voice_${turn.turnId}`;
+          submitSpeech(room,seat.seatId,message.text.trim().slice(0,1200),id);
+          speech=room.speeches.find(item=>item.speechId===id);
+          relay.speechId=id;
+          recordTurn('speech_transcript_started',context);
+        } else {
+          speech.text=(speech.text+message.text).slice(0,1200);
+          appendEvent(room,{type:'game.speech_transcript_updated',data:{speechId:speech.speechId,seatId:seat.seatId}});
+        }
+        onChange(room);
+      };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
-      const tool = { SPEECH: 'submit_speech', VOTE: 'submit_vote', NIGHT_WOLF: 'submit_wolf_target', NIGHT_SEER: 'submit_seer_check', NIGHT_WITCH: 'submit_witch_action', LAST_WORDS: 'submit_last_words 或 skip_last_words', HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response' }[room.phase];
-      const cue = tool ? `主持人私下通知：当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。公开发言请简短，勿公开自己的私密状态。` : wav;
+      const tool = { VOTE: 'submit_vote', NIGHT_WOLF: 'submit_wolf_target', NIGHT_SEER: 'submit_seer_check', NIGHT_WITCH: 'submit_witch_action', LAST_WORDS: 'submit_last_words 或 skip_last_words', HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response' }[room.phase];
+      const cue = relay ? '现在轮到你公开发言。可先私下查询 get_my_private_state、get_public_game_state 和 get_recent_speeches，结合刚才听到的上一位发言，直接说出你要让所有玩家听见的发言，控制在三句话以内。不要调用 submit_speech，不要朗读私密工具回复或查询过程。声音和发言文字由服务器自动记录。' : tool ? `主持人私下通知：当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。` : wav;
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
         if (inputRelay) {
@@ -177,16 +199,16 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
             await this.ensureConnected(room, seat);
             client = this.clientFor(room, seat.seatId);
             client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
-            if (relay) client.onAudio = chunk => { relay.chunks.push(chunk); relay.stream?.append(chunk); relay.target?.(chunk); };
           }
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
+          if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;}
           const work = client.send(cue); sends.set(key, work);
           try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
         }
-        else { if (client.stream) throw Error('CLIENT_BUSY'); const work=client.send(cue);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
-        if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
+        else { if (client.stream) throw Error('CLIENT_BUSY'); if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;} const work=client.send(cue);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
+        if(relay){relay.ended=true;relay.resolve();if(speech&&relay.bytes&&active()){completeTurn(room,turn.turnId);recordTurn('speech_voice_completed',{...context,bytes:relay.bytes});onChange(room);}} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
       catch (error) { if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
-      finally { if(relay) client.onAudio = previousAudio; }
+      finally { if(relay){client.onAudio=previousAudio;client.onMessage=previousMessage;} }
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);

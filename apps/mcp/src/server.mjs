@@ -102,6 +102,7 @@ async function callTool(req, name, args, requiredToken, trace) {
       audit.ok = true; return resultText(state);
     }
     if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
+    if (name === 'submit_speech' && room.realtimeAiSpeech) throw new RuleError('Public speech is recorded from TTS automatically. Speak directly; do not call submit_speech.');
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {
       turn = currentTurn(room, seat.seatId);
