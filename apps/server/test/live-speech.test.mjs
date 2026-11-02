@@ -23,7 +23,7 @@ const manager=createLinxControllerManager({
   async send(cue){
    if(cue.includes('会话准备'))return;
    sends++;assert.equal(identity.deviceId,'a','next seat must wait for browser playback and host narration');
-   assert.match(cue,/不要调用 game_submit_speech/);
+   assert.match(cue,/只输出最终的自然发言/);
    this.onMessage({type:'tts',state:'sentence_start',text:'我听到了上一位发言。'});
    this.onAudio(Buffer.alloc(640));
    lateMessage=this.onMessage;lateAudio=this.onAudio;
