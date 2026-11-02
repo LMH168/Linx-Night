@@ -186,3 +186,52 @@ test('cancelling a private reply drains aborted stop and preserves its session',
     assert.equal(client.state,'ready');assert.equal(client.sessionId,'cancel-session');assert.equal(client.pending,null);
   } finally {client.close();await mock.close();}
 });
+
+test('device MCP registers before ready, preserves connection identity and executes duplicate RPC once', async () => {
+  let listSeen,releaseList;
+  const listed=new Promise(resolve=>{listSeen=resolve;});
+  const gate=new Promise(resolve=>{releaseList=resolve;});
+  let calls=0,replies=0;
+  const mock=await mockServer((socket,request)=>{
+    assert.equal(request.headers['x-agent-id'],'expected-agent');
+    const rpc=(id,method,params)=>socket.send(JSON.stringify({type:'mcp',payload:{jsonrpc:'2.0',id,method,params}}));
+    socket.on('message',(raw,binary)=>{
+      if(binary)return;
+      const m=JSON.parse(raw.toString());
+      if(m.type==='hello'){
+        assert.equal(m.features.mcp,true);
+        socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'device-session',audio_params:pcm}));
+        rpc(1,'initialize');rpc(2,'tools/list');
+      }
+      if(m.state==='detect'){
+        rpc(3,'tools/call',{name:'get_my_private_state',arguments:{}});
+        rpc(3,'tools/call',{name:'get_my_private_state',arguments:{}});
+      }
+      if(m.type==='mcp'&&m.payload.id===3){
+        assert.equal(m.session_id,'device-session');
+        assert.equal(m.payload.result.isError,false);
+        if(++replies===2)socket.send(JSON.stringify({type:'tts',state:'stop'}));
+      }
+    });
+  });
+  const client=new LinxClient(identity,{socketFactory:mock.factory,mcp:async(request,context)=>{
+    assert.deepEqual(context,{sessionId:'device-session',deviceId:identity.deviceId,agentId:'expected-agent'});
+    if(request.method==='initialize')return {result:{protocolVersion:'2024-11-05',capabilities:{tools:{}}}};
+    if(request.method==='tools/list'){listSeen();await gate;return {result:{tools:[]}};}
+    calls++;return {result:{content:[{type:'text',text:'private'}],isError:false}};
+  }});
+  try {
+    const opening=client.connect({...config,agentId:'expected-agent'});
+    await listed;assert.equal(client.state,'connecting');releaseList();await opening;
+    assert.equal(client.state,'ready');await client.send('读取私密状态');assert.equal(calls,1);assert.equal(replies,2);
+  } finally {releaseList();client.close();await mock.close();}
+});
+
+test('MCP-capable session cannot become ready when the platform never lists tools', async () => {
+  const mock=await mockServer(socket=>socket.on('message',(raw,binary)=>{
+    if(!binary&&JSON.parse(raw).type==='hello')socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'no-tools',audio_params:pcm}));
+  }));
+  const client=new LinxClient(identity,{socketFactory:mock.factory,helloTimeoutMs:50,mcp:async()=>({result:{}})});
+  try {await assert.rejects(client.connect(config),/HELLO_TIMEOUT/);assert.equal(client.state,'closed');}
+  finally {client.close();await mock.close();}
+});

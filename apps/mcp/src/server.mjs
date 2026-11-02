@@ -160,7 +160,7 @@ export function createMcpServer({ port = Number(process.env.MCP_PORT || 9091), a
     let message;
     let failure;
     const receivedAt=performance.now();
-    const trace = { requestId: randomUUID() };
+    const trace = { requestId: randomUUID(), transport: req.headers['x-linx-transport']==='websocket' ? 'websocket' : 'http' };
     const recordFailure = body => {
       if (body.error) {
         const known = ['MCP authentication failed', 'unknown Linx session', 'Linx session metadata mismatch', 'game room not found', 'session seat mismatch', 'invalid JSON', 'unsupported MCP protocol version'];

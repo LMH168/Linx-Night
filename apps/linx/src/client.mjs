@@ -6,9 +6,9 @@ import { parseWav, frames } from './wav.mjs';
 
 export const pcm = { format: 'pcm', sample_rate: 16000, channels: 1, bit_depth: 16, endianness: 'little', frame_duration: 20, frame_size: 320, sample_format: 'signed_int16', play_buffer_duration: 1000 };
 export class LinxClient {
-  constructor(identity, { socketFactory = (url, options) => new WebSocket(url, options), record = () => {}, onAudio = () => {}, onMessage = () => {}, helloTimeoutMs = 10000, actionTimeoutMs = 60000 } = {}) {
+  constructor(identity, { socketFactory = (url, options) => new WebSocket(url, options), record = () => {}, onAudio = () => {}, onMessage = () => {}, mcp, helloTimeoutMs = 10000, actionTimeoutMs = 60000 } = {}) {
     this.identity = identity; this.socketFactory = socketFactory; this.record = record; this.onAudio = onAudio; this.onMessage = onMessage;
-    this.helloTimeoutMs = helloTimeoutMs; this.actionTimeoutMs = actionTimeoutMs;
+    this.helloTimeoutMs = helloTimeoutMs; this.actionTimeoutMs = actionTimeoutMs; this.mcp = mcp;
     this.state = 'closed'; this.sessionId = undefined; this.pending = null; this.stream = null;
   }
   event(type, data = {}) { this.record({ at: new Date().toISOString(), runId: this.runId, type, ...data }); }
@@ -21,41 +21,64 @@ export class LinxClient {
     await new Promise((resolve, reject) => {
       let greeted = false;
       let finished = false;
+      let toolsRegistered = !this.mcp;
+      const requests = new Map();
+      const ready = () => {
+        if(!greeted || !toolsRegistered || finished)return;
+        clearTimeout(timer);this.state='ready';resolve();
+      };
       const fail = code => {
         if (finished || this.runId !== runId) return;
         finished = true;
         clearTimeout(timer);
         this.event('connection_failure', { code });
         this.state = 'closed'; this.pending?.reject(new Error(code)); this.stream?.reject(new Error(code)); this.socket?.terminate();
-        if (!greeted) reject(new Error(code));
+        reject(new Error(code));
       };
       const runId = this.runId;
       const timer = setTimeout(() => fail('HELLO_TIMEOUT'), this.helloTimeoutMs);
-      try { this.socket = this.socketFactory(url, { headers: { Authorization: `Bearer ${config.token}`, 'Protocol-Version': '1', 'Device-Id': this.identity.deviceId, 'Client-Id': this.identity.clientId }, followRedirects: false, maxPayload: 1024 * 1024, handshakeTimeout: this.helloTimeoutMs }); }
+      try { this.socket = this.socketFactory(url, { headers: { Authorization: `Bearer ${config.token}`, 'Protocol-Version': '1', 'Device-Id': this.identity.deviceId, 'Client-Id': this.identity.clientId, ...(config.agentId ? {'X-Agent-ID':config.agentId} : {}) }, followRedirects: false, maxPayload: 1024 * 1024, handshakeTimeout: this.helloTimeoutMs }); }
       catch { fail('CONNECT_FAILED'); return; }
       const socket = this.socket;
-      // Game tools use cloud HTTP MCP; this client does not implement device MCP.
-      socket.on('open', () => { socket.send(JSON.stringify({ type: 'hello', version: 1, transport: 'websocket', audio_params: pcm }), error => { if (error) fail('HELLO_SEND_FAILED'); }); });
+      socket.on('open', () => { socket.send(JSON.stringify({ type: 'hello', version: 1, ...(this.mcp ? {features:{mcp:true}} : {}), transport: 'websocket', audio_params: pcm }), error => { if (error) fail('HELLO_SEND_FAILED'); }); });
       socket.on('error', () => fail('SOCKET_ERROR'));
       socket.on('close', () => {
         if (this.runId !== runId) return;
         finished = true;
         clearTimeout(timer); this.state = 'closed'; this.event('closed');
         this.pending?.reject(new Error('CONNECTION_CLOSED')); this.stream?.reject(new Error('CONNECTION_CLOSED'));
-        if (!greeted) reject(new Error('CONNECTION_CLOSED_BEFORE_HELLO'));
+        reject(new Error(greeted ? 'CONNECTION_CLOSED_BEFORE_READY' : 'CONNECTION_CLOSED_BEFORE_HELLO'));
       });
       socket.on('message', (raw, binary) => {
         if (finished || this.runId !== runId) return;
         if (binary) { this.event('audio_received', { bytes: raw.length }); this.onAudio(Buffer.from(raw), { attemptId: this.pending?.attemptId ?? this.stream?.attemptId }); return; }
         let message; try { message = JSON.parse(raw.toString()); } catch { fail('INVALID_JSON'); return; }
         if (!message || typeof message !== 'object') { fail('INVALID_MESSAGE'); return; }
+        if(message.type==='mcp' && this.mcp) {
+          const request=message.payload;
+          if(!request || request.jsonrpc!=='2.0' || !['string','number'].includes(typeof request.id) || typeof request.method!=='string')return;
+          if(!requests.has(request.id)) {
+            if(requests.size>=1024){fail('MCP_REQUEST_LIMIT');return;}
+            const context={sessionId:this.sessionId,deviceId:this.identity.deviceId,agentId:config.agentId};
+            requests.set(request.id,Promise.resolve().then(()=>this.mcp(request,context)).catch(()=>({error:{code:-32603,message:'Game tool unavailable'}})));
+          }
+          void requests.get(request.id).then(response=>{
+            if(finished || this.runId!==runId || socket.readyState!==WebSocket.OPEN)return;
+            const payload={jsonrpc:'2.0',id:request.id,...(response.error ? {error:response.error} : {result:response.result})};
+            socket.send(JSON.stringify({type:'mcp',...(this.sessionId ? {session_id:this.sessionId} : {}),payload}),error=>{
+              if(error){fail('MCP_SEND_FAILED');return;}
+              if(request.method==='tools/list' && Array.isArray(response.result?.tools) && !response.error){toolsRegistered=true;ready();}
+            });
+          }).catch(()=>fail('MCP_RESPONSE_FAILED'));
+          return;
+        }
         if (!greeted) {
           if (message.type !== 'hello' || message.transport !== 'websocket') { fail('INVALID_HELLO'); return; }
           const a = message.audio_params;
           if (a?.format !== 'pcm' || a.sample_rate !== 16000 || a.channels !== 1 || (a.bit_depth !== undefined && a.bit_depth !== 16) || (a.endianness !== undefined && a.endianness !== 'little') || (a.frame_duration !== undefined && a.frame_duration !== 20) || (a.frame_size !== undefined && a.frame_size !== 320) || (a.sample_format !== undefined && a.sample_format !== 'signed_int16')) { fail('PCM_NOT_CONFIRMED'); return; }
           if (message.session_id !== undefined && (typeof message.session_id !== 'string' || !message.session_id.trim())) { fail('INVALID_SESSION'); return; }
           this.sessionId = message.session_id; this.audio = { format: 'pcm', sampleRate: 16000, channels: 1 };
-          greeted = true; clearTimeout(timer); this.state = 'ready'; this.event('hello', { sessionPresent: Boolean(this.sessionId), ...this.audio }); resolve(); return;
+          greeted = true; this.event('hello', { sessionPresent: Boolean(this.sessionId), ...this.audio }); ready(); return;
         }
         if (message.type === 'error') { fail('PLATFORM_ERROR'); return; }
         this.onMessage(message);
