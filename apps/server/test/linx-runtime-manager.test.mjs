@@ -18,3 +18,8 @@ console.log('Manager reserves profiles across turns and rooms, sends validated P
 
 // A failed relay stop must recover before a new lease captures the epoch.
 relayRoom.currentSeatId='P2';relayRoom.speechAudioRelay={seatId:'P2',chunks:[Buffer.alloc(640)],ended:true};await relayManager.startSpeechRelay(relayRoom,relayRoom.seats[2]);relayStopFails=true;relayRoom.currentSeatId='P3';const controller=relayRoom.controllers.find(c=>c.seatId==='P3'),oldEpoch=controller.controllerEpoch;await relayManager.ensureConnected(relayRoom,relayRoom.seats[2]);assert.equal(controller.controllerEpoch,oldEpoch+1);assert.equal(relayRoom.speechInputRelay,null);const lease=createTurn(relayRoom,{seatId:'P3',controlSource:'linx',controllerEpoch:controller.controllerEpoch});await relayManager.sendTurn(relayRoom,relayRoom.seats[2]);assert.equal(controller.controllerEpoch,lease.controllerEpoch);
+
+import { sanitizePublicSpeech } from '../src/linx-manager.mjs';
+assert.equal(sanitizePublicSpeech('我先正常发言。The speech submission failed. Let me check my currentTurn。P4有问题。', {role:'villager'}), '我先正常发言。P4有问题。');
+assert.equal(sanitizePublicSpeech('我是狼人阵营，P7是我的队友。P2很可疑。', {role:'werewolf'}), 'P2很可疑。');
+assert.equal(sanitizePublicSpeech('我是预言家，P4是狼。', {role:'seer'}), '我是预言家，P4是狼。');
