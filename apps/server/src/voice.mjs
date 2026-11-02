@@ -5,6 +5,10 @@ export function publicNarration(room,eventId) {
   if(event.type==='game.speech_submitted'){
     const speech=room.speeches.find(s=>s.speechId===event.data.speechId);if(speech)return `${speech.seatId} 发言：${speech.text}`;
   }
+  if(event.type==='game.last_words_submitted'){
+    const words=room.lastWordsHistory?.find(item=>item.lastWordsId===event.data.lastWordsId);
+    if(words?.text)return `${words.seatId} 遗言：${words.text}`;
+  }
   if(event.type==='game.phase_changed' && event.data.pk) {
     if(event.data.phase==='SPEECH')return `请平票候选 ${event.data.seatId} 进行 PK 发言。`;
     if(event.data.phase==='VOTE')return `PK 发言结束，请台下存活玩家在 ${event.data.candidates.join('、')} 之间重新投票。再次平票无人出局。`;

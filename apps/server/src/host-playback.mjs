@@ -18,14 +18,14 @@ export class HostPlayback {
   room.hostTasks??=[];room.hostEventCursor??=0;room.hostNarratedEventIds??=new Set();
   for(const e of room.events.filter(e=>e.version>room.hostEventCursor)){
    if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
-   if(!['game.speech_submitted','game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
+   if(!['game.speech_submitted','game.last_words_submitted','game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    const seat=room.seats.find(s=>s.seatId===e.data?.seatId);
    if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&!room.realtimeSpeech){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>!done(t)).length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
    const speaker=e.type==='game.speech_submitted'&&seat?.playerType==='ai'?seat.seatId:'HOST';
    room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);
-   const task={id:randomUUID(),eventId:e.eventId,seatId:e.type==='game.speech_submitted'?e.data.seatId:null,kind:e.type==='game.speech_submitted'?'speech':'host',voiceId:room.publicVoices?.[speaker],text,status:'pending',attempts:0,errorCode:null,watchdogDeadlineAt:null};
+   const task={id:randomUUID(),eventId:e.eventId,seatId:['game.speech_submitted','game.last_words_submitted'].includes(e.type)?e.data.seatId:null,kind:e.type==='game.speech_submitted'?'speech':'host',voiceId:room.publicVoices?.[speaker],text,status:'pending',attempts:0,errorCode:null,watchdogDeadlineAt:null};
    room.hostTasks.push(task);
    if(task.kind==='speech'&&room.speechPlayback?.speechId===e.data.speechId)room.speechPlayback.taskId=task.id;
    recordTurn('host_task_created',{roomId:room.roomId,gameId:room.gameId,seatId:task.seatId,eventId:task.eventId,taskId:task.id});

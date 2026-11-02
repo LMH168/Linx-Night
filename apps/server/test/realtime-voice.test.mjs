@@ -12,7 +12,7 @@ const connectionGate = new Promise(resolve => { releaseConnection = resolve; });
 const realtimeVoice = async hooks => {
   onMessage = hooks.onMessage;
   await connectionGate;
-  return { send: async frame => { if (frame.length === 640) queueMicrotask(() => onMessage({ type: 'stt', text: '实时发言' })); }, stop: async () => {}, close() {} };
+  return { send: async frame => { if (frame.length === 640) queueMicrotask(() => onMessage({ type: 'stt', text: room.phase === 'LAST_WORDS' ? '实时遗言' : '实时发言' })); }, stop: async () => {}, close() {} };
 };
 const { server } = createApiServer({ realtimeVoice });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -44,5 +44,15 @@ try {
   assert.ok(room.events.some(event=>event.type==='game.speech_skipped'));
   assert.equal(room.speeches.length,1,'silence must not create a fabricated transcript');
   assert.equal((await skip()).status,400,'a stale skip must not advance the next seat');
+
+  room.phase = 'LAST_WORDS'; room.currentSeatId = 'P1'; room.speechClock = null; room.lastWords = { windowId: 'last-words-window', lastWordsId: 'last-words-window', seatId: 'P1', round: 0, cause: 'vote', status: 'open', expiresAt: new Date(Date.now() + 30000).toISOString(), text: null };
+  assert.equal((await post('voice/recording-start',{})).status,200);
+  const lastWs = new WebSocket(`ws://127.0.0.1:${port}/api/rooms/${room.roomId}/voice/realtime?player_id=human&mode=lastwords`);
+  await new Promise((resolve, reject) => { lastWs.once('open', resolve); lastWs.once('error', reject); });
+  lastWs.send(JSON.stringify({ type: 'start' })); lastWs.send(Buffer.alloc(640));
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(room.lastWords, null);
+  assert.equal(room.lastWordsHistory.at(-1)?.text, '实时遗言');
+  lastWs.close();
 } finally { rooms.delete(room.roomId); roomCodes.delete(room.roomCode); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 console.log('Realtime human voice bridge accepts PCM, transcribes and submits one public speech');

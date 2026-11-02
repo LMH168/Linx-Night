@@ -28,22 +28,32 @@ export function speechSession(room,seat,now=Date.now()) {
   if(room.invalidated||room.phase!=='SPEECH'||room.currentSeatId!==seat.seatId||seat.controlSource!=='human'||!seat.alive||!c)throw Error('当前不是你的发言窗口');
   return c;
 }
+export function lastWordsSession(room, seat, now = Date.now()) {
+  const current = room.lastWords;
+  const expiresAt = current ? (current.expiresAtMs ?? Date.parse(current.expiresAt)) : NaN;
+  if (room.invalidated || room.phase !== 'LAST_WORDS' || current?.status !== 'open' || current.seatId !== seat.seatId || seat.controlSource !== 'human' || now >= expiresAt) throw Error('当前不是你的遗言窗口');
+  Object.defineProperty(current, 'expiresAtMs', { value: expiresAt, writable: true, configurable: true });
+  Object.defineProperty(current, 'realtime', { value: Boolean(room.realtimeVoiceEnabled), writable: true, configurable: true });
+  if (!current.stage) current.stage = 'speaking';
+  return current;
+}
 export function startRecording(room,seat,now=Date.now()) {
-  const c=speechSession(room,seat,now);
+  const c = room.phase === 'LAST_WORDS' ? lastWordsSession(room, seat, now) : speechSession(room, seat, now);
   if(c.stage!=='speaking'||c.recordingId)throw Error('本轮录音已开始或结束');
-  c.recordingId=randomUUID();c.recordingStartedAt=now;c.recordingDeadline=c.expiresAt;c.stage='recording';room.version++;
+  const deadline = c.expiresAtMs ?? c.expiresAt;
+  c.recordingId=randomUUID();c.recordingStartedAt=now;c.recordingDeadline=deadline;c.stage='recording';room.version++;
   return {recordingId:c.recordingId,deadline:c.recordingDeadline};
 }
 export function beginTranscription(room,seat,id,durationMs,now=Date.now()) {
-  const c=speechSession(room,seat,now);
+  const c = room.phase === 'LAST_WORDS' ? lastWordsSession(room, seat, now) : speechSession(room, seat, now);
   if(c.recordingId!==id||!id||c.uploaded||!['recording','transcribing'].includes(c.stage))throw Error('录音请求已失效');
   if(durationMs>c.recordingDeadline-c.recordingStartedAt)throw Error('录音超过剩余发言时间');
-  if(c.stage==='recording'){c.stage='transcribing';c.expiresAt=now+60000;}
+  if(c.stage==='recording'){c.stage='transcribing';if (c.expiresAtMs !== undefined) c.expiresAtMs=now+60000; else c.expiresAt=now+60000;}
   c.uploaded=true;room.version++;return c;
 }
 export function confirmRecording(room,seat,id,now=Date.now()) {
-  const c=speechSession(room,seat,now);
+  const c = room.phase === 'LAST_WORDS' ? lastWordsSession(room, seat, now) : speechSession(room, seat, now);
   if(!id||c.recordingId!==id||!['recording','transcribing','confirming'].includes(c.stage))throw Error('录音请求已失效');
-  if(c.stage!=='confirming'){c.stage='confirming';c.expiresAt=now+15000;room.version++;}
+  if(c.stage!=='confirming'){c.stage='confirming';if (c.expiresAtMs !== undefined) c.expiresAtMs=now+15000; else c.expiresAt=now+15000;room.version++;}
   return c;
 }
