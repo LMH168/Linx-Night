@@ -255,6 +255,7 @@ test('manual PCM relay survives early and aborted model replies until input stop
   let earlyReply;
   const early = new Promise(resolve => { earlyReply = resolve; });
   let frames = 0;
+  let earlyAudio = 0;
   const mock = await mockServer(socket => socket.on('message', (raw, binary) => {
     if (binary) {
       if (++frames === 1) {
@@ -267,16 +268,17 @@ test('manual PCM relay survives early and aborted model replies until input stop
     if (message.type === 'hello') socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'manual-relay',audio_params:pcm}));
     if (message.state === 'stop') socket.send(JSON.stringify({type:'tts',state:'stop'}));
   }));
-  const client = new LinxClient(identity,{socketFactory:mock.factory,onMessage:message=>{if(message.is_aborted)earlyReply();}});
+  const client = new LinxClient(identity,{socketFactory:mock.factory,onAudio:()=>{earlyAudio++;},onMessage:message=>{if(message.is_aborted)earlyReply();}});
   try {
     await client.connect(config);
     const stream = await client.startRealtime({mode:'manual'});
     let settled = false;
     stream.done.then(()=>{settled=true;},()=>{settled=true;});
     await stream.send(Buffer.alloc(640));
-    await early;
+    await Promise.race([early, new Promise(resolve => setTimeout(resolve, 20))]);
     await Promise.resolve();
     assert.equal(settled,false);
+    assert.equal(earlyAudio,0);
     await stream.send(Buffer.alloc(640));
     await client.stopRealtime();
     assert.equal(frames,2);

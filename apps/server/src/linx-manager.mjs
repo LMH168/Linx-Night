@@ -15,7 +15,7 @@ import { appendEvent, completeTurn } from '../../../packages/domain/src/model.mj
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 export const sanitizePublicSpeech = (text, seat) => {
   let value = String(text || '').trim();
-  const meta = /(?:The speech submission|Let me (?:retry|check|inspect)|My turn is still active|New turn_id|currentTurn|canAct|turn_id|工具(?:当前)?不可用|提交(?:发言)?失败|检查(?:我的)?(?:私密)?状态|发言轮次到了|我作为P\d+发言|当前(?:没有)?发言|需要隐藏身份|我先(?:简单)?(?:查|看|检|获取)[^。.!?]*状态|status\s*=|game_\w+)/i;
+  const meta = /(?:The speech submission|Let me (?:retry|check|inspect)|My turn is still active|New turn_id|currentTurn|canAct|turn_id|工具(?:当前)?不可用|提交(?:发言)?失败|检查(?:我的)?(?:私密)?状态|发言轮次到了|我作为P\d+发言|当前(?:没有)?发言|需要隐藏身份|我先(?:简单)?(?:查|看|检|获取)[^。.!?]*状态|status\s*=|game_\w+|\b(?:I(?:'m| am)\s+(?:the\s+)?(?:wolf|werewolf)|my\s+teammates?|I\s+(?:need|have|want|should)\b|I\s+will\s+(?:submit|call|check)\b))/i;
   value = value.split(/(?<=[。！？.!?])/).filter(sentence => !meta.test(sentence)).join('');
   value = value.replace(/(?:我是|我属于|我的身份是)狼人(?:阵营|身份)?[，。,!！]?/g, '')
     .replace(/(?:P\d+|\d+号)是我(?:的)?队友[，。,!！]?/g, '')
@@ -258,20 +258,42 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, stream: null, resolve: null, done: null } : null;
       if (relay) { relay.done = new Promise(resolve => { relay.resolve = resolve; }); room.speechAudioRelay = relay; }
       const previousAudio = client.onAudio, previousMessage = client.onMessage;
-      const active = () => !room.invalidated && room.gameId === context.gameId && room.phase === 'SPEECH' && room.round === turn?.round && room.currentSeatId === seat.seatId && turn?.status === 'active' && Date.now() < turn.expiresAt && room.controllers.find(c=>c.seatId===seat.seatId)?.controllerEpoch === turn.controllerEpoch;
+      const active = () => !room.invalidated && room.gameId === context.gameId && room.phase === 'SPEECH' && room.round === turn?.round && (room.currentSeatId === seat.seatId || room.speechAudioRelay === relay) && turn?.status === 'active' && Date.now() < turn.expiresAt && room.controllers.find(c=>c.seatId===seat.seatId)?.controllerEpoch === turn.controllerEpoch;
       let speech;
-      const receiveAudio = chunk => {
-        if (!active() || relay.ended) return;
-        if (!Buffer.isBuffer(chunk) || !chunk.length || chunk.length % 2 || relay.bytes + chunk.length > 1920000) return;
+      let publicAudioOpen = false;
+      let sentenceSeen = false;
+      let pendingAudio = [];
+      let pendingBytes = 0;
+      const forwardAudio = chunk => {
         relay.chunks.push(chunk);
         relay.bytes += chunk.length;
         try { relay.stream?.append(chunk); } catch { /* Linx may finish with one late PCM frame. */ }
         relay.target?.(chunk);
       };
+      const receiveAudio = chunk => {
+        if (!active() || relay.ended) return;
+        if (!Buffer.isBuffer(chunk) || !chunk.length || chunk.length % 2 || relay.bytes + chunk.length > 1920000) return;
+        if (!publicAudioOpen && !sentenceSeen) {
+          pendingAudio.push(chunk);
+          pendingBytes += chunk.length;
+          if (pendingBytes > 1920000) { pendingAudio = []; pendingBytes = 0; }
+          return;
+        }
+        if (!publicAudioOpen) return;
+        forwardAudio(chunk);
+      };
       const receiveMessage = message => {
-        if (!active() || relay.ended || message.type !== 'tts' || message.state !== 'sentence_start' || typeof message.text !== 'string' || !message.text.trim()) return;
+        if (!active() || relay.ended || message.type !== 'tts') return;
+        if (message.state === 'start') { publicAudioOpen = false; sentenceSeen = false; pendingAudio = []; pendingBytes = 0; return; }
+        if (message.state === 'stop') { publicAudioOpen = false; pendingAudio = []; pendingBytes = 0; return; }
+        if (message.state !== 'sentence_start' || typeof message.text !== 'string' || !message.text.trim()) return;
         const text = sanitizePublicSpeech(message.text, seat);
-        if (!text) return;
+        sentenceSeen = true;
+        if (!text) { publicAudioOpen = false; pendingAudio = []; pendingBytes = 0; return; }
+        publicAudioOpen = true;
+        for (const chunk of pendingAudio) forwardAudio(chunk);
+        pendingAudio = [];
+        pendingBytes = 0;
         if (!speech) {
           const id=`voice_${turn.turnId}`;
           submitSpeech(room,seat.seatId,text.slice(0,1200),id);
