@@ -15,8 +15,11 @@ import { appendEvent, completeTurn } from '../../../packages/domain/src/model.mj
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 export const sanitizePublicSpeech = (text, seat) => {
   let value = String(text || '').trim();
-  value = value.replace(/(?:The speech submission (?:failed|keeps failing)\.?|Let me (?:retry|check|inspect|获取|检查)[^。.!?]*[。.!?]?|My turn is still active[^。.!?]*[。.!?]?|New turn_id[^。.!?]*[。.!?]?|currentTurn[^。.!?]*[。.!?]?|canAct[^。.!?]*[。.!?]?|turn_id[^。.!?]*[。.!?]?|工具(?:当前)?不可用[^。.!?]*[。.!?]?|提交(?:发言)?失败[^。.!?]*[。.!?]?|检查(?:我的)?(?:私密)?状态[^。.!?]*[。.!?]?)/gi, '').replace(/\s{2,}/g, ' ').replace(/\s+([，。！？,.!?])/g, '$1').replace(/([，。！？,.!?])\s+/g, '$1').trim();
-  if (seat?.role === 'werewolf') value = value.replace(/(?:我是|我属于|我的身份是)狼人(?:阵营|身份)?[，。,!！]?/g, '').replace(/(?:P\d+|\d+号)是我(?:的)?队友[，。,!！]?/g, '').trim();
+  const meta = /(?:The speech submission|Let me (?:retry|check|inspect)|My turn is still active|New turn_id|currentTurn|canAct|turn_id|工具(?:当前)?不可用|提交(?:发言)?失败|检查(?:我的)?(?:私密)?状态|发言轮次到了|我作为P\d+发言|当前(?:没有)?发言|需要隐藏身份|我先(?:简单)?(?:查|看|检|获取)[^。.!?]*状态|status\s*=|game_\w+)/i;
+  value = value.split(/(?<=[。！？.!?])/).filter(sentence => !meta.test(sentence)).join('');
+  value = value.replace(/(?:我是|我属于|我的身份是)狼人(?:阵营|身份)?[，。,!！]?/g, '')
+    .replace(/(?:P\d+|\d+号)是我(?:的)?队友[，。,!！]?/g, '')
+    .replace(/\s{2,}/g, ' ').replace(/\s+([，。！？,.!?])/g, '$1').replace(/([，。！？,.!?])\s+/g, '$1').trim();
   return value;
 };
 const deviceCue = text => typeof text==='string' ? text.replace(/\b(?:get|submit|skip)_[a-z_]+\b/g,name=>toolMap.has(name)?`game_${name}`:name) : text;

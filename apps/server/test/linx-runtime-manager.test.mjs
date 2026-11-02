@@ -23,3 +23,4 @@ import { sanitizePublicSpeech } from '../src/linx-manager.mjs';
 assert.equal(sanitizePublicSpeech('我先正常发言。The speech submission failed. Let me check my currentTurn。P4有问题。', {role:'villager'}), '我先正常发言。P4有问题。');
 assert.equal(sanitizePublicSpeech('我是狼人阵营，P7是我的队友。P2很可疑。', {role:'werewolf'}), 'P2很可疑。');
 assert.equal(sanitizePublicSpeech('我是预言家，P4是狼。', {role:'seer'}), '我是预言家，P4是狼。');
+assert.equal(sanitizePublicSpeech('我发言轮次到了，我是狼人，需要隐藏身份。第一天晚上没有人死亡。', {role:'seer'}), '第一天晚上没有人死亡。');
