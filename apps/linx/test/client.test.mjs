@@ -250,3 +250,37 @@ test('MCP-capable session cannot become ready when the platform never lists tool
   try {await assert.rejects(client.connect(config),/HELLO_TIMEOUT/);assert.equal(client.state,'closed');}
   finally {client.close();await mock.close();}
 });
+
+test('manual PCM relay survives early and aborted model replies until input stops', async () => {
+  let earlyReply;
+  const early = new Promise(resolve => { earlyReply = resolve; });
+  let frames = 0;
+  const mock = await mockServer(socket => socket.on('message', (raw, binary) => {
+    if (binary) {
+      if (++frames === 1) {
+        socket.send(JSON.stringify({type:'tts',state:'stop'}));
+        socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:true}));
+      }
+      return;
+    }
+    const message = JSON.parse(raw.toString());
+    if (message.type === 'hello') socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'manual-relay',audio_params:pcm}));
+    if (message.state === 'stop') socket.send(JSON.stringify({type:'tts',state:'stop'}));
+  }));
+  const client = new LinxClient(identity,{socketFactory:mock.factory,onMessage:message=>{if(message.is_aborted)earlyReply();}});
+  try {
+    await client.connect(config);
+    const stream = await client.startRealtime({mode:'manual'});
+    let settled = false;
+    stream.done.then(()=>{settled=true;},()=>{settled=true;});
+    await stream.send(Buffer.alloc(640));
+    await early;
+    await Promise.resolve();
+    assert.equal(settled,false);
+    await stream.send(Buffer.alloc(640));
+    await client.stopRealtime();
+    assert.equal(frames,2);
+    assert.equal(client.state,'ready');
+    assert.equal(client.stream,null);
+  } finally {client.close();await mock.close();}
+});

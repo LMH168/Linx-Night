@@ -91,6 +91,9 @@ export class LinxClient {
           if (message.state === 'stop') {
             const active = this.pending?.sent ? this.pending : this.stream;
             if (active) {
+              // Linx may answer or abort an answer before manual input ends.
+              // That output event must not terminate the incoming PCM relay.
+              if (active === this.stream && active.listening && active.listenMode === 'manual') return;
               if (message.is_aborted && active === this.pending && !active.ttsStarted && !active.cancelled) return;
               if (message.is_aborted && !active.cancelled) active.reject(new Error('TURN_ABORTED'));
               else active.resolve();
@@ -105,7 +108,7 @@ export class LinxClient {
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
     let timer;
-    const completion = new Promise((resolve, reject) => { this.stream = { resolve, reject, done: null, attemptId, mode: 'stream' }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
+    const completion = new Promise((resolve, reject) => { this.stream = { resolve, reject, done: null, attemptId, mode: 'stream', listenMode: mode, listening: true }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
     this.stream.done = completion;
     completion.catch(() => abort.abort());
     const send = data => new Promise((resolve, reject) => {
@@ -118,7 +121,7 @@ export class LinxClient {
     this.stream.send = send; this.stream.timer = timer; this.stream.abort = abort;
     try {
       await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'start', mode }));
-      this.event('input_start', { attemptId, mode: 'realtime' });
+      this.event('input_start', { attemptId, mode });
       return { attemptId, send: frame => send(frame), done: completion };
     } catch (error) {
       this.stream = null; clearTimeout(timer); abort.abort(); this.close(); throw error;
@@ -129,6 +132,7 @@ export class LinxClient {
     const stream = this.stream;
     if (!stream) throw new Error('没有实时监听');
     try {
+      stream.listening = false;
       await stream.send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'stop' }));
       this.event('input_stop', { attemptId: stream.attemptId, mode: 'realtime' });
       if (waitForTts) await stream.done;
