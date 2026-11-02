@@ -9,8 +9,6 @@ import { LinxSessionAdapter } from '../../linx/src/session-adapter.mjs';
 import { parseTriggerWav, wavDurationMs } from '../../linx/src/wav.mjs';
 import { waitForMcpDiscovery } from './mcp-discovery.mjs';
 import { toolMap } from '../../mcp/src/tools.mjs';
-import { submitSpeech } from '../../../packages/domain/src/engine.mjs';
-import { appendEvent, completeTurn } from '../../../packages/domain/src/model.mjs';
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 export const sanitizePublicSpeech = (text, seat) => {
@@ -112,7 +110,6 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   return {
     requireHost: true,
     async prepare(room) {
-      room.realtimeAiSpeech = true;
       room.nightPhaseDurationMs = 15000;
       if (room.hostPlaybackEnabled) {
         const voices = voiceConfig(env);
@@ -192,17 +189,6 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if(sends.has(key))await sends.get(key).catch(()=>{});
       if(room.invalidated)throw Error('CONTROLLER_RELEASED');
       const client = adapter.clients.get(seat.seatId)?.client;
-      const inputRelay = room.phase === 'SPEECH' && room.currentSeatId === seat.seatId && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
-      if (inputRelay && !inputRelay.closed) {
-        await inputRelay.queue;
-        inputRelay.closed = true;
-        recordTurn('speech_pcm_relay_completed', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, sourceSeatId: inputRelay.sourceSeatId, bytes: inputRelay.bytes, code: inputRelay.error?.message });
-        // Reconnect before the runtime creates its lease: reconnecting later
-        // changes the controller epoch and invalidates the active speech.
-        try { await client.stopRealtime({ waitForTts: false }); }
-        catch { client?.close(); room.speechInputRelay = null; }
-        inputRelay.stream = null;
-      }
       if (!client || client.state === 'closed') {
         await adapter.reconnect(room, seat.seatId);
         if(seat.seatId!=='HOST')await this.prepareSession(room,seat.seatId);
@@ -219,126 +205,49 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       } finally {clearTimeout(timer);}
     },
     clientFor(room, seatId) { return adapters.get(room.roomId)?.clients.get(seatId)?.client; },
-    async startSpeechRelay(room, nextSeat) {
-      const source = room.speechAudioRelay;
-      if (!source || source.seatId === nextSeat.seatId || room.speechInputRelay?.seatId === nextSeat.seatId) return room.speechInputRelay;
-      const client = this.clientFor(room, nextSeat.seatId);
-      if (!client) throw new Error('CONTROLLER_MISSING');
-      // Keep receiving the previous speaker until the game turn is leased.
-      // Linx can reply early in manual mode; only sendTurn publishes output.
-      const stream = await client.startRealtime({ mode: 'manual' });
-      const relay = { seatId: nextSeat.seatId, sourceSeatId: source.seatId, stream, queue: Promise.resolve(), closed: false, bytes: 0, error: null };
-      const relayContext = { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId };
-      const push = chunk => {
-        relay.queue = relay.queue.then(async () => {
-          if (relay.closed || relay.error) return;
-          await stream.send(chunk);
-          relay.bytes += chunk.length;
-        }).catch(error => {
-          relay.error = error;
-          recordTurn('speech_pcm_relay_failed', { ...relayContext, bytes: relay.bytes, code: error.message });
-        });
-        return relay.queue;
-      };
-      relay.push = push;
-      room.speechInputRelay = relay;
-      for (const chunk of [...source.chunks]) push(chunk);
-      source.target = push;
-      await relay.queue;
-      recordTurn('speech_pcm_relay_started', { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId, bytes: source.chunks.reduce((n, chunk) => n + chunk.length, 0) });
-      return relay;
-    },
     async sendTurn(room, seat) {
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
-      const turn = room.turns.find(t=>t.status==='active'&&t.gameId===room.gameId&&t.round===room.round&&t.phase===room.phase&&t.seatId===seat.seatId);
-      const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:turn?.turnId,windowId:room.hunterResponse?.windowId};
-      client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
-      const inputRelay = room.phase === 'SPEECH' && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
-      const relay = room.phase === 'SPEECH' ? { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, stream: null, resolve: null, done: null } : null;
-      if (relay) { relay.done = new Promise(resolve => { relay.resolve = resolve; }); room.speechAudioRelay = relay; }
-      const previousAudio = client.onAudio, previousMessage = client.onMessage;
-      const active = () => !room.invalidated && room.gameId === context.gameId && room.phase === 'SPEECH' && room.round === turn?.round && (room.currentSeatId === seat.seatId || room.speechAudioRelay === relay) && turn?.status === 'active' && Date.now() < turn.expiresAt && room.controllers.find(c=>c.seatId===seat.seatId)?.controllerEpoch === turn.controllerEpoch;
-      let speech;
-      let publicAudioOpen = false;
-      let sentenceSeen = false;
-      let pendingAudio = [];
-      let pendingBytes = 0;
-      const forwardAudio = chunk => {
-        relay.chunks.push(chunk);
-        relay.bytes += chunk.length;
-        try { relay.stream?.append(chunk); } catch { /* Linx may finish with one late PCM frame. */ }
-        relay.target?.(chunk);
-      };
-      const receiveAudio = chunk => {
-        if (!active() || relay.ended) return;
-        if (!Buffer.isBuffer(chunk) || !chunk.length || chunk.length % 2 || relay.bytes + chunk.length > 1920000) return;
-        if (!publicAudioOpen && !sentenceSeen) {
-          pendingAudio.push(chunk);
-          pendingBytes += chunk.length;
-          if (pendingBytes > 1920000) { pendingAudio = []; pendingBytes = 0; }
-          return;
+      const turn = room.turns.find(t => t.status === 'active' && t.gameId === room.gameId && t.round === room.round && t.phase === room.phase && t.seatId === seat.seatId);
+      const context = { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, turnId: turn?.turnId, windowId: room.hunterResponse?.windowId };
+      client.record = event => {
+        if (['input_start', 'input_stop', 'stt', 'tts_start', 'tts_stop', 'tts_sentence_start', 'input_failure', 'hello', 'closed'].includes(event.type)) {
+          recordTurn(event.type, { ...event, ...context });
         }
-        if (!publicAudioOpen) return;
-        forwardAudio(chunk);
-      };
-      const receiveMessage = message => {
-        if (!active() || relay.ended || message.type !== 'tts') return;
-        if (message.state === 'start') { publicAudioOpen = false; sentenceSeen = false; pendingAudio = []; pendingBytes = 0; return; }
-        if (message.state === 'stop') { publicAudioOpen = false; pendingAudio = []; pendingBytes = 0; return; }
-        if (message.state !== 'sentence_start' || typeof message.text !== 'string' || !message.text.trim()) return;
-        const text = sanitizePublicSpeech(message.text, seat);
-        sentenceSeen = true;
-        if (!text) { publicAudioOpen = false; pendingAudio = []; pendingBytes = 0; return; }
-        publicAudioOpen = true;
-        for (const chunk of pendingAudio) forwardAudio(chunk);
-        pendingAudio = [];
-        pendingBytes = 0;
-        if (!speech) {
-          const id=`voice_${turn.turnId}`;
-          submitSpeech(room,seat.seatId,text.slice(0,1200),id);
-          speech=room.speeches.find(item=>item.speechId===id);
-          relay.speechId=id;
-          recordTurn('speech_transcript_started',context);
-        } else {
-          speech.text=(speech.text+text).slice(0,1200);
-          appendEvent(room,{type:'game.speech_transcript_updated',data:{speechId:speech.speechId,seatId:seat.seatId}});
-        }
-        onChange(room);
       };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
-      const tool = { VOTE: 'submit_vote', NIGHT_WOLF: 'submit_wolf_target', NIGHT_SEER: 'submit_seer_check', NIGHT_WITCH: 'submit_witch_action', LAST_WORDS: 'submit_last_words 或 skip_last_words', HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response' }[room.phase];
-      const cue = relay ? `你的座位是 ${seat.seatId}。${inputRelay ? `刚才的语音是上一位 ${inputRelay.sourceSeatId} 的公开发言。` : ''}现在轮到你公开发言。只输出最终的自然发言，最多两句话。` : tool && room.phase.startsWith('NIGHT_') ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase}。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ${tool}。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，不额外查询状态。不要查询公共状态或历史发言，必须实际提交工具后结束。` : tool ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。` : wav;
-      recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
-      try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
-        const awaitSpeech = async work => {
-          if (!relay) return work;
-          let timer;
-          try { return await Promise.race([work, new Promise((_, reject) => { timer = setTimeout(() => { client.close(); reject(new Error('SPEECH_LIMIT')); }, room.speechAiTimeoutMs || 30_000); })]); }
-          finally { clearTimeout(timer); }
-        };
-        if (inputRelay) {
-          if (!inputRelay.closed) throw Error('SPEECH_INPUT_NOT_READY');
-          room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
-          if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;}
-          const work = client.send(deviceCue(cue),{voiceId:room.publicVoices?.[seat.seatId]}); sends.set(key, work);
-          try { result = await awaitSpeech(work); } finally { if (sends.get(key) === work) sends.delete(key); }
-        }
-        else { if (client.stream) throw Error('CLIENT_BUSY'); if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;} const work=client.send(deviceCue(cue),{voiceId:room.publicVoices?.[seat.seatId]});sends.set(key,work);try{result=await awaitSpeech(work);}finally{if(sends.get(key)===work)sends.delete(key);} }
-        if(relay){relay.ended=true;relay.resolve();if(speech&&relay.bytes&&active()){completeTurn(room,turn.turnId);recordTurn('speech_voice_completed',{...context,bytes:relay.bytes});onChange(room);}} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
-      catch (error) {
-        if (relay) {
-          relay.ended = true; relay.resolve();
-          if (error.message === 'SPEECH_LIMIT' && speech && relay.bytes && active()) {
-            completeTurn(room, turn.turnId);
-            recordTurn('speech_voice_completed', {...context, bytes: relay.bytes, partial: true});
-            onChange(room);
-          }
-        }
-        recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error;
+      const tool = {
+        SPEECH: 'submit_speech',
+        VOTE: 'submit_vote',
+        NIGHT_WOLF: 'submit_wolf_target',
+        NIGHT_SEER: 'submit_seer_check',
+        NIGHT_WITCH: 'submit_witch_action',
+        LAST_WORDS: 'submit_last_words 或 skip_last_words',
+        HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response',
+      }[room.phase];
+      if (room.phase === 'SPEECH') recordTurn('speech_turn_opened', context);
+      const cue = tool && room.phase.startsWith('NIGHT_')
+        ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + '。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ' + tool + '。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，不额外查询公共状态或历史发言，必须实际提交工具后结束。'
+        : tool === 'submit_speech'
+          ? '主持人私下通知：现在轮到你进行公开发言。仅使用 game_ 开头的设备工具，调用 get_my_private_state 获取 currentTurn，再调用 get_public_game_state 和 get_recent_speeches 查看允许的公开信息，最后调用 submit_speech 提交你要让全桌听见的最终发言文字，并携带 currentTurn.turnId 作为 turn_id。不要直接朗读工具回复、身份、队友、turn_id、思考过程或执行步骤；只有工具返回 accepted:true 才算发言完成。'
+          : tool
+            ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + ' 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ' + tool + ' 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。'
+            : wav;
+      recordTurn('trigger_audio_started', { ...context, audioName, durationMs: wavDurationMs(wav) });
+      try {
+        const key = room.roomId + ':' + seat.seatId;
+        if (sends.has(key) || client.pending) throw Error('CLIENT_BUSY');
+        const work = client.send(deviceCue(cue), { voiceId: room.publicVoices?.[seat.seatId] });
+        sends.set(key, work);
+        let result;
+        try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
+        recordTurn('trigger_audio_finished', { ...context, audioName, durationMs: wavDurationMs(wav), attemptId: result?.attemptId });
+        return result;
+      } catch (error) {
+        recordTurn('trigger_audio_failed', { ...context, audioName, code: error.message });
+        throw error;
       }
-      finally { if(relay){client.onAudio=previousAudio;client.onMessage=previousMessage;} }
     },
     async releaseSeat(room, seat) {
       const adapter = adapters.get(room.roomId);

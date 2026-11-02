@@ -11,7 +11,7 @@ export class LinxTurnRuntime {
     this.manager = manager; this.publish = publish; this.timeoutMs = timeoutMs; this.nightTimeoutMs = nightTimeoutMs; this.now = now; this.running = new Map(); this.pending = new Set(); this.again = new Set();
   }
   wake(room) {
-    if (room.phase === 'SPEECH' && room.speechAudioRelay?.seatId === room.currentSeatId) this.prewarmNext(room);
+    if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
     if (this.running.has(room.roomId)) { this.again.add(room); return; }
     if (this.pending.has(room)) return;
     this.pending.add(room);
@@ -41,7 +41,7 @@ export class LinxTurnRuntime {
     return this.track(room, () => Promise.allSettled(seats.map(seat => this.play(room, seat))));
   }
   prewarmNext(room) {
-    if (this.prewarming?.has(room.roomId) || !room.currentSeatId || (room.speechAudioRelay?.seatId !== room.currentSeatId && room.speechPlayback?.status !== 'pending')) return;
+    if (this.prewarming?.has(room.roomId) || !room.currentSeatId || room.speechPlayback?.status !== 'pending') return;
     const current = room.seats.find(seat => seat.seatId === room.currentSeatId);
     const next = room.seats.filter(seat => seat.alive && (!room.pk || room.pk.candidates.includes(seat.seatId)) && seat.seatId > room.currentSeatId).find(seat => seat.controlSource === 'linx');
     if (!current || !next) return;
@@ -55,8 +55,7 @@ export class LinxTurnRuntime {
     const work = Promise.resolve().then(async () => {
       recordTurn('speech_prewarm_started', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
       await this.manager.ensureConnected(room, next);
-      if (typeof this.manager.startSpeechRelay === 'function') await this.manager.startSpeechRelay(room, next);
-      const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && (room.speechAudioRelay?.seatId === marker.currentSeatId || room.speechPlayback?.status === 'pending') && room.invalidated === false;
+      const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && room.speechPlayback?.status === 'pending' && room.invalidated === false;
       if (!valid) { marker.status = 'stale'; recordTurn('stale_result_rejected', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId }); return; }
       marker.status = 'ready'; recordTurn('speech_prewarm_ready', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
     }).catch(error => { marker.status = 'failed'; marker.errorCode = error.message; recordTurn('speech_prewarm_failed', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId, code: error.message }); }).finally(() => { this.prewarming.delete(room.roomId); this.publish(room); });

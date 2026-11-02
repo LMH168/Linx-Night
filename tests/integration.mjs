@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { createApiServer, rooms } from '../apps/server/src/api.mjs';
 import { createMcpServer } from '../apps/mcp/src/server.mjs';
-import { expireHunterResponse } from '../packages/domain/src/engine.mjs';
-import { tickRoom } from '../apps/scheduler/src/local.mjs';
+import { expireHunterResponse, skipLastWords } from '../packages/domain/src/engine.mjs';
+import { tickRoom, tickNightWindow } from '../apps/scheduler/src/local.mjs';
 const api = createApiServer().server;
 const mcp = createMcpServer({authToken:'test',adminToken:'admin'}).server;
 await new Promise(r => api.listen(0,'127.0.0.1',r));
@@ -13,12 +13,23 @@ const post = (url,body,headers={}) => fetch(url,{method:'POST',headers:{'content
 try {
   for (const humans of [2,4,8,9]) {
     const created = await (await post(`${base}/api/rooms`,{display_name:'tester'})).json();
-    for(let i=1;i<humans;i++) assert.equal((await post(`${base}/api/rooms/${created.room_id}/players`,{display_name:`human${i}`})).status,201);
+    for(let i=1;i<9;i++) {
+      const isHuman = i < humans;
+      assert.equal((await post(`${base}/api/rooms/${created.room_id}/players`,{
+        display_name: `${isHuman ? 'human' : 'ai'}${i}`,
+        ...(isHuman ? {} : { player_type: 'ai' })
+      }, isHuman ? {} : {'x-player-id': created.player_id})).status,201);
+    }
     assert.ok([200,202].includes((await post(`${base}/api/rooms/${created.room_id}/start`,{}, {'x-player-id':created.player_id})).status)); await new Promise(resolve => setImmediate(resolve));
     const room = rooms.get(created.room_id);
     assert.equal(room.seats.filter(s => s.playerType === 'human').length,humans);
     // Simulated humans use deterministic legal actions; this is not a live Linx test.
-    for(let step=0; step<500 && room.phase !== 'GAME_OVER'; step++) { if (room.phase === 'HUNTER_RESPONSE') expireHunterResponse(room, Date.parse(room.hunterResponse.expiresAt)); else tickRoom(room,()=>true); }
+    for(let step=0; step<500 && room.phase !== 'GAME_OVER'; step++) {
+      if (room.phase === 'HUNTER_RESPONSE') expireHunterResponse(room, Date.parse(room.hunterResponse.expiresAt));
+      else if (room.phase === 'LAST_WORDS') skipLastWords(room, room.lastWords.seatId, `integration_last_words_${step}`, room.lastWords.windowId);
+      else if (room.nightWindow?.phase === room.phase) { room.nightWindow.expiresAt = new Date(0).toISOString(); tickNightWindow(room); }
+      else tickRoom(room,()=>true);
+    }
     assert.equal(room.phase,'GAME_OVER',`${humans} humans game should finish`);
   }
   const created = await (await post(`${base}/api/rooms`,{display_name:'MCP tester'})).json();
