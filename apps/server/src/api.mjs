@@ -57,7 +57,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
       if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' }); return res.end(); }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'linx-night-server', version: '0.1.0' });
-      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRegisteredRoom({ hostPlayerId: playerId }); room.hostCoordinatorEnabled = true; room.hostPlaybackEnabled=Boolean(hostPlayback); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); return json(res, 201, { room_id: room.roomId, room_code: room.roomCode, player_id: playerId, state: publicState(room) }); }
+      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRegisteredRoom({ hostPlayerId: playerId }); room.hostCoordinatorEnabled = true; room.hostPlaybackEnabled=Boolean(hostPlayback); room.realtimeVoiceEnabled=Boolean(realtimeVoice); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); return json(res, 201, { room_id: room.roomId, room_code: room.roomCode, player_id: playerId, state: publicState(room) }); }
       if (parts[0] === 'api' && parts[1] === 'settlements' && parts[2]) { const report = settlements.get(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, parts[2]); return json(res, 200, { settlement: structuredClone(report) }); }
       if (parts[0] === 'api' && parts[1] === 'rooms' && parts[3] === 'settlement' && req.method === 'GET') { const report = settlementForReference(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, report.settlementId); return json(res, 200, { settlement: structuredClone(report) }); }
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
@@ -145,7 +145,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
     try { room = roomOrFail(decodeURIComponent(match[1])); seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id')); if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言'); clock = speechSession(room,seat); }
     catch { socket.destroy(); return; }
     realtime.handleUpgrade(req, socket, head, ws => {
-      const recordingId = url.searchParams.get('recording_id'); let session, closed = false, submitted = false;
+      const recordingId = url.searchParams.get('recording_id'); let session, ready, closed = false, submitted = false;
       let resolveRelay; const done = new Promise(resolve => { resolveRelay = resolve; });
       const relay = { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: resolveRelay, done };
       clock.realtime = true;
@@ -154,6 +154,8 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       const finish = () => { if (closed) return; closed = true; relay.ended = true; relay.resolve(); room.realtimeSpeech = false; session?.close?.(); ws.close(); };
       ws.on('message', async (raw, binary) => {
         try {
+          await ready;
+          if (closed) return;
           if (!submitted && (room.speechClock !== clock || !actionAvailable(room,seat) || Date.now() >= clock.expiresAt)) { finish(); return; }
           if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920) throw new Error('PCM 音频帧无效'); relay.chunks.push(frame); relay.stream?.append(frame); relay.target?.(frame); await session?.send(frame); return; }
           const message = JSON.parse(raw.toString());
@@ -162,7 +164,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         } catch (error) { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } }
       });
       ws.on('close', finish);
-      void realtimeVoice({ onAudio: chunk => { /* Human input is the public stream; Linx TTS stays private. */ void chunk; }, onMessage: message => {
+      ready = realtimeVoice({ onAudio: chunk => { /* Human input is the public stream; Linx TTS stays private. */ void chunk; }, onMessage: message => {
         if (closed) return;
         if (message.type === 'stt' && typeof message.text === 'string' && message.text.trim() && !submitted) {
           if (room.speechClock !== clock || !actionAvailable(room,seat) || Date.now() >= clock.expiresAt) { finish(); return; }
@@ -170,7 +172,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
           catch (error) { ws.send(JSON.stringify({ type: 'error', message: error.message })); }
         }
         if (message.type === 'tts' && message.state === 'stop') ws.send(JSON.stringify({ type: 'tts_stop' }));
-      }}).then(value => { if (closed) return; session = value; ws.send(JSON.stringify({ type: 'ready' })); }).catch(error => { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } });
+      }}).then(value => { if (closed) { value.close?.(); return; } session = value; ws.send(JSON.stringify({ type: 'ready' })); }).catch(error => { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } });
     });
   });
   let hunterTimer;

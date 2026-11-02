@@ -21,7 +21,7 @@ export class HostPlayback {
    if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
    if(!['game.speech_submitted','game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    const seat=room.seats.find(s=>s.seatId===e.data?.seatId);
-   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&!room.speechAudioRelay?.speechId){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
+   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&room.speechAudioRelay?.speechId!==e.data.speechId){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>!done(t)).length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
    const speaker=e.type==='game.speech_submitted'&&seat?.playerType==='ai'?seat.seatId:'HOST';

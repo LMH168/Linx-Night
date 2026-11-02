@@ -9,7 +9,8 @@ export function tickHumanSpeech(room, now = Date.now()) {
   let clock = room.speechClock;
   if (!clock || clock.gameId !== room.gameId || clock.round !== room.round || clock.seatId !== seat.seatId) {
     room.speechClock = null;
-    clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', expiresAt: now + 30000 };
+    if (room.hostPlaybackBlocked) return;
+    clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', realtime:Boolean(room.realtimeVoiceEnabled), expiresAt: now + 30000 };
     appendEvent(room, { type: 'game.speech_window_opened', data: { seatId: seat.seatId, expiresAt: clock.expiresAt } });
   }
   if (now >= clock.expiresAt) {
