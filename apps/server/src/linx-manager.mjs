@@ -167,6 +167,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       };
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
+      const tool = { SPEECH: 'submit_speech', VOTE: 'submit_vote', NIGHT_WOLF: 'submit_wolf_target', NIGHT_SEER: 'submit_seer_check', NIGHT_WITCH: 'submit_witch_action', LAST_WORDS: 'submit_last_words 或 skip_last_words', HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response' }[room.phase];
+      const cue = tool ? `主持人私下通知：当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。公开发言请简短，勿公开自己的私密状态。` : wav;
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
         if (inputRelay) {
@@ -178,10 +180,10 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
             if (relay) client.onAudio = chunk => { relay.chunks.push(chunk); relay.stream?.append(chunk); relay.target?.(chunk); };
           }
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
-          const work = client.send(wav); sends.set(key, work);
+          const work = client.send(cue); sends.set(key, work);
           try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
         }
-        else { if (client.stream) throw Error('CLIENT_BUSY'); const work=client.send(wav);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
+        else { if (client.stream) throw Error('CLIENT_BUSY'); const work=client.send(cue);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
         if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
       catch (error) { if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
       finally { if(relay) client.onAudio = previousAudio; }

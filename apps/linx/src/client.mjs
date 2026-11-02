@@ -112,7 +112,9 @@ export class LinxClient {
     }
   }
   async send(wav) {
-    const audio = parseWav(wav);
+    const text = typeof wav === 'string' ? wav.trim() : null;
+    if (text !== null && (!text || text.length > 2000)) throw new Error('INVALID_TURN_CUE');
+    const audio = text === null ? parseWav(wav) : null;
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
     let timer;
@@ -129,9 +131,16 @@ export class LinxClient {
     });
     try {
       const startedAt = Date.now();
-      this.event('input_start', { attemptId, samples: audio.length / 2 }); await send(control('start'));
-      for (const frame of frames(audio)) { abort.signal.throwIfAborted(); await send(frame); await delay(20, undefined, { signal: abort.signal }); }
-      this.pending.sent = true; await send(control('stop')); this.event('input_stop', { attemptId });
+      this.event('input_start', { attemptId, samples: audio ? audio.length / 2 : 0 });
+      if (text !== null) {
+        this.pending.sent = true;
+        await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'detect', text }));
+      } else {
+        await send(control('start'));
+        for (const frame of frames(audio)) { abort.signal.throwIfAborted(); await send(frame); await delay(20, undefined, { signal: abort.signal }); }
+        this.pending.sent = true; await send(control('stop'));
+      }
+      this.event('input_stop', { attemptId });
       await completion; this.event('turn_finished', { attemptId, gameAccepted: 'unverified', durationMs: Date.now() - startedAt });
       return { attemptId, gameAccepted: 'unverified' };
     } catch (error) {
