@@ -147,7 +147,9 @@ export function publicEventData(type, data = {}) {
     'game.vote_submitted': ['voteId', 'seatId'],
     'game.vote_resolved': ['resolutionId', 'round', 'entries', 'totalVotes', 'maxVotes', 'leaders', 'eliminatedSeatId', 'pk', 'candidates'],
     'game.pk_started': ['round', 'candidates'],
-    'game.last_words_opened': ['windowId', 'seatId', 'round', 'cause', 'expiresAt'],
+    // The action window token and deadline are private control data.  The
+    // public stream only needs to announce who may leave last words.
+    'game.last_words_opened': ['seatId', 'round', 'cause'],
     'game.last_words_submitted': ['lastWordsId', 'seatId', 'round', 'text'],
     'game.last_words_skipped': ['lastWordsId', 'seatId', 'round'],
     'game.last_words_expired': ['lastWordsId', 'seatId', 'round'],
