@@ -207,6 +207,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
             client = this.clientFor(room, seat.seatId);
             client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
           }
+          await new Promise(resolve => setTimeout(resolve, 100));
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
           if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;}
           const work = client.send(cue); sends.set(key, work);
