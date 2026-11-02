@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { addPlayer, appendEvent, assignRoles, beginControllerPreparation, createRoom, fillAiSeats, invalidateRoomControllers, privateState, publicState, CONTROLLER_STATES, defaultAiDisplayName, createSettlement, settlementReport, SETTLEMENT_TYPES } from '../../../packages/domain/src/model.mjs';
-import { announceDay, expireHunterResponse, expireLastWords, seerCheck, skipHunterResponse, skipLastWords, startGame, submitLastWords, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
+import { announceDay, expireHunterResponse, expireLastWords, seerCheck, skipSpeech, skipHunterResponse, skipLastWords, startGame, submitLastWords, submitSpeech, submitHunterResponse, submitVote, witchAction, wolfTarget } from '../../../packages/domain/src/engine.mjs';
 import { EventHub, eventStream } from './realtime.mjs';
 import { createHostCoordinator } from './host-coordinator.mjs';
 
@@ -78,6 +78,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'POST' && parts[3] === 'voice') {
         const actor=currentPlayer(req,room);if(actor.playerType!=='human')throw new Error('仅真人可使用网页语音');
         const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
+        if(kind==='skip'){speechSession(room,actor);skipSpeech(room,actor.seatId,actionId(req,body));publishNewEvents(room);return json(res,200,{skipped:true});}
         if(kind==='recording-start'){const recording=startRecording(room,actor);publishNewEvents(room);return json(res,200,recording);}
         if(kind==='recording-cancel'){confirmRecording(room,actor,body.recording_id);publishNewEvents(room);return json(res,200,{cancelled:true});}
         if(kind==='transcribe') {
@@ -138,17 +139,19 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
     const url = new URL(req.url, 'http://localhost');
     const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/voice\/realtime$/);
     if (!match || !realtimeVoice) { socket.destroy(); return; }
-    let room, seat;
-    try { room = roomOrFail(decodeURIComponent(match[1])); seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id')); if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言'); }
+    let room, seat, clock;
+    try { room = roomOrFail(decodeURIComponent(match[1])); seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id')); if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言'); clock = speechSession(room,seat); }
     catch { socket.destroy(); return; }
     realtime.handleUpgrade(req, socket, head, ws => {
       const recordingId = url.searchParams.get('recording_id'); let session, closed = false, submitted = false;
       let resolveRelay; const done = new Promise(resolve => { resolveRelay = resolve; });
       const relay = { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: resolveRelay, done };
+      clock.realtime = true;
       room.speechAudioRelay = relay; room.realtimeSpeech = true;
       const finish = () => { if (closed) return; closed = true; relay.ended = true; relay.resolve(); room.realtimeSpeech = false; session?.close?.(); ws.close(); };
       ws.on('message', async (raw, binary) => {
         try {
+          if (!submitted && (room.speechClock !== clock || !actionAvailable(room,seat) || Date.now() >= clock.expiresAt)) { finish(); return; }
           if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920) throw new Error('PCM 音频帧无效'); relay.chunks.push(frame); relay.stream?.append(frame); await session?.send(frame); return; }
           const message = JSON.parse(raw.toString());
           if (message.type === 'stop') { await session?.stop(); finish(); return; }
@@ -159,6 +162,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       void realtimeVoice({ onAudio: chunk => { /* Human input is the public stream; Linx TTS stays private. */ void chunk; }, onMessage: message => {
         if (closed) return;
         if (message.type === 'stt' && typeof message.text === 'string' && message.text.trim() && !submitted) {
+          if (room.speechClock !== clock || !actionAvailable(room,seat) || Date.now() >= clock.expiresAt) { finish(); return; }
           try { submitted = true; if (recordingId) confirmRecording(room, seat, recordingId); submitSpeech(room, seat.seatId, message.text.trim(), `realtime_${randomUUID()}`); publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text: message.text.trim() })); }
           catch (error) { ws.send(JSON.stringify({ type: 'error', message: error.message })); }
         }

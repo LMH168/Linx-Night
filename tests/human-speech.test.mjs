@@ -33,3 +33,8 @@ tickHumanSpeech(spoken,30000);const noUpload=startRecording(spoken,actor,31000);
 tickHumanSpeech(spoken,60000);assert.equal(spoken.speechClock.stage,'transcribing');assert.equal(spoken.speechClock.expiresAt,120000);
 tickHumanSpeech(spoken,120000);assert.equal(spoken.speechClock.stage,'confirming');assert.equal(spoken.speechClock.expiresAt,135000);
 tickHumanSpeech(spoken,135000);assert.equal(spoken.currentSeatId,'P2');assert.throws(()=>beginTranscription(spoken,actor,noUpload.recordingId,1,135001));
+spoken.phase='SPEECH';spoken.currentSeatId='P1';spoken.round=2;spoken.speechClock=null;
+tickHumanSpeech(spoken,200000);startRecording(spoken,actor,201000);spoken.speechClock.realtime=true;
+tickHumanSpeech(spoken,229999);assert.equal(spoken.currentSeatId,'P1');
+tickHumanSpeech(spoken,230000);assert.equal(spoken.currentSeatId,'P2');assert.equal(spoken.speechClock,null);
+assert.equal(spoken.events.at(-2)?.type==='game.speech_skipped'||spoken.events.some(e=>e.type==='game.speech_skipped'),true);
