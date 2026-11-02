@@ -25,7 +25,7 @@ export const ROLE_CATALOG: Record<GameRole, { name: string; en: string; avatar: 
 };
 export const PHASE_LABEL: Record<GamePhase, string> = {
   LOBBY: '等待开局', ROLE_ASSIGNMENT: '身份揭晓', NIGHT_WOLF: '狼人行动', NIGHT_SEER: '预言家行动', NIGHT_WITCH: '女巫行动',
-  DAY_ANNOUNCEMENT: '天亮了', HUNTER_RESPONSE: '猎人响应', LAST_WORDS: '遗言', SPEECH: '顺序发言', VOTE: '放逐投票', RESOLUTION: '结算中', GAME_OVER: '本局结束',
+  DAY_ANNOUNCEMENT: '天亮了', NIGHT_ANNOUNCEMENT: '宣布天黑', HUNTER_RESPONSE: '猎人响应', LAST_WORDS: '遗言', SPEECH: '顺序发言', VOTE: '放逐投票', RESOLUTION: '结算中', GAME_OVER: '本局结束',
 };
 export const NIGHT_PHASES: GamePhase[] = ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'];
 export const isNightPhase = (phase: GamePhase) => NIGHT_PHASES.includes(phase);

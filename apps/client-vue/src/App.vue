@@ -68,6 +68,7 @@ const phaseNames: Record<string, string> = {
   NIGHT_SEER: "预言家行动",
   NIGHT_WITCH: "女巫行动",
   DAY_ANNOUNCEMENT: "天亮了",
+  NIGHT_ANNOUNCEMENT: "等待宣布天黑",
   LAST_WORDS: "遗言",
   SPEECH: "依次发言",
   VOTE: "放逐投票",
@@ -498,6 +499,10 @@ async function submitLastWords(skip = false) {
   )
     lastWordsText.value = "";
 }
+async function announceNight() {
+  if (playerId.value !== state.value?.hostPlayerId) return;
+  await submit("actions", { type: "announce_night" });
+}
 async function startRecording() {
   try {
     await voice.start();
@@ -857,6 +862,10 @@ onBeforeUnmount(() => {
             <p v-if="timeExpired" class="error">
               响应时间已到，等待服务端结算。
             </p>
+            <template v-if="state?.phase === 'NIGHT_ANNOUNCEMENT'">
+              <p class="muted">遗言结束，保持黄昏状态，等待房主宣布天黑。</p>
+              <button v-if="playerId === state?.hostPlayerId" class="gold" :disabled="actionDisabled" @click="announceNight">宣布天黑</button>
+            </template>
             <template v-if="action === 'speech'"
               ><p class="muted">
                 {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·

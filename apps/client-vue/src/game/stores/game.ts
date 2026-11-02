@@ -77,6 +77,7 @@ export const useGameStore = defineStore('game', () => {
     if (phase.value === 'VOTE') return `第 ${day.value} 天 · 放逐投票`;
     if (phase.value === 'GAME_OVER') return `第 ${day.value} 天 · 本局结束`;
     if (phase.value === 'DAY_ANNOUNCEMENT') return `第 ${day.value} 天 · 天亮了`;
+    if (phase.value === 'NIGHT_ANNOUNCEMENT') return `第 ${day.value} 天 · 等待宣布天黑`;
     if (night.value) return isMyAction.value ? `第 ${day.value} 夜 · ${PHASE_LABEL[phase.value] || phase.value}` : `第 ${day.value} 夜 · 夜幕中`;
     return PHASE_LABEL[phase.value] || phase.value;
   });
@@ -144,9 +145,10 @@ export const useGameStore = defineStore('game', () => {
   }
   async function submitLastWords(text: string) { await submitAction('/last-words', { action: 'submit', text: text.trim(), window_id: (privateState.value?.lastWords as any)?.windowId }); notice.value = '遗言已提交。'; }
   async function announceDay() { await submitAction('/actions', { type: 'announce_day' }); notice.value = '已宣布天亮。'; }
+  async function announceNight() { await submitAction('/actions', { type: 'announce_night' }); notice.value = '已宣布天黑。'; }
   function selectSeat(id: string) { const target = publicSeats.value.find(seat => seat.id === id); if (!target?.alive || target.isSelf && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(phase.value)) return; selectedSeatId.value = id; notice.value = ''; }
   function setPhase(next: GamePhase) { if (next === 'VOTE' || next === 'SPEECH') notice.value = '阶段由服务端推进，请等待实时事件。'; }
   function reset() { selectedSeatId.value = null; notice.value = ''; speech.value = ''; settlement.value = null; }
 
-  return { room, publicState, privateState, client, roomId, roomCode, playerId, displayName, apiUrl, phase, day, night, selfSeatId, selfRole, selfMeta, selfAlive, selfSeat, publicSeats, revealedSeats, currentSpeakerId, currentSpeaker, actionDeadline, selectedSeatId, submittedVoteSeatId, speech, witchAction, seerChecks, wolfTeammates, phaseTitle, isMyAction, aliveCount, totalVotes, voteTally, leader, voteSubmitted, settlement, notice, actionBusy, publicSeatStates, restore, createRoom, joinRoom, openRoom, refresh, loadSettlement, addAi, renameAi, startGame, retryControllers, cancelControllers, retryTurn, endGame, submitSpeech, submitAction, confirmAction, skipAction, submitLastWords, announceDay, selectSeat, setPhase, reset };
+  return { room, publicState, privateState, client, roomId, roomCode, playerId, displayName, apiUrl, phase, day, night, selfSeatId, selfRole, selfMeta, selfAlive, selfSeat, publicSeats, revealedSeats, currentSpeakerId, currentSpeaker, actionDeadline, selectedSeatId, submittedVoteSeatId, speech, witchAction, seerChecks, wolfTeammates, phaseTitle, isMyAction, aliveCount, totalVotes, voteTally, leader, voteSubmitted, settlement, notice, actionBusy, publicSeatStates, restore, createRoom, joinRoom, openRoom, refresh, loadSettlement, addAi, renameAi, startGame, retryControllers, cancelControllers, retryTurn, endGame, submitSpeech, submitAction, confirmAction, skipAction, submitLastWords, announceDay, announceNight, selectSeat, setPhase, reset };
 });

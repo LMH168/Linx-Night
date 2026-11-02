@@ -192,7 +192,7 @@ function continueAfterHunter(room) {
   if (openNextLastWords(room)) return room;
   const winner = checkWinner(room); if (winner) return room;
   if (before === PHASES.DAY_ANNOUNCEMENT) transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
-  else if (before === PHASES.VOTE) { room.round += 1; transition(room, PHASES.NIGHT_WOLF); }
+  else if (before === PHASES.VOTE) transition(room, PHASES.NIGHT_ANNOUNCEMENT);
   return room;
 }
 
@@ -228,7 +228,14 @@ function continueAfterLastWords(room) {
   const continuation = room.lastWordsContinuation; room.lastWordsContinuation = null;
   if (checkWinner(room)) return room;
   if (continuation === PHASES.SPEECH) return transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
-  if (continuation === PHASES.NIGHT_WOLF) { room.round += 1; return transition(room, PHASES.NIGHT_WOLF); }
+  if (continuation === PHASES.NIGHT_WOLF) return transition(room, PHASES.NIGHT_ANNOUNCEMENT);
+  return room;
+}
+
+export function announceNight(room) {
+  if (room.phase !== PHASES.NIGHT_ANNOUNCEMENT) throw new RuleError('night announcement is not allowed now');
+  room.round += 1;
+  transition(room, PHASES.NIGHT_WOLF);
   return room;
 }
 

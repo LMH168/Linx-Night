@@ -1,6 +1,6 @@
 export type Phase =
   | 'LOBBY' | 'ROLE_ASSIGNMENT' | 'NIGHT_WOLF' | 'NIGHT_SEER' | 'NIGHT_WITCH'
-  | 'DAY_ANNOUNCEMENT' | 'HUNTER_RESPONSE' | 'LAST_WORDS' | 'SPEECH' | 'VOTE'
+  | 'DAY_ANNOUNCEMENT' | 'NIGHT_ANNOUNCEMENT' | 'HUNTER_RESPONSE' | 'LAST_WORDS' | 'SPEECH' | 'VOTE'
   | 'RESOLUTION' | 'GAME_OVER';
 
 export type Role = 'werewolf' | 'seer' | 'witch' | 'hunter' | 'villager';

@@ -6,7 +6,7 @@ import {
   assignRoles,
   publicState,
 } from "../src/model.mjs";
-import { submitVote, submitSpeech, skipLastWords } from "../src/engine.mjs";
+import { announceNight, submitVote, submitSpeech, skipLastWords } from "../src/engine.mjs";
 import { actionAvailable } from "../src/turns.mjs";
 import { defaultTurn } from "../../../apps/scheduler/src/local.mjs";
 import { tickHumanSpeech } from "../../../apps/server/src/human-speech.mjs";
@@ -94,6 +94,8 @@ function pkSpeeches(room) {
   assert.equal(room.voteResolutions[1].pk, true);
   assert.equal(room.phase, "LAST_WORDS");
   skipLastWords(room, "P1", "skip-pk-lastwords", room.lastWords.windowId);
+  assert.equal(room.phase, "NIGHT_ANNOUNCEMENT");
+  announceNight(room);
   assert.equal(room.phase, "NIGHT_WOLF");
   assert.equal(room.round, 1);
   assert.equal(room.pk, null);
