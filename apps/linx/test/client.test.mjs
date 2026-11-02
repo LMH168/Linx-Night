@@ -51,7 +51,7 @@ test('real local WS: headers, hello, paced audio, privacy and game success remai
       received.push({ at: Date.now(), binary, data: binary ? raw.length : JSON.parse(raw.toString()) });
       if (binary) return;
       const m = JSON.parse(raw.toString());
-      if (m.type === 'hello') { assert.deepEqual(m.features, { mcp: true }); socket.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 'private-session', audio_params: pcm })); }
+      if (m.type === 'hello') { assert.equal(m.features?.mcp, undefined); socket.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 'private-session', audio_params: pcm })); }
       if (m.state === 'stop') { socket.send(JSON.stringify({ type: 'stt', text: 'private-role' })); socket.send(JSON.stringify({ type: 'tts', state: 'sentence_start', text: 'private-role' })); socket.send(Buffer.alloc(4)); socket.send(JSON.stringify({ type: 'tts', state: 'stop' })); }
     });
   });
