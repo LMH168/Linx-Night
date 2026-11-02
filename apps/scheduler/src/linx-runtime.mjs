@@ -113,7 +113,7 @@ export class LinxTurnRuntime {
       context.turnId = turn.turnId; recordTurn('lease_created',context);
       stored = room.turns.find(t => t.turnId === turn.turnId);
       const timeout = seat.controlSource === 'human' && room.phase.startsWith('NIGHT_') && this.timeoutMs >= 1000 ? Math.min(this.timeoutMs, this.nightTimeoutMs) : this.timeoutMs;
-      stored.expiresAt = Math.min(this.now() + timeout, room.phase === 'HUNTER_RESPONSE' ? Date.parse(room.hunterResponse.expiresAt) : room.phase === 'LAST_WORDS' ? Date.parse(room.lastWords.expiresAt) : Infinity);
+      stored.expiresAt = Math.min(this.now() + timeout, room.nightWindow?.phase === room.phase ? room.nightWindow.expiresAt : Infinity, room.phase === 'HUNTER_RESPONSE' ? Date.parse(room.hunterResponse.expiresAt) : room.phase === 'LAST_WORDS' ? Date.parse(room.lastWords.expiresAt) : Infinity);
       this.publish(room);
       await new Promise((resolve, reject) => {
         const check = () => {

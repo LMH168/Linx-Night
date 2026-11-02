@@ -83,6 +83,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     requireHost: true,
     async prepare(room) {
       room.realtimeAiSpeech = true;
+      room.nightPhaseDurationMs = 15000;
       if (room.hostPlaybackEnabled) {
         const voices = voiceConfig(env);
         room.publicVoices = { HOST: voices.host };

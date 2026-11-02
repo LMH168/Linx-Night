@@ -12,7 +12,21 @@ const seatOf = (room, seatId) => room.seats.find(seat => seat.seatId === seatId)
 const requireAlive = (room, seatId) => { const seat = seatOf(room, seatId); if (!seat || !seat.alive) throw new RuleError('target seat is not alive'); return seat; };
 const commandKey = (room, key) => room.actions.some(action => action.actionId === key) || room.votes.some(vote => vote.voteId === key);
 const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new RuleError('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId } }); };
-const transition = (room, phase, data = {}) => { room.phase = phase; room.currentSeatId = data.seatId ?? null; room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } }); };
+const transition = (room, phase, data = {}) => {
+  if (room.nightWindow?.phase === room.phase && Date.now() < room.nightWindow.expiresAt) {
+    room.nightWindow.next = {phase, data};
+    return;
+  }
+  room.phase = phase; room.currentSeatId = data.seatId ?? null;
+  room.nightWindow = room.nightPhaseDurationMs && phase.startsWith('NIGHT_') ? {phase, expiresAt:Date.now()+room.nightPhaseDurationMs} : null;
+  room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } });
+};
+
+export function advanceNightWindow(room) {
+  const window = room.nightWindow;
+  if (!window || window.phase !== room.phase || Date.now() < window.expiresAt || !window.next) return false;
+  transition(room,window.next.phase,window.next.data); skipAbsentRoles(room); return true;
+}
 
 export function startGame(room) {
   if (room.phase !== PHASES.ROLE_ASSIGNMENT) throw new RuleError('roles must be assigned before starting');
