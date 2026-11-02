@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createLinxControllerManager} from '../src/linx-manager.mjs';
 import {HostPlayback} from '../src/host-playback.mjs';
 import {LinxTurnRuntime} from '../../scheduler/src/linx-runtime.mjs';
-import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation} from '../../../packages/domain/src/model.mjs';
+import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation,privateState} from '../../../packages/domain/src/model.mjs';
 import {wavFromPcm} from '../../linx/src/voice.mjs';
 for (const limited of [false, true]) {
 const room=createRoom({hostPlayerId:'human'});
@@ -44,6 +44,8 @@ try {
  for(let i=0;i<10&&!room.speeches.length;i++)await new Promise(resolve=>setImmediate(resolve));
  assert.equal(room.speeches[0].text,'我听到了上一位发言。');
  assert.equal(room.turns[0].status,'active');
+ assert.equal(privateState(room,room.seats[1].playerId).currentTurn?.turnId,room.turns[0].turnId,'first sentence must not hide the ongoing speech turn');
+ assert.equal(privateState(room,room.seats[1].playerId).canAct,false,'a transcript already exists; duplicate writes stay forbidden');
  assert.equal(playback.state(room).task.status,'generating');
  assert.equal(room.currentSeatId,'P2');
  for(let i=0;i<10&&!received.length;i++)await new Promise(resolve=>setImmediate(resolve));
