@@ -7,6 +7,7 @@ const api = createApiServer().server, mcp = createMcpServer({ authToken: 'test',
 await Promise.all([api, mcp].map(server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))));
 const base = `http://127.0.0.1:${api.address().port}`, mcpUrl = `http://127.0.0.1:${mcp.address().port}/mcp`;
 let room;
+const snapshot = value => { const copy = structuredClone(value); delete copy.lastPublishedVersion; delete copy.speechClock; return copy; };
 function setup() {
   rooms.clear(); sessions.clear(); room = hunterRoom(); rooms.set(room.roomId, room);
   for (const [id, seatId, role] of [['hunter','P7','player'],['other','P1','player'],['host','P1','host']]) registerSession({sessionId:id,roomId:room.roomId,seatId,playerId:seatId === 'P7' ? 'p7' : 'p1',role});
@@ -22,7 +23,7 @@ try {
     [{action:'expire',window_id:windowId},'p7','hunter-response'],
     [{type:'hunter_shot',target_seat_id:'P2'},'p7','actions'],
   ]) {
-    const before=structuredClone(room); assert.equal((await action(body,player,route)).status,400); assert.deepEqual(room,before);
+    const before=snapshot(room); assert.equal((await action(body,player,route)).status,400); assert.deepEqual(snapshot(room),before);
   }
   const abort = new AbortController();
   const stream = await fetch(`${base}/api/rooms/${room.roomId}/events?after=${room.version}`,{signal:abort.signal});
@@ -31,23 +32,24 @@ try {
   const chunk = new TextDecoder().decode((await reader.read()).value);
   assert.match(chunk,/game.hunter_shot/); assert.doesNotMatch(chunk,/windowId|expiresAt/);
   abort.abort(); await reader.cancel().catch(()=>{});
-  const accepted=structuredClone(room);
+  const accepted=snapshot(room);
   assert.equal((await action({action:'shoot',target_seat_id:'P3',window_id:windowId,action_id:'api-shot'})).status,400);
-  assert.deepEqual(room,accepted);
+  assert.deepEqual(snapshot(room),accepted);
   setup();
   const args={target_player_id:'P2',window_id:room.hunterResponse.windowId,action_id:'mcp-shot'};
   for (const session of ['other','host','unknown']) {
-    const before=structuredClone(room), response=await tool('submit_hunter_shot',args,session);
-    assert.ok(response.error || response.result.isError); assert.deepEqual(room,before);
+    const before=snapshot(room), response=await tool('submit_hunter_shot',args,session);
+    assert.ok(response.error || response.result.isError); assert.deepEqual(snapshot(room),before);
   }
   assert.equal((await tool('submit_hunter_shot',args)).result.isError,false);
   setup();
   assert.equal((await tool('skip_hunter_response',{window_id:room.hunterResponse.windowId,action_id:'mcp-skip'})).result.isError,false);
-  assert.equal(room.hunterResponse.status,'skipped');
+  assert.equal(room.hunterResponse, null);
+  assert.equal(room.events.findLast(event => event.type === 'game.hunter_response_closed')?.data?.status, 'skipped');
   // Timer runs even when no player sends a request and closes only once.
   setup(); room.hunterResponse.expiresAt=new Date(Date.now()-1).toISOString();
   await new Promise(resolve=>setTimeout(resolve,350));
-  assert.equal(room.hunterResponse.status,'expired'); assert.equal(room.phase,'SPEECH');
+  assert.equal(room.hunterResponse, null); assert.equal(room.phase,'LAST_WORDS');
   assert.equal(room.events.filter(e=>e.type==='game.hunter_response_closed').length,1);
   assert.ok(room.lastPublishedVersion > 0);
   publishNewEvents(room);
