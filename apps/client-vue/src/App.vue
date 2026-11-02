@@ -454,14 +454,6 @@ async function submit(
     if (run === generation) actionBusy.value = false;
   }
 }
-async function skipHumanSpeech() {
-  if (!client.value || actionDisabled.value) return;
-  try {
-    await client.value.skipSpeech(roomId.value);
-    voice.reset();
-    await refresh();
-  } catch (error) { actionMessage.value = errorText(error); }
-}
 async function submitSkill() {
   const role = mine.value?.role;
   if (role === "werewolf")
@@ -613,6 +605,11 @@ watch(actionKey, () => {
   submittedKey.value = "";
   pendingCommand = null;
   voice.reset();
+  if (action.value === "speech" || action.value === "lastwords") {
+    window.setTimeout(() => {
+      if (!actionDisabled.value && voice.draft.value.stage === "idle") void startRecording();
+    }, 0);
+  }
 });
 watch(targets, () => {
   if (!targets.value.some((s) => s.seatId === targetSeatId.value))
@@ -879,7 +876,6 @@ onBeforeUnmount(() => {
                   }}
                 </p>
                 <div class="buttons">
-                  <button :disabled="actionDisabled" @click="skipHumanSpeech">不发言，结束回合</button>
                   <button
                     :disabled="actionDisabled"
                     @click="toggleRecording"
