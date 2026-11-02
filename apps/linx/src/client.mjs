@@ -60,10 +60,12 @@ export class LinxClient {
         this.onMessage(message);
         if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
         if (message.type === 'tts' && ['start', 'stop', 'sentence_start'].includes(message.state)) {
+          if (message.state === 'start' && this.pending?.sent) this.pending.ttsStarted = true;
           this.event(`tts_${message.state}`, { attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
           if (message.state === 'stop') {
             const active = this.pending?.sent ? this.pending : this.stream;
             if (active) {
+              if (message.is_aborted && active === this.pending && !active.ttsStarted) return;
               if (message.is_aborted) active.reject(new Error('TURN_ABORTED'));
               else active.resolve();
             }
