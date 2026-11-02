@@ -194,6 +194,12 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const cue = relay ? '现在轮到你公开发言。可先私下查询 get_my_private_state、get_public_game_state 和 get_recent_speeches，结合刚才听到的上一位发言，直接说出你要让所有玩家听见的发言，控制在三句话以内。不要调用 submit_speech，不要朗读私密工具回复或查询过程。声音和发言文字由服务器自动记录。' : tool && room.phase.startsWith('NIGHT_') ? `主持人私下通知：当前为 ${room.phase}。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ${tool}。使用 currentTurn.turnId 作为 turn_id。不要查询公共状态或历史发言，必须实际提交工具后结束。` : tool ? `主持人私下通知：当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。` : wav;
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
+        const awaitSpeech = async work => {
+          if (!relay) return work;
+          let timer;
+          try { return await Promise.race([work, new Promise((_, reject) => { timer = setTimeout(() => { client.close(); reject(new Error('SPEECH_LIMIT')); }, room.speechAiTimeoutMs || 30_000); })]); }
+          finally { clearTimeout(timer); }
+        };
         if (inputRelay) {
           try { await client.stopRealtime({ waitForTts: false }); }
           catch {
@@ -204,11 +210,21 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
           if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;}
           const work = client.send(cue); sends.set(key, work);
-          try { result = await work; } finally { if (sends.get(key) === work) sends.delete(key); }
+          try { result = await awaitSpeech(work); } finally { if (sends.get(key) === work) sends.delete(key); }
         }
-        else { if (client.stream) throw Error('CLIENT_BUSY'); if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;} const work=client.send(cue);sends.set(key,work);try{result=await work;}finally{if(sends.get(key)===work)sends.delete(key);} }
+        else { if (client.stream) throw Error('CLIENT_BUSY'); if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;} const work=client.send(cue);sends.set(key,work);try{result=await awaitSpeech(work);}finally{if(sends.get(key)===work)sends.delete(key);} }
         if(relay){relay.ended=true;relay.resolve();if(speech&&relay.bytes&&active()){completeTurn(room,turn.turnId);recordTurn('speech_voice_completed',{...context,bytes:relay.bytes});onChange(room);}} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
-      catch (error) { if(relay){relay.ended=true;relay.resolve();} recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error; }
+      catch (error) {
+        if (relay) {
+          relay.ended = true; relay.resolve();
+          if (speech && relay.bytes && turn?.status === 'active' && room.currentSeatId === seat.seatId) {
+            completeTurn(room, turn.turnId);
+            recordTurn('speech_voice_completed', {...context, bytes: relay.bytes, partial: true});
+            onChange(room);
+          }
+        }
+        recordTurn('trigger_audio_failed',{...context,audioName,code:error.message}); throw error;
+      }
       finally { if(relay){client.onAudio=previousAudio;client.onMessage=previousMessage;} }
     },
     async releaseSeat(room, seat) {
