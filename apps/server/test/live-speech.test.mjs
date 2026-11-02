@@ -17,7 +17,7 @@ const manager=createLinxControllerManager({
  fetchImpl:async url=>Response.json(url.endsWith('/admin/diagnostics')?{requests:[...clients.keys()].map(id=>({authenticated:true,status:200,method:'tools/call',tool:'get_my_private_state',resultCode:'OK',sessionId:id,deviceId:id,agentId:'agent'}))}:url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'test'}}:{}),
  onChange:()=>{playback?.sync(room);runtime?.wake(room);},
  clientFactory:identity=>{const client={state:'closed',sessionId:identity.deviceId,onAudio:()=>{},onMessage:()=>{},
-  async connect(){this.state='ready';},close(){this.state='closed';},
+  async connect(){this.state='ready';},cancelTurn(){},close(){this.state='closed';},
   async startRealtime(){return {send:async frame=>{received.push(frame.length);}};},
   async stopRealtime(){},
   async send(cue){
