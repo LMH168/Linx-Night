@@ -147,3 +147,23 @@ test('private turn cue uses listen.detect without PCM or text_response', async (
     await assert.rejects(client.send(' '),/INVALID_TURN_CUE/);
   }finally{client.close();await mock.close();}
 });
+
+test('late aborted stop before a new reply starts does not cancel the new cue', async () => {
+  const mock=await mockServer(socket=>socket.on('message',(raw,binary)=>{
+    if(binary)return;
+    const m=JSON.parse(raw.toString());
+    if(m.type==='hello')socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'late-stop',audio_params:pcm}));
+    if(m.state==='detect') {
+      socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:true}));
+      socket.send(JSON.stringify({type:'stt',text:m.text}));
+      socket.send(JSON.stringify({type:'tts',state:'start'}));
+      socket.send(JSON.stringify({type:'tts',state:'sentence_start',text:'接力回复'}));
+      socket.send(Buffer.alloc(640));
+      socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:false}));
+    }
+  }));
+  const audio=[];
+  const client=new LinxClient(identity,{socketFactory:mock.factory,onAudio:chunk=>audio.push(chunk)});
+  try {await client.connect(config);await client.send('现在轮到你');assert.equal(audio.length,1);assert.equal(client.state,'ready');}
+  finally {client.close();await mock.close();}
+});
