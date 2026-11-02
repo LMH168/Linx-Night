@@ -7,9 +7,10 @@ export function tickHumanSpeech(room, now = Date.now()) {
   const seat = room.seats.find(s => s.seatId === room.currentSeatId);
   if (!seat?.alive || seat.controlSource !== 'human') { room.speechClock = null; return; }
   let clock = room.speechClock;
+  if (room.hostPlaybackBlocked && !clock) return;
   if (!clock || clock.gameId !== room.gameId || clock.round !== room.round || clock.seatId !== seat.seatId) {
     room.speechClock = null;
-    clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', expiresAt: now + 30000 };
+    clock = room.speechClock = { gameId: room.gameId, round: room.round, phase: room.phase, seatId: seat.seatId, stage:'speaking', realtime:Boolean(room.realtimeVoiceEnabled), expiresAt: now + 30000 };
     appendEvent(room, { type: 'game.speech_window_opened', data: { seatId: seat.seatId, expiresAt: clock.expiresAt } });
   }
   if (now >= clock.expiresAt) {

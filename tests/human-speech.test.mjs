@@ -5,17 +5,17 @@ import {tickHumanSpeech,startRecording,beginTranscription,confirmRecording} from
 import {publicNarration} from '../apps/server/src/voice.mjs';
 const room=createRoom();addPlayer(room,{displayName:'human'});fillAiSeats(room);assignRoles(room);
 room.gameId='test';room.phase='SPEECH';room.currentSeatId='P1';room.hostPlaybackBlocked=true;
-tickHumanSpeech(room,1000);assert.equal(room.speechClock?.stage,'speaking');
+tickHumanSpeech(room,1000);assert.equal(room.speechClock??null,null,'host narration must finish before the 30s clock starts');
 room.hostPlaybackBlocked=false;tickHumanSpeech(room,2000);
-assert.equal(publicState(room).speechDeadline,31000);
-tickHumanSpeech(room,30999);assert.equal(room.currentSeatId,'P1');
-tickHumanSpeech(room,31000);assert.equal(room.currentSeatId,'P2');assert.equal(room.speeches.length,1);
+assert.equal(publicState(room).speechDeadline,32000);
+tickHumanSpeech(room,31999);assert.equal(room.currentSeatId,'P1');
+tickHumanSpeech(room,32000);assert.equal(room.currentSeatId,'P2');assert.equal(room.speeches.length,1);
 tickHumanSpeech(room,33000);assert.equal(room.speeches.length,1);
 room.phase='DAY_ANNOUNCEMENT';room.pendingNight={wolfTarget:'P3',witch:{action:'save'}};
 announceDay(room);const event=publicState(room).events.find(e=>e.type==='game.night_resolved');
 assert.deepEqual(event.data.deathSeatIds,[]);assert.match(publicNarration(room,event.eventId),/平安夜/);
 assert.ok(!JSON.stringify(event).includes('save'));
-console.log('Human speech deadline, one-time timeout, non-blocking host playback and public peaceful-night result passed');
+console.log('Human speech deadline, one-time timeout, host narration gate and public peaceful-night result passed');
 
 const spoken=createRoom();addPlayer(spoken,{displayName:'human'});fillAiSeats(spoken);assignRoles(spoken);Object.assign(spoken,{gameId:'g',phase:'SPEECH',currentSeatId:'P1'});
 tickHumanSpeech(spoken,1000);const actor=spoken.seats[0],r=startRecording(spoken,actor,2000);
@@ -34,7 +34,7 @@ tickHumanSpeech(spoken,60000);assert.equal(spoken.speechClock.stage,'transcribin
 tickHumanSpeech(spoken,120000);assert.equal(spoken.speechClock.stage,'confirming');assert.equal(spoken.speechClock.expiresAt,135000);
 tickHumanSpeech(spoken,135000);assert.equal(spoken.currentSeatId,'P2');assert.throws(()=>beginTranscription(spoken,actor,noUpload.recordingId,1,135001));
 spoken.phase='SPEECH';spoken.currentSeatId='P1';spoken.round=2;spoken.speechClock=null;
-tickHumanSpeech(spoken,200000);startRecording(spoken,actor,201000);spoken.speechClock.realtime=true;
+spoken.realtimeVoiceEnabled=true;const beforeSilence=spoken.speeches.length;tickHumanSpeech(spoken,200000);assert.equal(spoken.speechClock.realtime,true);
 tickHumanSpeech(spoken,229999);assert.equal(spoken.currentSeatId,'P1');
-tickHumanSpeech(spoken,230000);assert.equal(spoken.currentSeatId,'P2');assert.equal(spoken.speechClock,null);
+tickHumanSpeech(spoken,230000);assert.equal(spoken.currentSeatId,'P2');assert.equal(spoken.speechClock,null);assert.equal(spoken.speeches.length,beforeSilence,'silence without opening the microphone must not fabricate a transcript');
 assert.equal(spoken.events.at(-2)?.type==='game.speech_skipped'||spoken.events.some(e=>e.type==='game.speech_skipped'),true);
