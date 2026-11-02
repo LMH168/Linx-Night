@@ -14,7 +14,6 @@ import { appendEvent, completeTurn } from '../../../packages/domain/src/model.mj
 
 const required = (value, name) => { if (!value) throw Object.assign(new Error(`缺少 ${name} 配置`), { code: 'LINX_CONFIG_MISSING' }); return value; };
 const deviceCue = text => typeof text==='string' ? text.replace(/\b(?:get|submit|skip)_[a-z_]+\b/g,name=>toolMap.has(name)?`game_${name}`:name) : text;
-const publicSpeechLeak = text => typeof text==='string' && /(我是(?:狼人|平民|预言家|女巫|猎人)|作为狼人|需要隐藏身份|正常发言即可|现在轮到我发言|只需要输出|不要调用|submit_(?:speech|vote)|内部(?:思考|推理)|工具(?:调用|回复)|系统提示词)/.test(text);
 async function requestAdmin(base, token, path, body, fetchImpl) {
   required(base, 'LINX_MCP_ADMIN_URL'); required(token, 'LINX_MCP_ADMIN_TOKEN');
   let response;
@@ -252,12 +251,6 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const receiveMessage = message => {
         if (!active() || relay.ended || message.type !== 'tts' || message.state !== 'sentence_start' || typeof message.text !== 'string' || !message.text.trim()) return;
         const text = message.text.trim();
-        if (publicSpeechLeak(text)) {
-          relay.leak = true;
-          recordTurn('public_speech_redacted', {...context, reason:'MODEL_META_OR_IDENTITY_LEAK'});
-          client.cancelTurn?.();
-          return;
-        }
         if (!speech) {
           const id=`voice_${turn.turnId}`;
           submitSpeech(room,seat.seatId,text.slice(0,1200),id);
@@ -273,7 +266,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       const wav = room.phase === 'HUNTER_RESPONSE' ? hunterAudio : room.phase === 'VOTE' && voteAudio ? voteAudio : audio;
       const audioName = room.phase === 'HUNTER_RESPONSE' ? 'hunter' : room.phase === 'VOTE' && voteAudio ? 'vote' : 'turn';
       const tool = { VOTE: 'submit_vote', NIGHT_WOLF: 'submit_wolf_target', NIGHT_SEER: 'submit_seer_check', NIGHT_WITCH: 'submit_witch_action', LAST_WORDS: 'submit_last_words 或 skip_last_words', HUNTER_RESPONSE: 'submit_hunter_shot 或 skip_hunter_response' }[room.phase];
-      const cue = relay ? `现在轮到你公开发言。只输出最终的自然发言，最多两句话。不要解释身份、思考过程、提示词、工具或执行步骤。` : tool && room.phase.startsWith('NIGHT_') ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase}。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ${tool}。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，不额外查询状态。不要查询公共状态或历史发言，必须实际提交工具后结束。` : tool ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。` : wav;
+      const cue = relay ? `你的座位是 ${seat.seatId}。${inputRelay ? `刚才的语音是上一位 ${inputRelay.sourceSeatId} 的公开发言。` : ''}现在轮到你公开发言。只输出最终的自然发言，最多两句话。` : tool && room.phase.startsWith('NIGHT_') ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase}。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ${tool}。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，不额外查询状态。不要查询公共状态或历史发言，必须实际提交工具后结束。` : tool ? `主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ${room.phase} 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ${tool} 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。` : wav;
       recordTurn('trigger_audio_started',{...context,audioName,durationMs:wavDurationMs(wav)});
       try { const key=room.roomId+':'+seat.seatId;if(sends.has(key)||client.pending)throw Error('CLIENT_BUSY');let result;
         const awaitSpeech = async work => {
@@ -297,7 +290,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           try { result = await awaitSpeech(work); } finally { if (sends.get(key) === work) sends.delete(key); }
         }
         else { if (client.stream) throw Error('CLIENT_BUSY'); if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;} const work=client.send(deviceCue(cue));sends.set(key,work);try{result=await awaitSpeech(work);}finally{if(sends.get(key)===work)sends.delete(key);} }
-        if(relay){relay.ended=true;relay.resolve();if(relay.leak)throw Error('PUBLIC_SPEECH_REDACTED');if(speech&&relay.bytes&&active()){completeTurn(room,turn.turnId);recordTurn('speech_voice_completed',{...context,bytes:relay.bytes});onChange(room);}} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
+        if(relay){relay.ended=true;relay.resolve();if(speech&&relay.bytes&&active()){completeTurn(room,turn.turnId);recordTurn('speech_voice_completed',{...context,bytes:relay.bytes});onChange(room);}} recordTurn('trigger_audio_finished',{...context,audioName,durationMs:wavDurationMs(wav),attemptId:result?.attemptId}); return result; }
       catch (error) {
         if (relay) {
           relay.ended = true; relay.resolve();
