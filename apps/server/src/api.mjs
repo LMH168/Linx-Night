@@ -3,6 +3,7 @@ import { parseWav } from '../../linx/src/wav.mjs';
 import { EventEmitter } from 'node:events';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
+import { tickNightWindow } from '../../scheduler/src/local.mjs';
 import { publicNarration, readVoiceBody } from './voice.mjs';
 import { heartbeat, expirePresence, setHumanControl } from '../../../packages/domain/src/presence.mjs';
 import { createServer } from 'node:http';
@@ -174,7 +175,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   });
   let hunterTimer;
   server.on('listening', () => { hunterTimer = setInterval(() => {
-    for (const room of rooms.values()) { expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
+    for (const room of rooms.values()) { tickNightWindow(room); expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
     for (const active of transcriptions) if(!active.valid())active.abort.abort();
   }, 250); hunterTimer.unref(); });
   server.on('close', () => {clearInterval(hunterTimer);for(const active of transcriptions)active.abort.abort();transcriptions.clear();});

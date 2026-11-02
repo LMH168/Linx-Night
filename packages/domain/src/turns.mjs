@@ -11,6 +11,7 @@ export function actionAvailable(room, seat) {
   }
   if (room.phase === 'NIGHT_WOLF') return seat.role === 'werewolf' && !room.actions.some(a => a.turnId === room.round && a.actionType === 'wolf_target' && a.seatId === seat.seatId);
   const eligible = role => (room.pendingNight?.eligibleSeatIds?.includes(seat.seatId) || (room.pendingNight && room.pendingNight.eligibleSeatIds === undefined && seat.alive)) && seat.role === role;
+  if (['NIGHT_SEER','NIGHT_WITCH'].includes(room.phase) && room.actions.some(a=>a.turnId===room.round && a.seatId===seat.seatId && ['seer_check','seer_skip','witch_action'].includes(a.actionType))) return false;
   return (room.phase === 'NIGHT_SEER' && eligible('seer')) || (room.phase === 'NIGHT_WITCH' && eligible('witch'));
 }
 
