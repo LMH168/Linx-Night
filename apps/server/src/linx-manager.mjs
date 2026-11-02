@@ -215,8 +215,8 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if (!source || source.seatId === nextSeat.seatId || room.speechInputRelay?.seatId === nextSeat.seatId) return room.speechInputRelay;
       const client = this.clientFor(room, nextSeat.seatId);
       if (!client) throw new Error('CONTROLLER_MISSING');
-      // Manual mode buffers the previous speaker without letting the model
-      // answer conversationally before the game turn is leased.
+      // Keep receiving the previous speaker until the game turn is leased.
+      // Linx can reply early in manual mode; only sendTurn publishes output.
       const stream = await client.startRealtime({ mode: 'manual' });
       const relay = { seatId: nextSeat.seatId, sourceSeatId: source.seatId, stream, queue: Promise.resolve(), closed: false, bytes: 0, error: null };
       const relayContext = { roomId: room.roomId, gameId: room.gameId, sourceSeatId: source.seatId, seatId: nextSeat.seatId };
