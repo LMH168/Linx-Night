@@ -7,9 +7,11 @@ const room = createRoom({ hostPlayerId: 'human' });
 addPlayer(room, { playerId: 'human', displayName: '真人' });
 room.gameId = 'realtime-game'; room.phase = 'SPEECH'; room.currentSeatId = 'P1'; room.hostPlaybackEnabled = true;
 rooms.set(room.roomId, room); roomCodes.set(room.roomCode, room.roomId);
-let onMessage;
+let onMessage, releaseConnection;
+const connectionGate = new Promise(resolve => { releaseConnection = resolve; });
 const realtimeVoice = async hooks => {
   onMessage = hooks.onMessage;
+  await connectionGate;
   return { send: async frame => { if (frame.length === 640) queueMicrotask(() => onMessage({ type: 'stt', text: '实时发言' })); }, stop: async () => {}, close() {} };
 };
 const { server } = createApiServer({ realtimeVoice });
@@ -27,6 +29,9 @@ try {
   ws.on('message', raw => messages.push(JSON.parse(raw.toString())));
   await new Promise((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
   ws.send(JSON.stringify({ type: 'start' })); ws.send(Buffer.alloc(640));
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(room.speeches.length,0,'PCM arriving while Linx connects must wait');
+  releaseConnection();
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.ok(messages.some(message => message.type === 'ready'));
   assert.ok(messages.some(message => message.type === 'error' && /录音/.test(message.message)) === false);
