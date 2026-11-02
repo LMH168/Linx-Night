@@ -41,14 +41,14 @@ export class LinxTurnRuntime {
     return this.track(room, () => Promise.allSettled(seats.map(seat => this.play(room, seat))));
   }
   prewarmNext(room) {
-    if (this.prewarming?.has(room.roomId) || !room.currentSeatId) return;
+    if (this.prewarming?.has(room.roomId) || !room.currentSeatId || (room.speechAudioRelay?.seatId !== room.currentSeatId && room.speechPlayback?.status !== 'pending')) return;
     const current = room.seats.find(seat => seat.seatId === room.currentSeatId);
     const next = room.seats.filter(seat => seat.alive && (!room.pk || room.pk.candidates.includes(seat.seatId)) && seat.seatId > room.currentSeatId).find(seat => seat.controlSource === 'linx');
     if (!current || !next) return;
     const controller = room.controllers.find(item => item.seatId === next.seatId);
     if (!controller) return;
     const previous = room.speechPrewarm;
-    if (previous && previous.gameId === room.gameId && previous.round === room.round && previous.phase === room.phase && previous.currentSeatId === room.currentSeatId && previous.nextSeatId === next.seatId && previous.controllerEpoch === controller.controllerEpoch && ['connecting', 'ready', 'failed'].includes(previous.status)) return;
+    if (previous && previous.gameId === room.gameId && previous.round === room.round && previous.phase === room.phase && previous.currentSeatId === room.currentSeatId && previous.nextSeatId === next.seatId && previous.controllerEpoch === controller.controllerEpoch) return;
     this.prewarming ??= new Map();
     const marker = { gameId: room.gameId, round: room.round, phase: room.phase, currentSeatId: room.currentSeatId, nextSeatId: next.seatId, controllerEpoch: controller.controllerEpoch, status: 'connecting' };
     room.speechPrewarm = marker; this.prewarming.set(room.roomId, marker);
@@ -56,7 +56,7 @@ export class LinxTurnRuntime {
       recordTurn('speech_prewarm_started', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
       await this.manager.ensureConnected(room, next);
       if (typeof this.manager.startSpeechRelay === 'function') await this.manager.startSpeechRelay(room, next);
-      const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && (room.speechPlayback?.status === 'pending' || room.realtimeSpeech) && room.invalidated === false;
+      const valid = room.gameId === marker.gameId && room.round === marker.round && room.phase === marker.phase && room.currentSeatId === marker.currentSeatId && (room.speechAudioRelay?.seatId === marker.currentSeatId || room.speechPlayback?.status === 'pending') && room.invalidated === false;
       if (!valid) { marker.status = 'stale'; recordTurn('stale_result_rejected', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId }); return; }
       marker.status = 'ready'; recordTurn('speech_prewarm_ready', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId });
     }).catch(error => { marker.status = 'failed'; marker.errorCode = error.message; recordTurn('speech_prewarm_failed', { roomId: room.roomId, gameId: room.gameId, seatId: next.seatId, code: error.message }); }).finally(() => { this.prewarming.delete(room.roomId); this.publish(room); });

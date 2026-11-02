@@ -46,4 +46,14 @@ assert.equal(room.speechPrewarm.status, 'stale', '上下文变化后预热结果
 assert.equal(room.turns.length, 0);
 assert.equal(sent, 0);
 
+room.currentSeatId = 'P2';
+room.speechPlayback = null;
+runtime.prewarmNext(room);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(connects, 1, '沉默跳过后没有当前音频源时不能循环预热');
+room.speechAudioRelay = {seatId:'P2',chunks:[]};
+runtime.prewarmNext(room);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(connects, 1, '同一上下文失效后不能因发布状态无限重试');
+
 console.log('Issue #118 regression: prewarm remains action-free and stale results cannot advance the room');
