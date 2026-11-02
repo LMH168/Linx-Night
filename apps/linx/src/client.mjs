@@ -81,9 +81,11 @@ export class LinxClient {
           greeted = true; this.event('hello', { sessionPresent: Boolean(this.sessionId), ...this.audio }); ready(); return;
         }
         if (message.type === 'error') { fail('PLATFORM_ERROR'); return; }
-        if(message.type==='stt' && (this.pending?.sent || this.stream))this.suppressOutput=false;
-        if(message.type==='tts' && this.suppressOutput)return;
-        this.onMessage(message);
+        // A manual PCM relay is a pre-listen phase. Keep any early/late TTS
+        // private until the explicit text cue starts the public turn.
+        if(message.type==='stt' && (this.pending?.sent || (this.stream && this.stream.listenMode !== 'manual')))this.suppressOutput=false;
+        const suppressedTts = message.type === 'tts' && this.suppressOutput;
+        if (!suppressedTts) this.onMessage(message);
         if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
         if (message.type === 'tts' && ['start', 'stop', 'sentence_start'].includes(message.state)) {
           if (message.state === 'start' && this.pending?.sent) this.pending.ttsStarted = true;
@@ -107,6 +109,7 @@ export class LinxClient {
   async startRealtime({ mode = 'realtime' } = {}) {
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
+    if (mode === 'manual') this.suppressOutput = true;
     let timer;
     const completion = new Promise((resolve, reject) => { this.stream = { resolve, reject, done: null, attemptId, mode: 'stream', listenMode: mode, listening: true }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
     this.stream.done = completion;
@@ -132,6 +135,9 @@ export class LinxClient {
     const stream = this.stream;
     if (!stream) throw new Error('没有实时监听');
     try {
+      // Drop provider output generated while the stream was being stopped.
+      // The next explicit detect input clears this after its STT event.
+      this.suppressOutput = true;
       stream.listening = false;
       await stream.send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'stop' }));
       this.event('input_stop', { attemptId: stream.attemptId, mode: 'realtime' });
