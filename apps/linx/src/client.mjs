@@ -139,7 +139,9 @@ export class LinxClient {
       clearTimeout(stream.timer); stream.abort.abort(); if (this.stream === stream) this.stream = null;
     }
   }
-  async send(wav, { timeoutMs = this.actionTimeoutMs } = {}) {
+  async send(wav, { timeoutMs = this.actionTimeoutMs, voiceId } = {}) {
+    if (voiceId !== undefined && (typeof voiceId !== 'string' || !voiceId.trim() || voiceId.length > 128)) throw new Error('VOICE_ID_INVALID');
+    const voice = voiceId ? { agent_params: { voice: { id: voiceId } } } : {};
     const text = typeof wav === 'string' ? wav.trim() : null;
     if (text !== null && (!text || text.length > 2000)) throw new Error('INVALID_TURN_CUE');
     const audio = text === null ? parseWav(wav) : null;
@@ -149,7 +151,7 @@ export class LinxClient {
     const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), timeoutMs); });
     // Attach a handler immediately: a disconnect may occur while audio is still being sent.
     completion.catch(() => abort.abort());
-    const control = (state) => JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state, ...(state === 'start' ? { mode: 'manual' } : {}) });
+    const control = (state) => JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state, ...voice, ...(state === 'start' ? { mode: 'manual' } : {}) });
     const send = data => new Promise((resolve, reject) => {
       if (this.socket.readyState !== WebSocket.OPEN || this.socket.bufferedAmount > 640 * 50) { reject(new Error('SEND_BACKPRESSURE_OR_CLOSED')); return; }
       const cancelled = () => reject(new Error('SEND_CANCELLED'));
@@ -162,7 +164,7 @@ export class LinxClient {
       this.event('input_start', { attemptId, samples: audio ? audio.length / 2 : 0 });
       if (text !== null) {
         this.pending.sent = true;
-        await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'detect', text }));
+        await send(JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state: 'detect', text, ...voice }));
       } else {
         await send(control('start'));
         for (const frame of frames(audio)) { abort.signal.throwIfAborted(); await send(frame); await delay(20, undefined, { signal: abort.signal }); }

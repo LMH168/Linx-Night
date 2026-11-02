@@ -141,10 +141,10 @@ test('private turn cue uses listen.detect without PCM or text_response', async (
   }));
   const client=new LinxClient(identity,{socketFactory:mock.factory});
   try {
-    await client.connect(config);await client.send('查私密状态并调用 submit_vote');
+    await client.connect(config);await client.send('查私密状态并调用 submit_vote',{voiceId:'player-voice'});
     assert.equal(received.length,2);assert.equal(received[1].state,'detect');
-    assert.equal(received[1].text,'查私密状态并调用 submit_vote');assert.equal(received[1].text_response,undefined);
-    await assert.rejects(client.send(' '),/INVALID_TURN_CUE/);
+    assert.deepEqual(received[1].agent_params,{voice:{id:'player-voice'}});assert.equal(received[1].text,'查私密状态并调用 submit_vote');assert.equal(received[1].text_response,undefined);
+    await assert.rejects(client.send(' '),/INVALID_TURN_CUE/);await assert.rejects(client.send('公开发言',{voiceId:' '}),/VOICE_ID_INVALID/);
   }finally{client.close();await mock.close();}
 });
 
