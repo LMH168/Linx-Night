@@ -36,7 +36,7 @@
 
 ## MCP 就绪门槛
 
-WSS hello 不代表游戏 MCP 可用。自动绑定前默认最多等待 30 秒（`LINX_MCP_DISCOVERY_TIMEOUT_MS`），在受保护诊断中核对已认证且成功的 initialize/tools/list 请求，Session、Device、Agent 必须与新连接一致。没有匹配记录则显示 MCP_DISCOVERY_TIMEOUT，留在准备失败，不分配角色。检查测试 Agent 的 MCP URL、认证、独立保存关联，以及隧道是否仍运行；修复后由房主重试。旧 Session 或陌生设备的发现请求不能满足门槛。
+WSS hello 或 tools/list 不代表游戏工具已可调用。先完成绑定，再向每个玩家 Session 发送私有准备指令（单次最多 30 秒），要求实际调用 get_my_private_state。受保护诊断中必须出现该 Session、Device、Agent 对应的成功工具调用，才能开始游戏。工具尚未就绪时最多重试一次；失败则清理连接并保留准备失败状态，由房主重试。新建或重连 Session 都重新验证。私有行动完成或租约到期后，发送 abort 并等待结束；一秒内无法结束则关闭连接，防止旧夜间请求延续到白天。
 
 ## #77 短音频迁移与诊断
 

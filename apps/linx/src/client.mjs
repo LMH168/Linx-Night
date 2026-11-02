@@ -66,8 +66,8 @@ export class LinxClient {
           if (message.state === 'stop') {
             const active = this.pending?.sent ? this.pending : this.stream;
             if (active) {
-              if (message.is_aborted && active === this.pending && !active.ttsStarted) return;
-              if (message.is_aborted) active.reject(new Error('TURN_ABORTED'));
+              if (message.is_aborted && active === this.pending && !active.ttsStarted && !active.cancelled) return;
+              if (message.is_aborted && !active.cancelled) active.reject(new Error('TURN_ABORTED'));
               else active.resolve();
             }
           }
@@ -114,14 +114,14 @@ export class LinxClient {
       clearTimeout(stream.timer); stream.abort.abort(); if (this.stream === stream) this.stream = null;
     }
   }
-  async send(wav) {
+  async send(wav, { timeoutMs = this.actionTimeoutMs } = {}) {
     const text = typeof wav === 'string' ? wav.trim() : null;
     if (text !== null && (!text || text.length > 2000)) throw new Error('INVALID_TURN_CUE');
     const audio = text === null ? parseWav(wav) : null;
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
     let timer;
-    const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), this.actionTimeoutMs); });
+    const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), timeoutMs); });
     // Attach a handler immediately: a disconnect may occur while audio is still being sent.
     completion.catch(() => abort.abort());
     const control = (state) => JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state, ...(state === 'start' ? { mode: 'manual' } : {}) });
@@ -150,6 +150,12 @@ export class LinxClient {
       const code = abort.signal.aborted ? 'ACTION_INTERRUPTED_OR_TIMEOUT' : (/^[A-Z_]+$/.test(error.message) ? error.message : 'SEND_FAILED');
       this.event('input_failure', { attemptId, code }); this.close(); throw new Error(code);
     } finally { clearTimeout(timer); abort.abort(); this.pending = null; }
+  }
+  cancelTurn() {
+    if(!this.pending)return;
+    this.pending.cancelled=true;
+    try {this.socket.send(JSON.stringify({ ...(this.sessionId ? {session_id:this.sessionId} : {}),type:'abort',reason:'wake_word_detected' }));}
+    catch {this.close();}
   }
   close() {
     this.pending?.reject(new Error('CLIENT_CLOSED'));
