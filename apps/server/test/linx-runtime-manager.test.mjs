@@ -10,7 +10,7 @@ await assert.rejects(Promise.resolve().then(() => manager.checkAvailability(setu
 await manager.releaseSeat(room,room.seats[1]);
 await assert.rejects(manager.prepare(setup()),{code:'PROFILE_IN_USE'});
 await manager.ensureConnected(room,room.seats[1]);assert.equal(count,2);assert.equal(room.controllers[0].controllerEpoch,2);
-await manager.release(room);await manager.prepare(setup());assert.equal(count,3);assert.ok(closed>=2);
+await manager.release(room);const preparedRoom=setup();await manager.prepare(preparedRoom);assert.equal(count,3);assert.ok(closed>=2);await manager.release(preparedRoom);
 const speechRoom=setup(); await manager.prepare(speechRoom);
 speechRoom.phase='SPEECH'; speechRoom.currentSeatId='P2'; speechRoom.requireActionLease=true; speechRoom.gameId=speechRoom.gameId || 'game';
 await manager.sendTurn(speechRoom,speechRoom.seats[1]); assert.match(lastAudio,/submit_speech/); assert.match(lastAudio,/公开发言/);
