@@ -36,7 +36,7 @@
 
 ## MCP 就绪门槛
 
-游戏工具通过每个玩家的语音 WebSocket 进行设备端 MCP 注册。连接携带配置中的 X-Agent-ID，收到并成功回复 tools/list 后才完成握手。工具调用转交现有 MCP 服务，身份头只来自本连接的 Session、Device 和 Agent；权限、租约和重复提交校验仍由同一服务执行。诊断 requests.transport=websocket 可区分设备端调用与云端 HTTP 调用。
+游戏工具通过每个玩家的语音 WebSocket 进行设备端 MCP 注册。连接携带配置中的 X-Agent-ID，收到并成功回复 tools/list 后才完成握手。设备工具统一使用 `game_` 前缀（如 `game_get_my_private_state`），与平台云端同名工具区分；提示及错误恢复指令也使用该前缀。代理去掉前缀后转交现有 MCP 服务，身份头只来自本连接的 Session、Device 和 Agent；权限、租约和重复提交校验仍由同一服务执行。诊断 requests.transport=websocket 可区分设备端调用与云端 HTTP 调用。
 
 WSS hello 或 tools/list 不代表游戏工具已可调用。先完成绑定，再向每个玩家 Session 发送私有准备指令（单次最多 30 秒），要求实际调用 get_my_private_state。受保护诊断中必须出现该 Session、Device、Agent 对应的成功工具调用，才能开始游戏。工具尚未就绪时最多重试一次；失败则清理连接并保留准备失败状态，由房主重试。新建或重连 Session 都重新验证。私有行动完成或租约到期后发送 abort，写入完成即释放本次等待（协议没有独立的 abort 确认消息）。屏蔽取消后的残留 TTS/PCM，直到下一次输入的 STT 到达；一秒内无法写入则关闭连接，防止旧夜间回复混入白天。
 
