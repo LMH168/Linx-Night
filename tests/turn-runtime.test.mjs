@@ -96,7 +96,7 @@ assert.equal(calls,4,'失败的 AI 不会阻止同批其他投票完成');
   room.lastWordsContinuation='NIGHT_WOLF';
   await new LinxTurnRuntime({manager,timeoutMs:500}).tick(room);
   assert.equal(room.lastWords,null);
-  assert.equal(room.phase,'NIGHT_WOLF');
+  assert.equal(room.phase,'GAME_OVER','last-words expiry must re-check victory before opening the next night');
   assert.equal(room.controllers[0].status,'ready','expired AI last words must not pause the next round');
   setup('SPEECH'); mode='timeout'; calls=0; toolName='submit_speech'; room.hostPlaybackEnabled=false; room.currentSeatId='P2';
   await new LinxTurnRuntime({manager,timeoutMs:15}).tick(room);

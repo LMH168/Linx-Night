@@ -200,8 +200,9 @@ const voice = useHumanVoice({
   client,
   roomId,
   realtime: true,
+  mode: () => action.value === "lastwords" ? "lastwords" : "speech",
   contextKey: () => actionKey.value,
-  canRecord: () => action.value === "speech" && !actionDisabled.value,
+  canRecord: () => (action.value === "speech" || action.value === "lastwords") && !actionDisabled.value,
   onBusyStart: () => hostPlayback.suspend(),
   onBusyEnd: () => hostPlayback.resume(),
   onDraft: () => {
@@ -512,6 +513,10 @@ async function startRecording() {
   } catch (error) {
     actionMessage.value = errorText(error);
   }
+}
+async function toggleRecording() {
+  if (voice.draft.value.stage === "recording") voice.stop();
+  else await startRecording();
 }
 async function cancelRecording() {
   await voice.cancel();
@@ -858,7 +863,7 @@ onBeforeUnmount(() => {
             <template v-if="action === 'speech'"
               ><p class="muted">
                 {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·
-                必须开麦，识别完成后自动提交发言
+                点击开始说话，再次点击结束并自动提交
               </p>
               <div class="voice-controls">
                 <p role="status">
@@ -876,15 +881,10 @@ onBeforeUnmount(() => {
                 <div class="buttons">
                   <button :disabled="actionDisabled" @click="skipHumanSpeech">不发言，结束回合</button>
                   <button
-                    :disabled="voice.busy.value || actionDisabled"
-                    @click="startRecording"
+                    :disabled="actionDisabled"
+                    @click="toggleRecording"
                   >
-                    开始录音</button
-                  ><button
-                    v-if="voice.draft.value.stage === 'recording'"
-                    @click="voice.stop"
-                  >
-                    结束录音</button
+                    {{ voice.draft.value.stage === 'recording' ? '结束发言' : '开始发言' }}</button
                   ><button
                     v-if="voice.draft.value.stage !== 'idle'"
                     @click="cancelRecording"
@@ -896,22 +896,11 @@ onBeforeUnmount(() => {
               </template
             >
             <template v-if="action === 'lastwords'"
-              ><p class="muted">遗言最多 200 字，确认提交后公开。</p>
-              <label
-                >遗言<textarea
-                  v-model="lastWordsText"
-                  maxlength="200"
-                  rows="3"
-                  :disabled="actionDisabled"
-                />
-              </label>
+              ><p class="muted">点击开始说遗言，再次点击结束并自动提交，最多 200 字。</p>
+              <p role="status">{{ voice.draft.value.stage === 'recording' ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在转写，请稍候' : voice.draft.value.error || '请使用麦克风发表遗言。' }}</p>
               <div class="buttons">
-                <button
-                  class="gold"
-                  :disabled="actionDisabled || !lastWordsText.trim()"
-                  @click="submitLastWords()"
-                >
-                  提交遗言</button
+                <button class="gold" :disabled="actionDisabled" @click="toggleRecording">
+                  {{ voice.draft.value.stage === 'recording' ? '结束遗言' : '开始遗言' }}</button
                 ><button
                   :disabled="actionDisabled"
                   @click="submitLastWords(true)"

@@ -15,6 +15,7 @@ export interface HumanVoiceOptions {
   onBusyStart?: () => void;
   onBusyEnd?: () => void;
   realtime?: boolean;
+  mode?: () => 'speech' | 'lastwords';
 }
 
 const emptyDraft = (): VoiceDraft => ({ recordingId: null, stage: 'idle', text: '', expiresAt: null, error: null });
@@ -141,7 +142,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
       countdownTimer = setInterval(() => { remainingMs.value = Math.max(0, deadline - Date.now()); }, 250);
       if (options.realtime) {
         const context = new AudioContext({ sampleRate: 16_000 }); realtimeContext = context;
-        const socket = new WebSocket(client.voiceRealtimeUrl(roomId, recording.recordingId)); realtimeSocket = socket; socket.binaryType = 'arraybuffer';
+        const socket = new WebSocket(client.voiceRealtimeUrl(roomId, recording.recordingId, options.mode?.() || 'speech')); realtimeSocket = socket; socket.binaryType = 'arraybuffer';
         socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'accepted' && message.text) { options.onDraft?.(message.text); draft.value = { ...draft.value, stage: 'confirming', text: message.text }; markSubmitted(); } else if (message.type === 'error') setError(new Error(message.message || '实时语音失败')); };
         socket.onerror = () => { if (run === generation) setError(new Error('实时语音连接失败')); };
         await new Promise<void>((resolve, reject) => { socket.onopen = () => { socket.send(JSON.stringify({ type: 'start' })); resolve(); }; socket.addEventListener('error', () => reject(new Error('实时语音连接失败')), { once: true }); });

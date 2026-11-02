@@ -60,8 +60,7 @@ export function legalTargets(
     if (action === "skill" && mine.role === "werewolf")
       return (
         seat.seatId !== mine.seatId &&
-        !mine.werewolfTeammates?.includes(seat.seatId) &&
-        (!mine.wolfProposal || mine.wolfProposal === seat.seatId)
+        seat.alive
       );
     return action === "skill";
   });

@@ -81,11 +81,11 @@ export const useGameStore = defineStore('game', () => {
     return PHASE_LABEL[phase.value] || phase.value;
   });
   const isMyAction = computed(() => {
-    if (!privateState.value?.alive) return false;
     if (phase.value === 'SPEECH') return currentSpeakerId.value === selfSeatId.value;
     if (phase.value === 'VOTE') return !voteSubmitted.value;
     if (phase.value === 'HUNTER_RESPONSE') return Boolean(privateState.value?.hunterAction);
     if (phase.value === 'LAST_WORDS') return Boolean(privateState.value?.lastWords);
+    if (!privateState.value?.alive) return false;
     if (phase.value === 'NIGHT_WOLF') return selfRole.value === 'werewolf';
     if (phase.value === 'NIGHT_SEER') return selfRole.value === 'seer';
     if (phase.value === 'NIGHT_WITCH') return selfRole.value === 'witch';
@@ -144,7 +144,7 @@ export const useGameStore = defineStore('game', () => {
   }
   async function submitLastWords(text: string) { await submitAction('/last-words', { action: 'submit', text: text.trim(), window_id: (privateState.value?.lastWords as any)?.windowId }); notice.value = '遗言已提交。'; }
   async function announceDay() { await submitAction('/actions', { type: 'announce_day' }); notice.value = '已宣布天亮。'; }
-  function selectSeat(id: string) { const target = publicSeats.value.find(seat => seat.id === id); if (!target?.alive || (phase.value === 'NIGHT_WOLF' && wolfTeammates.value.some(member => member.id === id)) || target.isSelf && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(phase.value)) return; selectedSeatId.value = id; notice.value = ''; }
+  function selectSeat(id: string) { const target = publicSeats.value.find(seat => seat.id === id); if (!target?.alive || target.isSelf && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(phase.value)) return; selectedSeatId.value = id; notice.value = ''; }
   function setPhase(next: GamePhase) { if (next === 'VOTE' || next === 'SPEECH') notice.value = '阶段由服务端推进，请等待实时事件。'; }
   function reset() { selectedSeatId.value = null; notice.value = ''; speech.value = ''; settlement.value = null; }
 

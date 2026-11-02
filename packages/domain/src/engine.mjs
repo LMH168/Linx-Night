@@ -37,18 +37,18 @@ export function wolfTarget(room, seatId, targetSeatId, actionId) {
   if (room.phase !== PHASES.NIGHT_WOLF) throw new RuleError('wolf action is not allowed now');
   const actor = seatOf(room, seatId); if (!actor?.alive || actor.camp !== CAMPS.WEREWOLF) throw new RuleError('actor is not a living werewolf');
   const target = requireAlive(room, targetSeatId); if (targetSeatId === seatId) throw new RuleError('werewolves cannot target themselves');
-  // A teammate cannot follow an attack against itself; never lock that proposal.
-  if (target.camp === CAMPS.WEREWOLF) throw new RuleError('werewolves cannot target teammates');
   const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF); const submitted = room.actions.filter(action => action.turnId === room.round && action.actionType === 'wolf_target' && wolves.some(wolf => wolf.seatId === action.seatId));
   if (submitted.some(a => a.seatId === seatId)) throw new RuleError('seat already submitted');
-  if (submitted.length && submitted[0].targetSeatId !== targetSeatId) throw new RuleError('werewolf targets must agree');
   const projected = [...submitted, { seatId, targetSeatId }];
-  if (projected.length >= wolves.length && new Set(projected.slice(-wolves.length).map(action => action.targetSeatId)).size !== 1) throw new RuleError('werewolf targets must agree');
   recordAction(room, { actionId, turnId: room.round, actionType: 'wolf_target', seatId, targetSeatId });
   if (projected.length >= wolves.length) {
-    const targets = new Set(projected.slice(-wolves.length).map(action => action.targetSeatId));
-    if (targets.size !== 1) throw new RuleError('werewolf targets must agree');
-    room.pendingNight = { round: room.round, wolfTarget: targetSeatId, eligibleSeatIds: room.seats.filter(seat => seat.alive && [ROLES.SEER, ROLES.WITCH].includes(seat.role)).map(seat => seat.seatId) }; transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
+    const counts = new Map();
+    for (const action of projected.slice(-wolves.length)) counts.set(action.targetSeatId, (counts.get(action.targetSeatId) || 0) + 1);
+    const max = Math.max(...counts.values());
+    const leaders = [...counts].filter(([, count]) => count === max).map(([id]) => id);
+    const chosen = leaders[Math.floor(Math.random() * leaders.length)];
+    room.pendingNight = { round: room.round, wolfTarget: chosen, wolfTargetVotes: Object.fromEntries(counts), eligibleSeatIds: room.seats.filter(seat => seat.alive && [ROLES.SEER, ROLES.WITCH].includes(seat.role)).map(seat => seat.seatId) };
+    transition(room, PHASES.NIGHT_SEER); skipAbsentRoles(room);
   }
   return room;
 }
@@ -226,6 +226,7 @@ function closeLastWords(room, status, text = null) {
 
 function continueAfterLastWords(room) {
   const continuation = room.lastWordsContinuation; room.lastWordsContinuation = null;
+  if (checkWinner(room)) return room;
   if (continuation === PHASES.SPEECH) return transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null });
   if (continuation === PHASES.NIGHT_WOLF) { room.round += 1; return transition(room, PHASES.NIGHT_WOLF); }
   return room;
@@ -324,7 +325,7 @@ function resolveVotes(room) {
 
 function eliminate(room, seatId, cause) { const seat = seatOf(room, seatId); if (!seat?.alive) return; seat.alive = false; seat.connectionState = CONNECTION_STATES.DISCONNECTED; room.version += 1; appendEvent(room, { type: 'game.player_eliminated', data: { seatId, cause } }); queueLastWords(room, seatId, cause); if (seat.role === ROLES.HUNTER && seat.skills.hunterShotAvailable) openHunterResponse(room, seat, cause); }
 
-export function checkWinner(room) { if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '好人阵营获胜', winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '狼人阵营获胜', winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
+export function checkWinner(room) { if (room.settlement) return room.settlement.winner; if (room.hunterResponse?.status === 'open') return null; const wolves = aliveSeats(room).filter(seat => seat.camp === CAMPS.WEREWOLF).length; const good = aliveSeats(room).filter(seat => seat.camp === CAMPS.GOOD).length; if (wolves === 0) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.GOOD }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '好人阵营获胜', winner: CAMPS.GOOD }); return CAMPS.GOOD; } if (wolves >= good) { transition(room, PHASES.GAME_OVER, { winner: CAMPS.WEREWOLF }); createSettlement(room, { settlementType: SETTLEMENT_TYPES.NORMAL_WIN, reason: '狼人阵营获胜', winner: CAMPS.WEREWOLF }); return CAMPS.WEREWOLF; } return null; }
 
 export function skipAbsentRoles(room) {
   if (room.phase === PHASES.NIGHT_SEER && !nightEligibleSeats(room, ROLES.SEER).length) transition(room, PHASES.NIGHT_WITCH);

@@ -83,12 +83,12 @@ describe("live action and identity boundaries", () => {
     m.role = "seer";
     expect(visibleRole("P2", m, true)).toBeNull();
   });
-  it("follows wolf proposal without offering self or teammates", () => {
+  it("allows a werewolf to choose any other living seat", () => {
     const s = state(),
       m = mine();
     s.phase = "NIGHT_WOLF";
     m.wolfProposal = "P3";
-    expect(legalTargets(s, m, "skill").map((x) => x.seatId)).toEqual(["P3"]);
+    expect(legalTargets(s, m, "skill").map((x) => x.seatId)).toEqual(["P2", "P3", "P4"]);
   });
   it("does not reopen submitted votes or permit AI-controlled human actions", () => {
     const s = state(),

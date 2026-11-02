@@ -75,22 +75,16 @@ try {
   await call('submit_vote', { target_player_id: 'P3' });
   assert.equal(room.phase, 'LAST_WORDS'); assert.equal(room.seats[2].alive, false);
   assert.equal(room.events.filter(e => e.type === 'game.vote_resolved').length, 1);
-  setup('NIGHT_WOLF',3);const teamBefore=structuredClone(room);
-  const teamError=JSON.parse((await call('submit_wolf_target',{target_player_id:'P4'})).result.content[0].text);
-  assert.equal(teamError.recovery.code,'INVALID_WOLF_TARGET');assert.ok(!teamError.recovery.targetSeatIds.includes('P4'));assert.deepEqual(room,teamBefore);
+  setup('NIGHT_WOLF',3);
+  const teamAttack=JSON.parse((await call('submit_wolf_target',{target_player_id:'P4'})).result.content[0].text);
+  assert.equal(teamAttack.accepted, true);
   setup('NIGHT_WOLF', 3); assert.equal((await call('submit_wolf_target', { target_player_id: 'P9' })).result.isError, false);
   // A teammate can submit between the agent's state read and its write.
   selected = 's4';
   const beforeConflict = structuredClone(room);
   const conflict = await call('submit_wolf_target', { target_player_id: 'P8', action_id: 'wolf-correctable' });
-  const hint = JSON.parse(conflict.result.content[0].text).recovery;
-  assert.equal(conflict.result.isError, true);assert.deepEqual(room, beforeConflict);
-  assert.equal(hint.code, 'WOLF_TARGET_CONFLICT');assert.equal(hint.arguments.target_player_id, 'P9');
-  assert.equal(hint.arguments.action_id, 'wolf-correctable');
-  const corrected = await call(hint.tool, hint.arguments);
-  assert.equal(JSON.parse(corrected.result.content[0].text).accepted, true);
+  assert.equal(conflict.result.isError, false); assert.notDeepEqual(room, beforeConflict);
   assert.equal(room.actions.filter(a => a.actionId === 'wolf-correctable').length, 1);
-  await reject(hint.tool, hint.arguments);
   selected = 's2';
   const outsider = await call('submit_wolf_target', {target_player_id:'P8'});
   assert.equal(JSON.parse(outsider.result.content[0].text).recovery, undefined);
@@ -106,11 +100,11 @@ try {
   room.controllers=[{seatId:'P4',status:'ready',controllerEpoch:1,sessionId:'s4',deviceId:'device',agentId:'agent'}];
   registerSession({sessionId:'s4',roomId:room.roomId,seatId:'P4',playerId:'p4',deviceId:'device',agentId:'agent',gameId:room.gameId,controllerEpoch:1});
   const lease=createTurn(room,{seatId:'P4',controlSource:'linx',controllerEpoch:1});room.turns.at(-1).expiresAt=Date.now()+60000;
-  const leasedBefore=structuredClone(room);
   const leasedConflict=JSON.parse((await call('submit_wolf_target',{target_player_id:'P8',turn_id:lease.turnId,action_id:'leased-fix'})).result.content[0].text);
-  assert.deepEqual(room,leasedBefore);assert.equal(leasedConflict.recovery.arguments.turn_id,lease.turnId);
-  assert.equal(JSON.parse((await call('submit_wolf_target',leasedConflict.recovery.arguments)).result.content[0].text).accepted,true);
-  assert.equal(room.turns.at(-1).status,'completed');await reject('submit_wolf_target',leasedConflict.recovery.arguments);
+  assert.equal(leasedConflict.accepted,true);
+  assert.equal(room.turns.at(-1).status,'completed');
+  assert.equal(room.actions.some(action => action.actionId === 'leased-fix'), true);
+  await reject('submit_wolf_target', { target_player_id: 'P8', turn_id: lease.turnId, action_id: 'leased-fix' });
   setup('NIGHT_SEER', 6); assert.equal(JSON.parse((await call('submit_seer_check', { target_player_id: 'P3' })).result.content[0].text).result, 'werewolf');
   for (const action of ['save', 'poison', 'skip']) {
     setup('NIGHT_WITCH', 7);

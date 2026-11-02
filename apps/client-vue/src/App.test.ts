@@ -20,6 +20,6 @@ describe('Vue game shell', () => {
     expect(wrapper.text()).toContain('依次发言');
     expect(wrapper.text()).toContain('灵矽 AI');
     expect(wrapper.text()).toContain('我的私密状态');
-    expect(wrapper.text()).toContain('提交发言');
+    expect(wrapper.text()).toContain('开始发言');
   });
 });
