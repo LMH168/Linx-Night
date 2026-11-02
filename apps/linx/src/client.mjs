@@ -17,7 +17,7 @@ export class LinxClient {
     if (this.state !== 'closed') throw new Error('请先关闭当前连接');
     const url = secureSocketUrl(config.url);
     if (typeof config.token !== 'string' || !config.token.trim()) throw new Error('缺少连接 Token');
-    this.runId = randomUUID(); this.sessionId = undefined; this.audio = undefined; this.state = 'connecting'; this.event('connect_start');
+    this.runId = randomUUID(); this.sessionId = undefined; this.audio = undefined; this.suppressOutput = false; this.state = 'connecting'; this.event('connect_start');
     await new Promise((resolve, reject) => {
       let greeted = false;
       let finished = false;
@@ -51,7 +51,7 @@ export class LinxClient {
       });
       socket.on('message', (raw, binary) => {
         if (finished || this.runId !== runId) return;
-        if (binary) { this.event('audio_received', { bytes: raw.length }); this.onAudio(Buffer.from(raw), { attemptId: this.pending?.attemptId ?? this.stream?.attemptId }); return; }
+        if (binary) { if(this.suppressOutput)return;this.event('audio_received', { bytes: raw.length }); this.onAudio(Buffer.from(raw), { attemptId: this.pending?.attemptId ?? this.stream?.attemptId }); return; }
         let message; try { message = JSON.parse(raw.toString()); } catch { fail('INVALID_JSON'); return; }
         if (!message || typeof message !== 'object') { fail('INVALID_MESSAGE'); return; }
         if(message.type==='mcp' && this.mcp) {
@@ -81,6 +81,8 @@ export class LinxClient {
           greeted = true; this.event('hello', { sessionPresent: Boolean(this.sessionId), ...this.audio }); ready(); return;
         }
         if (message.type === 'error') { fail('PLATFORM_ERROR'); return; }
+        if(message.type==='stt' && (this.pending?.sent || this.stream))this.suppressOutput=false;
+        if(message.type==='tts' && this.suppressOutput)return;
         this.onMessage(message);
         if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
         if (message.type === 'tts' && ['start', 'stop', 'sentence_start'].includes(message.state)) {
@@ -175,9 +177,12 @@ export class LinxClient {
     } finally { clearTimeout(timer); abort.abort(); this.pending = null; }
   }
   cancelTurn() {
-    if(!this.pending)return;
-    this.pending.cancelled=true;
-    try {this.socket.send(JSON.stringify({ ...(this.sessionId ? {session_id:this.sessionId} : {}),type:'abort',reason:'wake_word_detected' }));}
+    const pending=this.pending;
+    if(!pending)return;
+    pending.cancelled=true;this.suppressOutput=true;
+    // Abort has no documented acknowledgement. Finish after the frame is
+    // written; discard old output until STT confirms the next input.
+    try {this.socket.send(JSON.stringify({ ...(this.sessionId ? {session_id:this.sessionId} : {}),type:'abort',reason:'wake_word_detected' }),error=>{if(error)this.close();else pending.resolve();});}
     catch {this.close();}
   }
   close() {
