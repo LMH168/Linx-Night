@@ -183,6 +183,17 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       if(sends.has(key))await sends.get(key).catch(()=>{});
       if(room.invalidated)throw Error('CONTROLLER_RELEASED');
       const client = adapter.clients.get(seat.seatId)?.client;
+      const inputRelay = room.phase === 'SPEECH' && room.currentSeatId === seat.seatId && room.speechInputRelay?.seatId === seat.seatId ? room.speechInputRelay : null;
+      if (inputRelay && !inputRelay.closed) {
+        await inputRelay.queue;
+        inputRelay.closed = true;
+        recordTurn('speech_pcm_relay_completed', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, sourceSeatId: inputRelay.sourceSeatId, bytes: inputRelay.bytes, code: inputRelay.error?.message });
+        // Reconnect before the runtime creates its lease: reconnecting later
+        // changes the controller epoch and invalidates the active speech.
+        try { await client.stopRealtime({ waitForTts: false }); }
+        catch { client?.close(); room.speechInputRelay = null; }
+        inputRelay.stream = null;
+      }
       if (!client || client.state === 'closed') {
         await adapter.reconnect(room, seat.seatId);
         if(seat.seatId!=='HOST')await this.prepareSession(room,seat.seatId);
@@ -229,7 +240,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       return relay;
     },
     async sendTurn(room, seat) {
-      let client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
+      const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');
       const turn = room.turns.find(t=>t.status==='active'&&t.gameId===room.gameId&&t.round===room.round&&t.phase===room.phase&&t.seatId===seat.seatId);
       const context = {roomId:room.roomId,gameId:room.gameId,seatId:seat.seatId,turnId:turn?.turnId,windowId:room.hunterResponse?.windowId};
@@ -276,14 +287,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           finally { clearTimeout(timer); }
         };
         if (inputRelay) {
-          await inputRelay.queue;
-          recordTurn('speech_pcm_relay_completed', { ...context, sourceSeatId: inputRelay.sourceSeatId, bytes: inputRelay.bytes, code: inputRelay.error?.message });
-          try { await client.stopRealtime({ waitForTts: false }); }
-          catch {
-            await this.ensureConnected(room, seat);
-            client = this.clientFor(room, seat.seatId);
-            client.record = event => { if (['input_start','input_stop','stt','tts_start','tts_stop','tts_sentence_start','input_failure','hello','closed'].includes(event.type)) recordTurn(event.type,{...event,...context}); };
-          }
+          if (!inputRelay.closed) throw Error('SPEECH_INPUT_NOT_READY');
           room.speechInputRelay = null; inputRelay.closed = true; inputRelay.stream = null;
           if(relay){client.onAudio=receiveAudio;client.onMessage=receiveMessage;}
           const work = client.send(deviceCue(cue),{voiceId:room.publicVoices?.[seat.seatId]}); sends.set(key, work);
