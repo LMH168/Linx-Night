@@ -1,6 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
 
-export async function waitForMcpDiscovery(binding,{base,token,fetchImpl=fetch,timeoutMs=15000,pollMs=250}={}) {
+export async function waitForMcpDiscovery(binding,{base,token,fetchImpl=fetch,timeoutMs=15000,pollMs=250,tool}={}) {
   const deadline=Date.now()+timeoutMs;
   while(Date.now()<deadline){
     let response;
@@ -10,7 +10,7 @@ export async function waitForMcpDiscovery(binding,{base,token,fetchImpl=fetch,ti
     if(response.ok){
       try {
         const {requests}=await response.json();
-        if(Array.isArray(requests)&&requests.some(r=>r.authenticated===true&&r.status===200&&!r.failure&&['initialize','tools/list'].includes(r.method)&&r.sessionId===binding.sessionId&&r.deviceId===binding.deviceId&&r.agentId===binding.agentId))return;
+        if(Array.isArray(requests)&&requests.some(r=>r.authenticated===true&&r.status===200&&!r.failure&&(tool ? r.method==='tools/call'&&r.tool===tool&&r.resultCode==='OK' : r.method==='tools/list')&&r.sessionId===binding.sessionId&&r.deviceId===binding.deviceId&&r.agentId===binding.agentId))return;
       } catch {}
     }
     await delay(Math.min(pollMs,Math.max(1,deadline-Date.now())));

@@ -13,3 +13,13 @@ try{
  const response=await fetch(base+'/mcp',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer mcp','x-linx-session-id':binding.sessionId,'x-linx-agent-id':binding.agentId,'x-linx-device-id':binding.deviceId},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});assert.equal(response.status,200);await response.json();await work;
  console.log('Authenticated exact-session discovery required; stale/mismatched/failed requests rejected; real HTTP discovery passes');
 }finally{server.closeAllConnections();await new Promise(r=>server.close(r));}
+
+const readOptions={base:'http://test',token:'test',timeoutMs:20,pollMs:1,tool:'get_my_private_state'};
+for(const record of [
+ {...valid,method:'initialize'},
+ valid,
+ {...valid,method:'tools/call',tool:'get_my_private_state',resultCode:'ACTION_REJECTED'},
+ {...valid,method:'tools/call',tool:'get_my_private_state',resultCode:'OK',sessionId:'other'},
+])await assert.rejects(waitForMcpDiscovery(binding,{...readOptions,fetchImpl:async()=>Response.json({requests:[record]})}),{code:'MCP_DISCOVERY_TIMEOUT'});
+await waitForMcpDiscovery(binding,{...readOptions,fetchImpl:async()=>Response.json({requests:[{...valid,method:'tools/call',tool:'get_my_private_state',resultCode:'OK'}]})});
+console.log('Readiness requires an accepted private-state call from the exact session');

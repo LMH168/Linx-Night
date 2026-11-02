@@ -187,6 +187,8 @@ export class LinxTurnRuntime {
       }
     } finally {
       clearTimeout(timer); clearInterval(poll);
+      // A private action's model reply must not outlive its lease or phase.
+      if(turn && turn.phase!=='SPEECH')await this.manager.cancelTurn?.(room,seat);
       const c = room.controllers.find(c => c.seatId === seat.seatId), failed = c?.status === 'failed', code = c?.errorCode;
       // Keep a healthy Linx session alive across turns. Releasing here forced the
       // next AI seat to repeat WebSocket, OTA and MCP binding setup.

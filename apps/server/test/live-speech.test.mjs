@@ -14,13 +14,14 @@ let playback,runtime;
 const manager=createLinxControllerManager({
  env:{LINX_AGENT_ID:'agent',LINX_PROFILES:'a,b',LINX_MCP_ADMIN_URL:'http://test',LINX_MCP_ADMIN_TOKEN:'test'},
  loadAudio:async()=>wavFromPcm(Buffer.alloc(640)),readIdentity:async name=>({deviceId:name}),
- fetchImpl:async url=>Response.json(url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'test'}}:{}),
+ fetchImpl:async url=>Response.json(url.endsWith('/admin/diagnostics')?{requests:[...clients.keys()].map(id=>({authenticated:true,status:200,method:'tools/call',tool:'get_my_private_state',resultCode:'OK',sessionId:id,deviceId:id,agentId:'agent'}))}:url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'test'}}:{}),
  onChange:()=>{playback?.sync(room);runtime?.wake(room);},
  clientFactory:identity=>{const client={state:'closed',sessionId:identity.deviceId,onAudio:()=>{},onMessage:()=>{},
   async connect(){this.state='ready';},close(){this.state='closed';},
   async startRealtime(){return {send:async frame=>{received.push(frame.length);}};},
   async stopRealtime(){},
   async send(cue){
+   if(cue.includes('会话准备'))return;
    sends++;assert.equal(identity.deviceId,'a','next seat must wait for browser playback and host narration');
    assert.match(cue,/不要调用 submit_speech/);
    this.onMessage({type:'tts',state:'sentence_start',text:'我听到了上一位发言。'});
