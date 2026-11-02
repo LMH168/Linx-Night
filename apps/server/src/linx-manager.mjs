@@ -31,7 +31,18 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
   const names = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(value => value.trim()).filter(Boolean);
   const configuredActionTimeout = Number(env.LINX_ACTION_TIMEOUT_MS || 90_000);
   const actionTimeoutMs = Number.isFinite(configuredActionTimeout) && configuredActionTimeout > 0 ? configuredActionTimeout : 90_000;
-  const makeClient = clientFactory || (identity => new LinxClient(identity, { actionTimeoutMs }));
+  const makeClient = identity => {
+    const options = { actionTimeoutMs,
+    mcp: async (request,context) => {
+      const base=required(env.LINX_MCP_ADMIN_URL,'LINX_MCP_ADMIN_URL');
+      const token=required(env.MCP_AUTH_TOKEN,'MCP_AUTH_TOKEN');
+      const response=await fetchImpl(`${base.replace(/\/$/,'')}/mcp`,{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/json',authorization:`Bearer ${token}`,'x-linx-transport':'websocket',...Object.fromEntries(Object.entries(context).filter(([,value])=>value).map(([key,value])=>[`x-linx-${key.replace('Id','-id')}`,value]))},body:JSON.stringify(request)});
+      if(!response.ok)throw Error('MCP_REQUEST_FAILED');
+      return response.json();
+    },
+    };
+    return clientFactory ? clientFactory(identity,options) : new LinxClient(identity,options);
+  };
   const sends = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
@@ -61,7 +72,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
           const identity = await readIdentity(profileName);
           const connection = await ota(identity, { fetchImpl });
           if (connection.state !== 'bound') throw Object.assign(new Error('软件设备尚未激活'), {code:'LINX_NOT_ACTIVATED'});
-          return { profileName, agentId, identity, connection };
+          return { profileName, agentId, identity, connection:{...connection,agentId} };
         },
         bind: async binding => {
           // Bind first; the read-only readiness cue runs after the controller
