@@ -175,7 +175,7 @@ test('abort needs no TTS acknowledgement and old output stays private until the 
     if(binary)return;
     const m=JSON.parse(raw.toString());
     if(m.type==='hello')socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'cancel-session',audio_params:pcm}));
-    if(m.state==='detect'&&++turn===1){socket.send(JSON.stringify({type:'stt',text:m.text}));socket.send(JSON.stringify({type:'tts',state:'start'}));started();}
+    if(m.state==='detect'&&++turn===1){socket.send(JSON.stringify({type:'stt',text:m.text}));socket.send(JSON.stringify({type:'tts',state:'start'}));}
     else if(m.state==='detect'){
       socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:true}));
       socket.send(JSON.stringify({type:'stt',text:m.text}));
@@ -191,7 +191,7 @@ test('abort needs no TTS acknowledgement and old output stays private until the 
     }
   }));
   const audio=[],sentences=[];
-  const client=new LinxClient(identity,{socketFactory:mock.factory,onAudio:chunk=>audio.push(chunk),onMessage:m=>{if(m.state==='sentence_start')sentences.push(m.text);}});
+  const client=new LinxClient(identity,{socketFactory:mock.factory,onAudio:chunk=>audio.push(chunk),onMessage:m=>{if(m.state==='start')started();if(m.state==='sentence_start')sentences.push(m.text);}});
   try {
     await client.connect(config);
     const work=client.send('私有行动');await replyStarted;
