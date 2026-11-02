@@ -53,5 +53,6 @@ jobs:
       - name: 回合、语音和完整模拟局回归
         run: |
           npm run test:runtime
+          npm run test:linx
           npm run test:voice
           npm run test:delivery

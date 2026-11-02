@@ -131,3 +131,19 @@ test('realtime input accepts PCM frames and exposes returned TTS PCM for chainin
     assert.equal(audio.length, 1); assert.equal(audio[0].length, 640);
   } finally { client.close(); await mock.close(); }
 });
+
+test('private turn cue uses listen.detect without PCM or text_response', async () => {
+  const received=[];
+  const mock=await mockServer(socket=>socket.on('message',(raw,binary)=>{
+    assert.equal(binary,false);const m=JSON.parse(raw.toString());received.push(m);
+    if(m.type==='hello')socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'cue-session',audio_params:pcm}));
+    if(m.state==='detect')socket.send(JSON.stringify({type:'tts',state:'stop'}));
+  }));
+  const client=new LinxClient(identity,{socketFactory:mock.factory});
+  try {
+    await client.connect(config);await client.send('查私密状态并调用 submit_vote');
+    assert.equal(received.length,2);assert.equal(received[1].state,'detect');
+    assert.equal(received[1].text,'查私密状态并调用 submit_vote');assert.equal(received[1].text_response,undefined);
+    await assert.rejects(client.send(' '),/INVALID_TURN_CUE/);
+  }finally{client.close();await mock.close();}
+});
