@@ -16,6 +16,12 @@ const { server } = createApiServer({ realtimeVoice });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 try {
+  const post=(path,body)=>fetch(`http://127.0.0.1:${port}/api/rooms/${room.roomId}/${path}`,{method:'POST',headers:{'content-type':'application/json','x-player-id':'human'},body:JSON.stringify(body)});
+  assert.equal((await post('speeches',{text:'旧文字入口'})).status,410);
+  assert.equal((await post('voice/transcribe',{wav:'AAAA'})).status,410);
+  assert.equal(room.speeches.length,0);
+  assert.equal((await post('voice/recording-start',{})).status,200);
+  assert.equal(room.speechClock.realtime,true,'a failed socket setup must not enter legacy transcription grace');
   const ws = new WebSocket(`ws://127.0.0.1:${port}/api/rooms/${room.roomId}/voice/realtime?player_id=human`);
   const messages = [];
   ws.on('message', raw => messages.push(JSON.parse(raw.toString())));
