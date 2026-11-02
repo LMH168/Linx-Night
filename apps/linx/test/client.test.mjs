@@ -168,22 +168,37 @@ test('late aborted stop before a new reply starts does not cancel the new cue', 
   finally {client.close();await mock.close();}
 });
 
-test('cancelling a private reply drains aborted stop and preserves its session', async () => {
-  let started;
+test('abort needs no TTS acknowledgement and old output stays private until the next STT', async () => {
+  let started,turn=0;
   const replyStarted=new Promise(resolve=>{started=resolve;});
   const mock=await mockServer(socket=>socket.on('message',(raw,binary)=>{
     if(binary)return;
     const m=JSON.parse(raw.toString());
     if(m.type==='hello')socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'cancel-session',audio_params:pcm}));
-    if(m.state==='detect'){socket.send(JSON.stringify({type:'tts',state:'start'}));started();}
-    if(m.type==='abort')socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:true}));
+    if(m.state==='detect'&&++turn===1){socket.send(JSON.stringify({type:'stt',text:m.text}));socket.send(JSON.stringify({type:'tts',state:'start'}));}
+    else if(m.state==='detect'){
+      socket.send(JSON.stringify({type:'tts',state:'stop',is_aborted:true}));
+      socket.send(JSON.stringify({type:'stt',text:m.text}));
+      socket.send(JSON.stringify({type:'tts',state:'start'}));
+      socket.send(JSON.stringify({type:'tts',state:'sentence_start',text:'公开发言'}));
+      socket.send(Buffer.alloc(640,1));
+      socket.send(JSON.stringify({type:'tts',state:'stop'}));
+    }
+    if(m.type==='abort'){
+      // The platform can cancel before TTS starts without sending tts.stop.
+      socket.send(JSON.stringify({type:'tts',state:'sentence_start',text:'迟到的私密回复'}));
+      socket.send(Buffer.alloc(640,9));
+    }
   }));
-  const client=new LinxClient(identity,{socketFactory:mock.factory});
+  const audio=[],sentences=[];
+  const client=new LinxClient(identity,{socketFactory:mock.factory,onAudio:chunk=>audio.push(chunk),onMessage:m=>{if(m.state==='start')started();if(m.state==='sentence_start')sentences.push(m.text);}});
   try {
     await client.connect(config);
     const work=client.send('私有行动');await replyStarted;
     client.cancelTurn();await work;
     assert.equal(client.state,'ready');assert.equal(client.sessionId,'cancel-session');assert.equal(client.pending,null);
+    await client.send('开始公开发言');
+    assert.deepEqual(sentences,['公开发言']);assert.equal(audio.length,1);assert.ok(audio[0].equals(Buffer.alloc(640,1)));
   } finally {client.close();await mock.close();}
 });
 
