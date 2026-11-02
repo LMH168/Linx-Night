@@ -34,7 +34,7 @@ export class LinxClient {
       try { this.socket = this.socketFactory(url, { headers: { Authorization: `Bearer ${config.token}`, 'Protocol-Version': '1', 'Device-Id': this.identity.deviceId, 'Client-Id': this.identity.clientId }, followRedirects: false, maxPayload: 1024 * 1024, handshakeTimeout: this.helloTimeoutMs }); }
       catch { fail('CONNECT_FAILED'); return; }
       const socket = this.socket;
-      socket.on('open', () => { socket.send(JSON.stringify({ type: 'hello', version: 1, transport: 'websocket', audio_params: pcm }), error => { if (error) fail('HELLO_SEND_FAILED'); }); });
+      socket.on('open', () => { socket.send(JSON.stringify({ type: 'hello', version: 1, features: { mcp: true }, transport: 'websocket', audio_params: pcm }), error => { if (error) fail('HELLO_SEND_FAILED'); }); });
       socket.on('error', () => fail('SOCKET_ERROR'));
       socket.on('close', () => {
         if (this.runId !== runId) return;
