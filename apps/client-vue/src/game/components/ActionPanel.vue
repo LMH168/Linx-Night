@@ -27,6 +27,7 @@ const panelClass = computed(() => isMobile.value ? 'sheet' : 'action panel');
 const isWaiting = computed(() => (store.night || store.phase === 'HUNTER_RESPONSE' || store.phase === 'LAST_WORDS') && !store.isMyAction);
 const title = computed(() => {
   if (store.phase === 'DAY_ANNOUNCEMENT') return '天亮了';
+  if (store.phase === 'NIGHT_ANNOUNCEMENT') return '等待宣布天黑';
   if (store.phase === 'SPEECH') return store.isMyAction ? '轮到你发言' : '等待发言';
   if (store.phase === 'VOTE') return '放逐投票';
   if (store.phase === 'LAST_WORDS') return '发表遗言';
@@ -82,6 +83,10 @@ async function skip() { await store.skipAction(); }
     <template v-if="store.phase === 'DAY_ANNOUNCEMENT'">
       <div class="dawn-panel"><span class="dawn-glyph" aria-hidden="true">☾</span><p>昨夜结果由主持公开播报。</p><p class="dawn-sub">等待房主宣布天亮后进入发言。</p></div>
       <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button v-if="store.playerId === store.publicState?.hostPlayerId" class="btn gold" @click="store.announceDay">宣布天亮</button></div>
+    </template>
+    <template v-else-if="store.phase === 'NIGHT_ANNOUNCEMENT'">
+      <div class="dawn-panel"><span class="dawn-glyph" aria-hidden="true">☾</span><p>遗言已经结束，继续保持黄昏状态。</p><p class="dawn-sub">等待房主宣布天黑后进入狼人行动。</p></div>
+      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button v-if="store.playerId === store.publicState?.hostPlayerId" class="btn gold" @click="store.announceNight">宣布天黑</button></div>
     </template>
 
     <template v-else-if="store.phase === 'SPEECH' && store.isMyAction">

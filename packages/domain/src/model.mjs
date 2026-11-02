@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 
 export const ROLES = Object.freeze({ WEREWOLF: 'werewolf', SEER: 'seer', WITCH: 'witch', HUNTER: 'hunter', VILLAGER: 'villager' });
 export const CAMPS = Object.freeze({ WEREWOLF: 'werewolf', GOOD: 'good' });
-export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', HUNTER_RESPONSE: 'HUNTER_RESPONSE', LAST_WORDS: 'LAST_WORDS', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
+export const PHASES = Object.freeze({ LOBBY: 'LOBBY', ROLE_ASSIGNMENT: 'ROLE_ASSIGNMENT', NIGHT_ANNOUNCEMENT: 'NIGHT_ANNOUNCEMENT', NIGHT_WOLF: 'NIGHT_WOLF', NIGHT_SEER: 'NIGHT_SEER', NIGHT_WITCH: 'NIGHT_WITCH', DAY_ANNOUNCEMENT: 'DAY_ANNOUNCEMENT', HUNTER_RESPONSE: 'HUNTER_RESPONSE', LAST_WORDS: 'LAST_WORDS', SPEECH: 'SPEECH', VOTE: 'VOTE', RESOLUTION: 'RESOLUTION', GAME_OVER: 'GAME_OVER' });
 export const PLAYER_TYPES = Object.freeze({ HUMAN: 'human', AI: 'ai' });
 export const CONNECTION_STATES = Object.freeze({ ONLINE: 'online', DISCONNECTED: 'disconnected', AI_CONTROLLED: 'ai_controlled' });
 export const CONTROLLER_STATES = Object.freeze({ PENDING: 'pending', CONNECTING: 'connecting', CONNECTED: 'connected', BINDING: 'binding', READY: 'ready', FAILED: 'failed', RECONNECTING: 'reconnecting', RELEASED: 'released' });

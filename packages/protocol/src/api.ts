@@ -17,7 +17,7 @@ export type ActionRequest =
   | { type: 'seer_check'; target_seat_id: string; action_id?: string }
   | { type: 'witch_action'; action: 'skip' | 'save' | 'poison'; target_seat_id?: string; action_id?: string }
   | { type: 'hunter_shot'; target_seat_id: string; window_id: string; action_id?: string }
-  | { type: 'announce_day'; action_id?: string };
+  | { type: 'announce_day' | 'announce_night'; action_id?: string };
 export type VoteRequest = { target_seat_id: string; action_id?: string };
 export type SpeechRequest = { text: string; action_id?: string };
 export type PresenceResponse = { ok: boolean };
