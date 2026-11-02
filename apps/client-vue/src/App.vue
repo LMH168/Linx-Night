@@ -466,6 +466,14 @@ async function submitSpeech() {
     voice.markSubmitted();
   }
 }
+async function skipHumanSpeech() {
+  if (!client.value || actionDisabled.value) return;
+  try {
+    await client.value.skipSpeech(roomId.value);
+    voice.reset();
+    await refresh();
+  } catch (error) { actionMessage.value = errorText(error); }
+}
 async function submitSkill() {
   const role = mine.value?.role;
   if (role === "werewolf")
@@ -880,6 +888,7 @@ onBeforeUnmount(() => {
                   }}
                 </p>
                 <div class="buttons">
+                  <button :disabled="actionDisabled" @click="skipHumanSpeech">不发言，结束回合</button>
                   <button
                     :disabled="voice.busy.value || actionDisabled"
                     @click="startRecording"

@@ -122,6 +122,10 @@ export class GameApiClient {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/recording-start`, { method: 'POST', body: '{}' });
   }
 
+  skipSpeech(roomId: string): Promise<{ skipped: boolean }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/skip`, { method: 'POST', body: '{}' });
+  }
+
   heartbeat(roomId: string): Promise<PresenceResponse> {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/presence`, { method: 'POST', body: '{}' });
   }

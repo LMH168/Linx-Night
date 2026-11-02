@@ -26,5 +26,12 @@ try {
   assert.ok(messages.some(message => message.type === 'error' && /录音/.test(message.message)) === false);
   assert.equal(room.speeches[0]?.text, '实时发言');
   ws.send(JSON.stringify({ type: 'stop' })); ws.close();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  room.phase='SPEECH';room.currentSeatId='P1';room.speechClock=null;room.speechPlayback=null;
+  const skip=()=>fetch(`http://127.0.0.1:${port}/api/rooms/${room.roomId}/voice/skip`,{method:'POST',headers:{'content-type':'application/json','x-player-id':'human'},body:'{}'});
+  assert.equal((await skip()).status,200);
+  assert.ok(room.events.some(event=>event.type==='game.speech_skipped'));
+  assert.equal(room.speeches.length,1,'silence must not create a fabricated transcript');
+  assert.equal((await skip()).status,400,'a stale skip must not advance the next seat');
 } finally { rooms.delete(room.roomId); roomCodes.delete(room.roomCode); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 console.log('Realtime human voice bridge accepts PCM, transcribes and submits one public speech');
