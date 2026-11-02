@@ -23,7 +23,6 @@ import type {
   ActionRequest,
   HunterResponseRequest,
   LastWordsRequest,
-  SpeechRequest,
   VoteRequest,
 } from "../../../packages/protocol/src/api";
 import CouncilLobby from "./components/CouncilLobby.vue";
@@ -50,7 +49,6 @@ const actionBusy = ref(false);
 const message = ref("");
 const actionMessage = ref("");
 const targetSeatId = ref("");
-const speechText = ref("");
 const lastWordsText = ref("");
 const witchAction = ref<"skip" | "save" | "poison">("skip");
 const settlement = ref<SettlementState | null>(null);
@@ -206,9 +204,8 @@ const voice = useHumanVoice({
   canRecord: () => action.value === "speech" && !actionDisabled.value,
   onBusyStart: () => hostPlayback.suspend(),
   onBusyEnd: () => hostPlayback.resume(),
-  onDraft: (text) => {
-    speechText.value = text;
-    actionMessage.value = "转写已填入草稿，请编辑确认后提交。";
+  onDraft: () => {
+    actionMessage.value = "语音发言已自动提交。";
     void refresh();
   },
 });
@@ -410,11 +407,10 @@ function leaveRoom() {
   message.value = "创建新房间，或加入朋友的房间。";
 }
 async function submit(
-  path: "actions" | "votes" | "speeches" | "hunter-response" | "last-words",
+  path: "actions" | "votes" | "hunter-response" | "last-words",
   body:
     | ActionRequest
     | VoteRequest
-    | SpeechRequest
     | HunterResponseRequest
     | LastWordsRequest,
 ) {
@@ -433,9 +429,7 @@ async function submit(
       ? c.submitAction(roomId.value, payload as ActionRequest)
       : path === "votes"
         ? c.submitVote(roomId.value, payload as VoteRequest)
-        : path === "speeches"
-          ? c.submitSpeech(roomId.value, payload as SpeechRequest)
-          : path === "hunter-response"
+        : path === "hunter-response"
             ? c.submitHunterResponse(
                 roomId.value,
                 payload as HunterResponseRequest,
@@ -457,13 +451,6 @@ async function submit(
     return false;
   } finally {
     if (run === generation) actionBusy.value = false;
-  }
-}
-async function submitSpeech() {
-  if (voice.busy.value || !speechText.value.trim()) return;
-  if (await submit("speeches", { text: speechText.value.trim() })) {
-    speechText.value = "";
-    voice.markSubmitted();
   }
 }
 async function skipHumanSpeech() {
@@ -615,7 +602,6 @@ const reportSpeeches = computed(
 );
 watch(actionKey, () => {
   targetSeatId.value = "";
-  speechText.value = "";
   lastWordsText.value = "";
   witchAction.value = "skip";
   actionMessage.value = "";
