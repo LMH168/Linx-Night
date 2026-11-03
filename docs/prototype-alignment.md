@@ -21,3 +21,17 @@
 新增 `tests/prototype-alignment.test.mjs`：真实 HTTP 并发版本冲突、认证、AI 信息交换、准备锁定；首次夜晚、失效播放回调、失败与重试、不能跳过入夜播报、AI 遗言声音及播完再推进、首夜遗言接白天、PK 无人出局、生产绑定主持 MCP 权限。
 
 真实 Linx 主持工具、麦克风和音色仍需本机实际配置联调；模拟传输测试不能代替听感验收。
+
+## 视觉与运行
+
+正式入口 `apps/client-vue/index.html` 和 `game.html` 共用 `App.vue`，未使用原型引擎。摄影背景、光照层、TableTop 和等弧长算法来自原型参考版本；席位、权限、倒计时、SSE 和声音全部继续使用正式接口。减少动态效果支持系统设置和页面开关。结算翻牌只读取已认证的 settlement 响应；重连不补播历史动画。最新原型独立快照保存在本地 `artifacts/eclipse-live/reference-prototype/prototypes/eclipse-council`，原型远端分支和原有 stash 均保留。
+
+前端构建：`node node_modules/vite/bin/vite.js build --config apps/client-vue/vite.config.ts`。输出 `apps/client-vue/dist/index.html` 与 `game.html`，需要 HTTP 服务及真实 API，不能双击作为脱离后端的单文件游戏。
+
+本机启动正式后端时先加载现有 Linx 配置并确保 `PORT=5100`（与本地客户端默认值一致），执行 `node run.mjs`；再执行 `node node_modules/vite/bin/vite.js --config apps/client-vue/vite.config.ts --host 127.0.0.1`。也可以用页面 `?api=...` 指向实际 API 地址。不要将仅供 UI 验证的模拟控制器服务用作真实游戏后端。
+
+最终验证：类型检查通过；Vue 12 个测试文件、30 个测试通过（含授权报告到达前不翻牌、重连不重播、动画不能推进游戏）；生产构建通过。后端语法及 domain/API/权限隐私/SSE/MCP/回合/控制器/实时语音/播放回归共 61 条命令通过。构建仍有原有独立 3D werewolf 入口的大包提示；jsdom 无 canvas 的提示不影响测试。
+
+浏览器实际检查 1600×1000、1280×800、390×844 的大厅和对局，验证创建房间、空位移动、与 AI 交换、刷新恢复及授权结束结算。手机大厅整页滚动且无横向溢出；截图位于 `artifacts/eclipse-live/`。浏览器验证使用隔离的本地 API 和模拟控制器；没有据此宣称实际 Linx 音色或主持工具已验收。
+
+当前进程未配置 LINX_HOST_PROFILE、LINX_HOST_AGENT_ID、LINX_AGENT_ID、LINX_MCP_ADMIN_URL、MCP_AUTH_TOKEN，两个项目目录也没有 .env；因此真实 Linx 主持、真人麦克风与实际音色联调尚未完成。

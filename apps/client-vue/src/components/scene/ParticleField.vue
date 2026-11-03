@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-type Mode = 'fog' | 'dust' | 'ember'
+type Mode = 'fog' | 'mist' | 'dust' | 'ember'
 
 const props = withDefaults(defineProps<{ mode?: Mode; count?: number }>(), {
   mode: 'fog',
@@ -44,15 +44,14 @@ interface Particle {
 
 const reduced =
   typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
 
 function buildSprite(color: string): HTMLCanvasElement {
   const size = 48
   const c = document.createElement('canvas')
   c.width = size
   c.height = size
-  const g = c.getContext('2d')
-  if (!g) return c
+  const g = c.getContext('2d')!
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
   grad.addColorStop(0, color)
   grad.addColorStop(0.4, color.replace(/[\d.]+\)$/, '0.32)'))
@@ -65,6 +64,7 @@ function buildSprite(color: string): HTMLCanvasElement {
 function palette(mode: Mode): { color: string; speed: number; size: [number, number] } {
   if (mode === 'dust') return { color: 'rgba(255,248,226,0.8)', speed: 0.16, size: [0.6, 2.0] }
   if (mode === 'ember') return { color: 'rgba(255,198,132,0.85)', speed: 0.28, size: [0.7, 2.4] }
+  if (mode === 'mist') return { color: 'rgba(255,226,196,0.7)', speed: 0.13, size: [1.0, 3.4] }
   return { color: 'rgba(203,223,255,0.62)', speed: 0.11, size: [1.4, 5.0] }
 }
 
@@ -135,7 +135,7 @@ let observer: ResizeObserver | null = null
 onMounted(() => {
   if (reduced) return
   resize()
-  if (!ctx || !globalThis.ResizeObserver) return
+  if (!ctx) return
   observer = new ResizeObserver(() => resize())
   if (canvas.value) observer.observe(canvas.value)
   document.addEventListener('visibilitychange', onVisibility)
