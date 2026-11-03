@@ -1,20 +1,23 @@
 // Project the existing records; do not create a second transcript store.
 export function publicConversation(room, hidden = new Set()) {
-  return (room.events || []).flatMap(event => {
+  const records = (room.events || []).flatMap(event => {
     const kind = event.type === 'game.speech_submitted' ? 'speech' : event.type === 'game.last_words_submitted' ? 'lastwords' : null;
     if (!kind) return [];
     const id = kind === 'speech' ? event.data.speechId : event.data.lastWordsId;
     if (kind === 'speech' && hidden.has(id)) return [];
     const record = kind === 'speech' ? room.speeches.find(s => s.speechId === id) : room.lastWordsHistory?.find(s => s.lastWordsId === id);
     if (!record) return [];
-    return [{ id, sequence: event.version, kind, seatId: record.seatId, round: record.round, text: record.text || '', ...(record.audioId ? { audioId: record.audioId } : {}), transcriptionStatus: record.transcriptionStatus || (record.text ? 'completed' : 'failed'), textSource: record.textSource || (record.text ? 'submitted' : null) }];
+    return [{ id, sequence: record.sequence ?? event.version, kind, seatId: record.seatId, round: record.round, text: record.text || '', ...(record.audioId ? { audioId: record.audioId } : {}), transcriptionStatus: record.transcriptionStatus || (record.text ? 'completed' : 'failed'), textSource: record.textSource || (record.text ? 'submitted' : null) }];
   });
+  const live=room.liveTranscript;
+  if(live && live.gameId===room.gameId)records.push({id:live.id,sequence:live.sequence,kind:live.kind,seatId:live.seatId,round:live.round,text:live.text,transcriptionStatus:live.transcriptionStatus,textSource:live.textSource});
+  return records;
 }
 export function publicContextVersion(room) {
-  return (room.events || []).reduce((version, event) => /^game\.(speech|last_words)_(submitted|transcript_updated)$/.test(event.type) ? Math.max(version, event.version) : version, 0);
+  return (room.events || []).reduce((version, event) => /^game\.((speech|last_words)_(submitted|transcript_updated)|live_transcript_(started|updated|cancelled))$/.test(event.type) ? Math.max(version, event.version) : version, 0);
 }
 export function pendingPublicContext(room) {
-  return [...(room.speeches || []), ...(room.lastWordsHistory || [])].some(s => ['pending', 'processing'].includes(s.transcriptionStatus));
+  return Boolean(room.liveTranscript && room.liveTranscript.gameId===room.gameId) || [...(room.speeches || []), ...(room.lastWordsHistory || [])].some(s => ['pending', 'processing'].includes(s.transcriptionStatus));
 }
 // Pause only decision windows. Human microphone windows keep running normally.
 export function syncPublicContextClocks(room, now = Date.now()) {

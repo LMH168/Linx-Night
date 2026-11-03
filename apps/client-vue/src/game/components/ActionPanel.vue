@@ -15,6 +15,7 @@ const voice = useHumanVoice({
   client,
   roomId,
   realtime: true,
+  lastWordsWindowId: () => store.privateState?.lastWords?.windowId,
   contextKey: () => [store.roomId, store.publicState?.gameId, store.publicState?.round, store.phase, store.publicState?.currentSeatId, store.selfSeatId].join(':'),
   canRecord: () => ['SPEECH','LAST_WORDS'].includes(store.phase) && store.isMyAction && !store.publicState?.hostPlaybackBlocked,
   mode: () => store.phase === 'LAST_WORDS' ? 'lastwords' : 'speech',
@@ -90,6 +91,10 @@ async function skip() { await store.skipAction(); }
     <template v-else-if="['SPEECH','LAST_WORDS'].includes(store.phase) && store.isMyAction">
       <p class="action-notice">轮到你时自动开麦，点击结束发言；保持安静也请点击结束。</p>
       <p class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在保存语音……' : voice.draft.value.error }}</p>
+      <p v-if="voice.recognitionWarning.value" role="alert">{{ voice.recognitionWarning.value }}</p>
+      <textarea :value="voice.draft.value.text" :maxlength="store.phase === 'LAST_WORDS' ? 200 : 1200" @input="voice.setTranscript(($event.target as HTMLTextAreaElement).value)" aria-label="实时发言文字" placeholder="说话时实时识别，也可输入文字" />
+      <p v-if="voice.savedRevision.value">文字已实时保存</p>
+      <button :disabled="!voice.draft.value.text.trim() || voice.draft.value.stage === 'transcribing'" @click="voice.submitText">保存并提交文字</button>
       <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button v-if="voice.draft.value.stage === 'recording'" class="btn gold" @click="voice.stop">结束发言</button><button v-if="voice.draft.value.stage === 'failed'" class="btn ghost" @click="voice.start">重试麦克风</button></div>
     </template>
 

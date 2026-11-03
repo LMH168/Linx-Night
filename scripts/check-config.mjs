@@ -10,7 +10,7 @@ export async function checkConfig({ env = process.env, fs = { access, readFile }
   try { voiceConfig(env); } catch(error) { missing.push(error.message); }
   for (const key of ['LINX_HOST_PROFILE','LINX_HOST_AGENT_ID','LINX_AGENT_ID', 'LINX_MCP_ADMIN_URL', 'LINX_MCP_ADMIN_TOKEN', 'MCP_AUTH_TOKEN', 'ADMIN_TOKEN']) if (!env[key]?.trim()) missing.push(key);
   const profiles = String(env.LINX_PROFILES || 'player-a,player-b').split(',').map(name => name.trim()).filter(Boolean);
-  if(env.LINX_HOST_PROFILE && (profiles.includes(env.LINX_HOST_PROFILE)||env.LINX_HOST_PROFILE===env.LINX_VOICE_PROFILE))missing.push('LINX_HOST_PROFILE: must be independent');
+  if(env.LINX_HOST_PROFILE && profiles.includes(env.LINX_HOST_PROFILE))missing.push('LINX_HOST_PROFILE: must be independent');
   if(env.LINX_HOST_AGENT_ID===env.LINX_AGENT_ID)missing.push('LINX_HOST_AGENT_ID: must be independent');
   if(env.LINX_HOST_PROFILE)try{await fs.access(`${profilePath(env.LINX_HOST_PROFILE)}/identity.json`);}catch{missing.push('LINX_HOST_PROFILE: missing identity');}
   const seats=String(env.LINX_SEATS || 'P2,P3,P4,P5,P6,P7,P8,P9').split(',').map(s=>s.trim()).filter(Boolean);
@@ -18,7 +18,6 @@ export async function checkConfig({ env = process.env, fs = { access, readFile }
   if(seats.some(s=>!/^P[1-9]$/.test(s)) || new Set(seats).size!==seats.length)missing.push('LINX_SEATS: invalid');
   if(env.LINX_MCP_ADMIN_TOKEN!==env.ADMIN_TOKEN)missing.push('LINX_MCP_ADMIN_TOKEN: must match ADMIN_TOKEN');
   if(env.ADMIN_TOKEN && env.ADMIN_TOKEN===env.MCP_AUTH_TOKEN)missing.push('ADMIN_TOKEN: must differ from MCP_AUTH_TOKEN');
-  if(env.LINX_VOICE_PROFILE){if(profiles.includes(env.LINX_VOICE_PROFILE))missing.push('LINX_VOICE_PROFILE: must be independent');else{try{await fs.access(`${profilePath(env.LINX_VOICE_PROFILE)}/identity.json`);}catch{missing.push('LINX_VOICE_PROFILE: missing identity');}}}
   for (const profile of profiles) { try { await fs.access(`${profilePath(profile)}/identity.json`); } catch { missing.push(`profile:${profile}`); } }
   for (const [key, file] of [['LINX_TURN_WAV','turn.wav'],['LINX_HUNTER_WAV','hunter.wav']]) {
     try { const wav=env[key] || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', file); await fs.access(wav); if(fs.readFile)parseTriggerWav(await fs.readFile(wav)); }

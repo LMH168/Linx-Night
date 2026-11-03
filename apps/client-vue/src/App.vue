@@ -208,6 +208,7 @@ const voice = useHumanVoice({
   client,
   roomId,
   realtime: true,
+  lastWordsWindowId: () => mine.value?.lastWords?.windowId,
   mode: () => action.value === "lastwords" ? "lastwords" : "speech",
   contextKey: () => actionKey.value,
   canRecord: () => (action.value === "speech" || action.value === "lastwords") && !actionDisabled.value && !state.value?.hostPlaybackBlocked,
@@ -946,6 +947,14 @@ onBeforeUnmount(() => {
                 >
               </div></template
             >
+            <section v-if="action === 'speech' || action === 'lastwords'" class="voice-transcript">
+              <p v-if="voice.recognitionWarning.value" role="alert">{{ voice.recognitionWarning.value }}</p>
+              <label>发言文字（可手动修正）
+                <textarea :value="voice.draft.value.text" :maxlength="action === 'lastwords' ? 200 : 1200" @input="voice.setTranscript(($event.target as HTMLTextAreaElement).value)" placeholder="说话时实时识别；也可直接输入文字" />
+              </label>
+              <p v-if="voice.savedRevision.value" role="status">识别文字已实时保存，结束后供 AI 查询。</p>
+              <button :disabled="actionDisabled || !voice.draft.value.text.trim() || voice.draft.value.stage === 'transcribing'" @click="voice.submitText">{{ voice.draft.value.stage === 'recording' ? '保存文字并结束' : '提交文字' }}</button>
+            </section>
             <template v-if="action === 'skill' && mine?.role === 'witch'"
               ><label
                 >女巫行动<select

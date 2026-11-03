@@ -33,7 +33,6 @@ npm.cmd ci
 | --- | --- | --- | --- |
 | 玩家 | 狼人杀 AI 玩家 | 中文、启用 Function Call、无跨会话记忆；复制 [玩家人设](../apps/mcp/prompts/player.md) | player-a 到 player-h |
 | 主持 | 狼人杀主持人 | 中文、启用 Function Call、无跨会话记忆；复制 [主持人设](../apps/mcp/prompts/host.md) | host |
-| 转写 | 狼人杀语音转写 | 中文、无记忆；人设可填“准确识别用户中文语音，不调用游戏工具”；不关联游戏 MCP | web-voice |
 
 保存玩家和主持的 Agent ID（配置页地址中的 `agentId=` 值）。玩家八个设备可共用一个 Agent，主持必须独立。音色在程序中按玩家身份指定，不需要建立八个玩家 Agent。平台菜单名称可能随版本变化。
 
@@ -42,7 +41,7 @@ npm.cmd ci
 不需要实体硬件。在本机初始化独立身份：
 
 ```powershell
-$profiles = @('player-a','player-b','player-c','player-d','player-e','player-f','player-g','player-h','host','web-voice')
+$profiles = @('player-a','player-b','player-c','player-d','player-e','player-f','player-g','player-h','host')
 foreach ($profile in $profiles) { node scripts/linx-client.mjs init $profile }
 ```
 
@@ -52,7 +51,7 @@ foreach ($profile in $profiles) { node scripts/linx-client.mjs init $profile }
 node scripts/linx-client.mjs activate player-a
 ```
 
-终端显示六位激活码后，在智控台进入对应智能体的设备管理，选择添加/激活设备并输入该码。保持命令运行，直到显示“激活成功”。依次将命令末尾替换为其余身份；前八个关联玩家 Agent，host 关联主持 Agent，web-voice 关联转写 Agent。
+终端显示六位激活码后，在智控台进入对应智能体的设备管理，选择添加/激活设备并输入该码。保持命令运行，直到显示“激活成功”。依次将命令末尾替换为其余身份；前八个关联玩家 Agent，host 关联主持 Agent。
 
 每次最多等待五分钟，过期重新执行同一身份的 activate；不要删除 identity.json 重新生成。身份保存在 `%LOCALAPPDATA%\LinxNight\profiles`，不在仓库中。其他电脑要初始化和激活自己的身份，不复制作者或同事的身份文件、激活码或 Token。
 
@@ -84,7 +83,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 - 第一份填 `ADMIN_TOKEN`，并原样填 `LINX_MCP_ADMIN_TOKEN`。这两项必须相同，仅本机内部管理使用。
 - 第二份填 `MCP_AUTH_TOKEN`，仅这份用于灵矽 MCP 认证；必须与管理员令牌不同。
 - `LINX_AGENT_ID` 填自己的玩家 Agent ID；`LINX_HOST_AGENT_ID` 填自己的主持 Agent ID。
-- 保留模板的八个玩家 profile、host、web-voice，以及 5100/5110/9191 端口。
+- 保留模板的八个玩家 profile、host，以及 5100/5110/9191 端口。
 
 音色必须使用实际 ID，名称不能代替 ID。可自行从官方列表选九个不同 ID，填入 `LINX_PLAYER_VOICES` 单行 JSON 和 `LINX_HOST_VOICE_ID`。也可使用项目预选方案：
 
@@ -185,7 +184,7 @@ npm.cmd ci
 | AI 一直 connecting/binding | 检查设备是否激活到正确 Agent、两 Agent 是否关联当前 MCP、Function Call 和认证是否有效 |
 | 身份不足或 PROFILE_IN_USE | 八个独立身份齐全；结束旧房间，避免同一 profile 并发占用 |
 | 主持不播报/一直等待 | 检查公共声音开关、浏览器音频权限、任务错误；失败可重试，跳过不代表真实播放成功 |
-| 录音失败 | 使用 localhost 安全上下文、允许麦克风，确认 web-voice 激活且没有游戏 MCP；可改文字 |
+| 录音失败 | 使用 localhost 安全上下文、允许麦克风，确认浏览器支持 SpeechRecognition 且可连接其识别服务；可改文字 |
 | 重启后旧房间不存在 | 正常现象，创建新房间 |
 
 可选本机回归：
@@ -197,3 +196,5 @@ npm.cmd run test:delivery
 ```
 
 这些是自动化测试，不能替代真实音色听检或完整对局。当前已验证九种指定音色返回、程序音频转写、八 AI 与主持自动开局及第一夜到白天；最近网页联调仍出现音频提前暂停，连续播放、真人麦克风和完整多昼夜尚未全部验收。进度以 [#79](https://github.com/LMH168/Linx-Night/issues/79) 与 [#80](https://github.com/LMH168/Linx-Night/issues/80) 为准。
+
+真人发言及遗言使用浏览器 SpeechRecognition 边说边识别，经实时连接保存文字；无需激活 web-voice。具体行为和兼容性见 [网页语音](web-voice.md)。
