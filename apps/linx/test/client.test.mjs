@@ -286,3 +286,33 @@ test('manual PCM relay survives early and aborted model replies until input stop
     assert.equal(client.stream,null);
   } finally {client.close();await mock.close();}
 });
+
+test('human audio input resolves on STT, suppresses replies and preserves session for the turn cue', async () => {
+  const received = [], output = [];
+  const mock = await mockServer(socket => socket.on('message', (raw, binary) => {
+    if (binary) { received.push(Buffer.from(raw)); return; }
+    const m = JSON.parse(raw);
+    if (m.type === 'hello') socket.send(JSON.stringify({type:'hello',transport:'websocket',session_id:'listener',audio_params:pcm}));
+    if (m.state === 'stop') {
+      socket.send(JSON.stringify({type:'stt',text:'我认为五号值得怀疑'}));
+      socket.send(JSON.stringify({type:'tts',state:'start'}));
+      socket.send(Buffer.alloc(640));
+      socket.send(JSON.stringify({type:'tts',state:'stop'}));
+    }
+    if (m.state === 'detect') {
+      socket.send(JSON.stringify({type:'stt',text:m.text}));
+      socket.send(JSON.stringify({type:'tts',state:'stop'}));
+    }
+  }));
+  const client = new LinxClient(identity,{socketFactory:mock.factory,onAudio:b=>output.push(b),actionTimeoutMs:1000});
+  try {
+    await client.connect(config);
+    const input=wav(320);input.writeInt16LE(1234,44);
+    const result=await client.send(input,{inputOnly:true});
+    assert.equal(result.text,'我认为五号值得怀疑');
+    assert.deepEqual(Buffer.concat(received),input.subarray(44));
+    assert.equal(output.length,0);
+    assert.equal(client.state,'ready');
+    await client.send('现在轮到你，查询公开发言后提交');
+  } finally {client.close();await mock.close();}
+});

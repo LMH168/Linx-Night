@@ -83,14 +83,20 @@ export class LinxClient {
         if (message.type === 'error') { fail('PLATFORM_ERROR'); return; }
         // A manual PCM relay is a pre-listen phase. Keep any early/late TTS
         // private until the explicit text cue starts the public turn.
-        if(message.type==='stt' && (this.pending?.sent || (this.stream && this.stream.listenMode !== 'manual')))this.suppressOutput=false;
+        if(message.type==='stt' && !this.pending?.inputOnly && (this.pending?.sent || (this.stream && this.stream.listenMode !== 'manual')))this.suppressOutput=false;
         const suppressedTts = message.type === 'tts' && this.suppressOutput;
         if (!suppressedTts) this.onMessage(message);
+        if (message.type === 'stt' && this.pending?.inputOnly && this.pending.sent) {
+          if (typeof message.text !== 'string' || !message.text.trim()) { this.pending.reject(new Error('PUBLIC_AUDIO_EMPTY_TRANSCRIPT')); return; }
+          this.pending.transcript = message.text.trim();
+          this.cancelTurn();
+        }
         if (message.type === 'stt') this.event('stt', { textLength: typeof message.text === 'string' ? message.text.length : 0, attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
         if (message.type === 'tts' && ['start', 'stop', 'sentence_start'].includes(message.state)) {
           if (message.state === 'start' && this.pending?.sent) this.pending.ttsStarted = true;
           this.event(`tts_${message.state}`, { attemptId: this.pending?.attemptId ?? this.stream?.attemptId });
           if (message.state === 'stop') {
+            if (this.pending?.inputOnly) return;
             const active = this.pending?.sent ? this.pending : this.stream;
             if (active) {
               // Linx may answer or abort an answer before manual input ends.
@@ -149,7 +155,7 @@ export class LinxClient {
       clearTimeout(stream.timer); stream.abort.abort(); if (this.stream === stream) this.stream = null;
     }
   }
-  async send(wav, { timeoutMs = this.actionTimeoutMs, voiceId } = {}) {
+  async send(wav, { timeoutMs = this.actionTimeoutMs, voiceId, inputOnly = false } = {}) {
     if (voiceId !== undefined && (typeof voiceId !== 'string' || !voiceId.trim() || voiceId.length > 128)) throw new Error('VOICE_ID_INVALID');
     const voice = voiceId ? { agent_params: { voice: { id: voiceId } } } : {};
     const text = typeof wav === 'string' ? wav.trim() : null;
@@ -157,8 +163,9 @@ export class LinxClient {
     const audio = text === null ? parseWav(wav) : null;
     if (this.state !== 'ready' || this.pending || this.stream) throw new Error('连接未准备或已有行动等待结束');
     const attemptId = randomUUID(), abort = new AbortController();
+    if (inputOnly) this.suppressOutput = true;
     let timer;
-    const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), timeoutMs); });
+    const completion = new Promise((resolve, reject) => { this.pending = { resolve, reject, sent: false, attemptId, inputOnly }; timer = setTimeout(() => reject(new Error('ACTION_TIMEOUT')), timeoutMs); });
     // Attach a handler immediately: a disconnect may occur while audio is still being sent.
     completion.catch(() => abort.abort());
     const control = (state) => JSON.stringify({ ...(this.sessionId ? { session_id: this.sessionId } : {}), type: 'listen', state, ...voice, ...(state === 'start' ? { mode: 'manual' } : {}) });
@@ -182,7 +189,7 @@ export class LinxClient {
       }
       this.event('input_stop', { attemptId });
       await completion; this.event('turn_finished', { attemptId, gameAccepted: 'unverified', durationMs: Date.now() - startedAt });
-      return { attemptId, gameAccepted: 'unverified' };
+      return { attemptId, gameAccepted: 'unverified', ...(inputOnly ? { text: this.pending.transcript } : {}) };
     } catch (error) {
       const code = abort.signal.aborted ? 'ACTION_INTERRUPTED_OR_TIMEOUT' : (/^[A-Z_]+$/.test(error.message) ? error.message : 'SEND_FAILED');
       this.event('input_failure', { attemptId, code }); this.close(); throw new Error(code);

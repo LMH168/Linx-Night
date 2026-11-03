@@ -14,3 +14,37 @@ describe('human voice encoding', () => {
     expect(bytesToBase64(wav)).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });
 });
+
+it('accepts a realtime recording before any transcript exists', async () => {
+  const { ref } = await import('vue');
+  const { vi } = await import('vitest');
+  const { useHumanVoice } = await import('./useHumanVoice');
+  let socket: any;
+  const track = { stop: vi.fn() };
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) } });
+  vi.stubGlobal('AudioContext', class {
+    destination = {};
+    createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+    createScriptProcessor() { return { connect() {}, disconnect() {} }; }
+    async close() {}
+  });
+  vi.stubGlobal('WebSocket', class {
+    static OPEN = 1;
+    readyState = 1;
+    onopen: any;
+    onmessage: any;
+    constructor() { socket = this; queueMicrotask(() => this.onopen?.()); }
+    send() {}
+    close() {}
+    addEventListener() {}
+  });
+  const client = { recordingStart: async () => ({ recordingId: 'r1', deadline: Date.now() + 30000 }), recordingCancel: async () => {}, voiceRealtimeUrl: () => 'ws://test' };
+  const voice = useHumanVoice({ client: ref(client) as any, roomId: ref('room'), contextKey: () => 'turn', canRecord: () => true, realtime: true });
+  try {
+    await voice.start();
+    socket.onmessage({ data: JSON.stringify({ type: 'accepted', text: '', audio_id: 'recorded' }) });
+    expect(voice.draft.value.stage).toBe('idle');
+    expect(track.stop).toHaveBeenCalled();
+    expect(voice.draft.value.error).toBeNull();
+  } finally { await voice.cancel(); vi.unstubAllGlobals(); }
+});

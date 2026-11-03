@@ -59,7 +59,6 @@ const settlementActor = (req, settlementId) => { const playerId = req.headers['x
 
 export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, realtimeVoice, hostPlayback, linxSeats = configuredLinxSeats(process.env) } = {}) {
   const transcriptions = new Set();
-  if (realtimeVoice && typeof voice !== 'function') recordTurn('human_transcription_failed', { code: 'REALTIME_TRANSCRIBE_UNAVAILABLE' });
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
@@ -180,14 +179,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         const audio = await savePublicAudio(room, seat.seatId, relay.chunks);
         if (!valid()) { await unlink(audio.path).catch(() => {}); room.audioRecords = room.audioRecords.filter(item => item !== audio); finish(); return false; }
         try {
-        if (typeof voice !== 'function') throw Object.assign(new Error('实时语音转写不可用，请改用文字输入或重新录音'), { code: 'REALTIME_TRANSCRIBE_UNAVAILABLE' });
-        recordTurn('human_transcription_started', { roomId: room.roomId, gameId, seatId: seat.seatId });
-        const wav = pcmWav(Buffer.concat(relay.chunks));
-        const deadline = mode === 'lastwords' ? Date.parse(room.lastWords?.expiresAt) : room.speechClock?.expiresAt;
-        const transcript = await voice({ kind: 'transcribe', wav, signal: AbortSignal.timeout(Math.min(60000, Math.max(1, deadline - Date.now()))) });
-        const text = typeof transcript?.text === 'string' ? transcript.text.trim().slice(0, mode === 'lastwords' ? 200 : 1200) : '';
-        if (!text) throw Object.assign(new Error('实时语音转写为空，请改用文字输入或重新录音'), { code: 'REALTIME_TRANSCRIBE_EMPTY' });
-        recordTurn('human_transcription_completed', { roomId: room.roomId, gameId, seatId: seat.seatId });
+        const text = ''; // Original audio is the human speech; transcription never gates submission.
         const action = `realtime_${randomUUID()}`;
         if (recordingId) confirmRecording(room, seat, recordingId);
         const media = { audioId: audio.audioId, audioPath: audio.path, durationMs: audio.durationMs };
@@ -200,7 +192,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text, audio_id: audio.audioId }));
         return true;
         } catch(error) {
-          recordTurn('human_transcription_failed', { roomId: room.roomId, gameId, seatId: seat.seatId, code: error.code || 'REALTIME_TRANSCRIBE_FAILED' });
+          recordTurn('human_audio_failed', { roomId: room.roomId, gameId, seatId: seat.seatId, code: error.code || 'HUMAN_AUDIO_FAILED' });
           if(!submitted){await unlink(audio.path).catch(()=>{});room.audioRecords=room.audioRecords.filter(item=>item!==audio);}
           const window = mode === 'lastwords' ? room.lastWords : room.speechClock;
           if (!submitted && window?.recordingId === recordingId) {

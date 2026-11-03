@@ -98,7 +98,7 @@ export function announceDay(room) {
 
 export function submitSpeech(room, seatId, text, actionId, media = null) {
   if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
-  const seat = requireAlive(room, seatId); const normalized = typeof text === 'string' ? text.trim() : ''; if (!normalized || normalized.length > MAX_SPEECH_LENGTH) throw new RuleError('speech must be 1-1200 characters');
+  const seat = requireAlive(room, seatId); const normalized = typeof text === 'string' ? text.trim() : ''; if ((!normalized && !(seat.playerType === 'human' && media?.audioId && media?.audioPath)) || normalized.length > MAX_SPEECH_LENGTH) throw new RuleError('speech must be 1-1200 characters');
   recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: normalized, ...(media?.audioId ? { audioId: media.audioId, audioPath: media.audioPath, durationMs: media.durationMs } : {}) }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
   if (room.hostPlaybackEnabled && ((seat.playerType === 'ai' && seat.controlSource === 'linx') || room.realtimeSpeech)) {
     room.speechPlayback = { speechId: actionId, seatId, round: room.round, taskId: null, status: 'pending', attempts: 0, errorCode: null };
@@ -241,7 +241,7 @@ export function announceNight(room) {
 
 export function submitLastWords(room, seatId, text, actionId, windowId, media = null) {
   if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.seatId !== seatId || room.lastWords.windowId !== windowId) throw new RuleError('last words window mismatch');
-  if (commandKey(room, actionId)) throw new RuleError('duplicate action'); if (typeof text !== 'string' || !text.trim() || text.trim().length > MAX_LAST_WORDS_LENGTH) throw new RuleError('last words must be 1-200 characters');
+  if (commandKey(room, actionId)) throw new RuleError('duplicate action'); if (typeof text !== 'string' || (!text.trim() && !(room.seats.find(s => s.seatId === seatId)?.playerType === 'human' && media?.audioId && media?.audioPath)) || text.trim().length > MAX_LAST_WORDS_LENGTH) throw new RuleError('last words must be 1-200 characters');
   recordAction(room, { actionId, turnId: room.round, actionType: 'last_words', seatId }); return closeLastWords(room, 'submitted', text.trim(), media);
 }
 
