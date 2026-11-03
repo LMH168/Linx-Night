@@ -87,7 +87,7 @@ export class LinxTurnRuntime {
   }
   async play(room, seat, attempt = 0) {
     const gameId = room.gameId;
-    let turn, timer, poll, stored, acceptedRecorded = false, retryVote = false;
+    let turn, timer, poll, stored, acceptedRecorded = false, retryVote = false, retrySpeech = false, retryReason = null;
     const hunterWindow = room.phase === 'HUNTER_RESPONSE' ? room.hunterResponse : null;
     const lastWordsWindow = room.phase === 'LAST_WORDS' ? room.lastWords : null;
     const responseWindow = hunterWindow || lastWordsWindow;
@@ -133,6 +133,8 @@ export class LinxTurnRuntime {
       const code = windowExpired ? expiredCode : cancelled ? 'TURN_CANCELLED' : error.message === 'TURN_TIMEOUT' ? 'TURN_TIMEOUT' : 'LINX_INPUT_FAILED';
       const recoverableInput = ['TURN_TIMEOUT', 'LINX_INPUT_FAILED'].includes(error.message);
       retryVote = code === 'TURN_TIMEOUT' && turn?.phase === 'VOTE' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
+      retrySpeech = recoverableInput && code !== 'TURN_CANCELLED' && turn?.phase === 'SPEECH' && attempt === 0 && seat.controlSource === 'linx' && actionAvailable(room, seat);
+      retryReason = code;
       recordTurn('finished',{...context,code});
       // A required night action cannot be left as a failed controller: the
       // phase would otherwise wait forever for this seat. Apply the same
@@ -140,7 +142,7 @@ export class LinxTurnRuntime {
       // lease exactly once. This does not impersonate an MCP call or alter a
       // successful Linx path; it only resolves a missed deadline.
       const canDefaultNight = recoverableInput && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && ['NIGHT_WOLF', 'NIGHT_SEER', 'NIGHT_WITCH'].includes(room.phase);
-      const canSkipSpeech = recoverableInput && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'SPEECH';
+      const canSkipSpeech = recoverableInput && !retrySpeech && seat.controlSource === 'linx' && active() && actionAvailable(room, seat) && room.phase === 'SPEECH';
       let defaultedNight = false;
       if (canDefaultNight) {
         try {
@@ -159,7 +161,8 @@ export class LinxTurnRuntime {
           skipSpeech(room, seat.seatId, `timeout_${turn?.turnId ?? context.turnId}`);
           if (turn) completeTurn(room, turn.turnId);
           skippedSpeech = true;
-          recordTurn('speech_skipped', {...context,reason:'TURN_TIMEOUT'});
+          recordTurn('speech_skipped', {...context,reason:code});
+          recordTurn('speech_retry_exhausted', {...context,reason:code});
         } catch (skipError) {
           recordTurn('speech_skip_failed', {...context,reason:'TURN_TIMEOUT',code:skipError.message});
         }
@@ -200,7 +203,12 @@ export class LinxTurnRuntime {
     }
     // A stalled model may query state without submitting. Retry once with a new
     // session and lease; never invent a vote or reuse an expired lease.
-    if (retryVote && active() && room.phase === turn.phase && room.round === turn.round && actionAvailable(room, seat)) {
+    if (retrySpeech && active() && room.phase === turn.phase && room.round === turn.round && actionAvailable(room, seat)) {
+      updateController(room, seat.seatId, { status: 'released', errorCode: null });
+      recordTurn('speech_retry_started', {...context,reason:retryReason});
+      await this.play(room, seat, attempt + 1);
+      recordTurn('speech_retry_finished', {...context,attempt:attempt + 1});
+    } else if (retryVote && active() && room.phase === turn.phase && room.round === turn.round && actionAvailable(room, seat)) {
       updateController(room, seat.seatId, { status: 'released', errorCode: null });
       recordTurn('vote_retry_started', context);
       await this.play(room, seat, attempt + 1);
