@@ -1,3 +1,4 @@
+import { syncPublicContextClocks } from './public-conversation.mjs';
 import { randomUUID } from 'node:crypto';
 import { appendEvent, CAMPS, CONNECTION_STATES, PHASES, ROLES, SETTLEMENT_TYPES, createSettlement } from './model.mjs';
 
@@ -13,16 +14,18 @@ const requireAlive = (room, seatId) => { const seat = seatOf(room, seatId); if (
 const commandKey = (room, key) => room.actions.some(action => action.actionId === key) || room.votes.some(vote => vote.voteId === key);
 const recordAction = (room, action) => { if (commandKey(room, action.actionId)) throw new RuleError('duplicate action'); room.actions.push(action); room.version += 1; appendEvent(room, { type: 'game.action_submitted', data: { actionId: action.actionId } }); };
 const transition = (room, phase, data = {}) => {
-  if (room.nightWindow?.phase === room.phase && Date.now() < room.nightWindow.expiresAt) {
+  if (room.nightWindow?.phase === room.phase && (room.nightWindow.publicContextPausedAt !== undefined || Date.now() < room.nightWindow.expiresAt)) {
     room.nightWindow.next = {phase, data};
     return;
   }
   room.phase = phase; room.currentSeatId = data.seatId ?? null;
   room.nightWindow = room.nightPhaseDurationMs && phase.startsWith('NIGHT_') ? {phase, expiresAt:Date.now()+room.nightPhaseDurationMs} : null;
+  syncPublicContextClocks(room);
   room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } });
 };
 
 export function advanceNightWindow(room) {
+  if (syncPublicContextClocks(room) && room.nightWindow?.publicContextPausedAt !== undefined) return false;
   const window = room.nightWindow;
   if (!window || window.phase !== room.phase || Date.now() < window.expiresAt || !window.next) return false;
   transition(room,window.next.phase,window.next.data); skipAbsentRoles(room); return true;
@@ -251,6 +254,7 @@ export function skipLastWords(room, seatId, actionId, windowId) {
 }
 
 export function expireLastWords(room, now = Date.now()) {
+  if (syncPublicContextClocks(room, now) && room.lastWords?.publicContextPausedAt !== undefined) return false;
   if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.status !== 'open' || now < Date.parse(room.lastWords.expiresAt)) return false;
   closeLastWords(room, 'expired'); return true;
 }
@@ -280,6 +284,7 @@ export function skipHunterResponse(room, seatId, actionId, windowId, now = Date.
 }
 
 export function expireHunterResponse(room, now = Date.now()) {
+  if (syncPublicContextClocks(room, now) && room.hunterResponse?.publicContextPausedAt !== undefined) return false;
   const response = room.hunterResponse; if (room.phase !== PHASES.HUNTER_RESPONSE || !response || response.status !== 'open') return false;
   if (now < Date.parse(response.expiresAt)) return false;
   seatOf(room, response.seatId).skills.hunterShotAvailable = false;

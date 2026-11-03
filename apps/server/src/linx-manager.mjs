@@ -1,4 +1,3 @@
-import { appendEvent } from '../../../packages/domain/src/model.mjs';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { voiceConfig } from './voice-config.mjs';
 import { readFile } from 'node:fs/promises';
@@ -68,7 +67,6 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     return clientFactory ? clientFactory(identity,options) : new LinxClient(identity,options);
   };
   const sends = new Map();
-  const humanTranscriptions = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
@@ -195,36 +193,6 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
         await adapter.reconnect(room, seat.seatId);
         if(seat.seatId!=='HOST')await this.prepareSession(room,seat.seatId);
       }
-      if (seat.seatId !== 'HOST') await this.transcribePublicHumanAudio(room, seat);
-    },
-    async transcribePublicHumanAudio(room, seat) {
-      if (humanTranscriptions.has(room.roomId)) await humanTranscriptions.get(room.roomId);
-      const client = this.clientFor(room, seat.seatId);
-      if (!client) throw Error('CONTROLLER_MISSING');
-      const work = (async () => {
-        // One game session supplies STT. All AI players then query the same
-        // public transcript through get_recent_speeches, including on reconnect.
-        for (const event of room.events) {
-          const words = event.type === 'game.last_words_submitted';
-          if (!words && event.type !== 'game.speech_submitted') continue;
-          const speech = words ? room.lastWordsHistory?.find(s => s.lastWordsId === event.data.lastWordsId) : room.speeches.find(s => s.speechId === event.data.speechId);
-          if (!speech?.audioPath || speech.text || room.seats.find(s => s.seatId === speech.seatId)?.playerType !== 'human') continue;
-          if (room.invalidated) throw Error('CONTROLLER_RELEASED');
-          recordTurn('human_transcription_started', { roomId: room.roomId, gameId: room.gameId, seatId: speech.seatId });
-          const result = await client.send(await loadAudio(speech.audioPath), { inputOnly: true });
-          if (room.invalidated) throw Error('CONTROLLER_RELEASED');
-          if (!result?.text?.trim()) throw Error('PUBLIC_AUDIO_EMPTY_TRANSCRIPT');
-          speech.text = result.text.trim().slice(0, words ? 200 : 1200);
-          room.version += 1;
-          appendEvent(room, { type: words ? 'game.last_words_transcript_updated' : 'game.speech_transcript_updated', data: { seatId: speech.seatId, ...(words ? { lastWordsId: speech.lastWordsId } : { speechId: speech.speechId }) } });
-          onChange(room);
-          recordTurn('human_transcription_completed', { roomId: room.roomId, gameId: room.gameId, seatId: speech.seatId });
-        }
-      })();
-      humanTranscriptions.set(room.roomId, work);
-      try { await work; }
-      catch (error) { recordTurn('human_transcription_failed', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, code: error.message }); throw error; }
-      finally { if (humanTranscriptions.get(room.roomId) === work) humanTranscriptions.delete(room.roomId); }
     },
     async cancelTurn(room, seat) {
       const work = sends.get(room.roomId+':'+seat.seatId);
@@ -260,11 +228,11 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       }[room.phase];
       if (room.phase === 'SPEECH') recordTurn('speech_turn_opened', context);
       const cue = tool && room.phase.startsWith('NIGHT_')
-        ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + '。立即调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ' + tool + '。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，不额外查询公共状态或历史发言，必须实际提交工具后结束。'
+        ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + '。先调用 get_recent_speeches 阅读 records 中的普通发言和遗言；failed 表示内容未识别，不得猜测，再调用 get_my_private_state 获取 currentTurn 和 actionTargetSeatIds；狼人遵循 wolfProposal，女巫根据 nightVictim 决定，选择合法目标后立即调用 ' + tool + '。使用 currentTurn.turnId 作为 turn_id。若提交返回 recovery，立即用 recovery.arguments 重试 recovery.tool，必须实际提交工具后结束。'
         : tool === 'submit_speech'
-          ? '主持人私下通知：现在轮到你进行公开发言。仅使用 game_ 开头的设备工具，调用 get_my_private_state 获取 currentTurn，再调用 get_public_game_state 和 get_recent_speeches 查看允许的公开信息，最后调用 submit_speech 提交你要让全桌听见的最终发言文字，并携带 currentTurn.turnId 作为 turn_id。不要直接朗读工具回复、身份、队友、turn_id、思考过程或执行步骤；只有工具返回 accepted:true 才算发言完成。'
+          ? '主持人私下通知：现在轮到你进行公开发言。仅使用 game_ 开头的设备工具，调用 get_my_private_state 获取 currentTurn，再调用 get_public_game_state 和 get_recent_speeches 阅读 records 中的普通发言和遗言；failed 表示内容未识别，不得猜测，最后调用 submit_speech 提交你要让全桌听见的最终发言文字，并携带 currentTurn.turnId 作为 turn_id。不要直接朗读工具回复、身份、队友、turn_id、思考过程或执行步骤；只有工具返回 accepted:true 才算发言完成。'
           : tool
-            ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + ' 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 查看允许的信息。用 currentTurn.turnId 作为 turn_id，调用 ' + tool + ' 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。'
+            ? '主持人私下通知：仅使用 game_ 开头的设备工具。当前为 ' + room.phase + ' 回合。立即调用 get_my_private_state 获取自己的 currentTurn，然后调用 get_public_game_state 和 get_recent_speeches 阅读 records 中的普通发言和遗言；failed 表示内容未识别，不得猜测。用 currentTurn.turnId 作为 turn_id，调用 ' + tool + ' 提交本次行动。必须实际调用工具，不能只口头描述或等待；工具确认成功后结束。勿公开自己的私密状态。'
             : wav;
       recordTurn('trigger_audio_started', { ...context, audioName, durationMs: wavDurationMs(wav) });
       try {

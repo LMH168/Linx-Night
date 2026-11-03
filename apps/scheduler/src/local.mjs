@@ -1,3 +1,4 @@
+import { syncPublicContextClocks } from '../../../packages/domain/src/public-conversation.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { randomUUID } from 'node:crypto';
 import { announceDay, advanceNightWindow, skipSeerAction, witchAction, wolfTarget, submitSpeech, submitVote, skipAbsentRoles, voteTargetSeats } from '../../../packages/domain/src/engine.mjs';
@@ -5,6 +6,7 @@ import {expireTurn} from '../../../packages/domain/src/model.mjs';
 import {recordTurn} from '../../server/src/turn-diagnostics.mjs';
 
 export function tickNightWindow(room) {
+  if (syncPublicContextClocks(room) && room.nightWindow?.publicContextPausedAt !== undefined) return;
   if (room.preparing || room.invalidated || room.nightWindow?.phase !== room.phase || Date.now() < room.nightWindow.expiresAt) return;
   const phase=room.phase;
   for (const seat of room.seats.filter(s=>actionAvailable(room,s))) {

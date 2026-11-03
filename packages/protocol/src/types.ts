@@ -28,6 +28,7 @@ export interface ControllerState {
 }
 
 export interface HostTask {
+  sequence?: number;
   source?: 'human';
   id: string;
   attemptId?: string;
@@ -89,6 +90,19 @@ export interface SettlementState {
   release?: Record<string, unknown>;
 }
 
+export type TranscriptionStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export interface PublicConversationRecord {
+  id: string;
+  sequence: number;
+  kind: 'speech' | 'lastwords';
+  seatId: string;
+  round: number;
+  text: string;
+  audioId?: string;
+  transcriptionStatus: TranscriptionStatus;
+  textSource: 'submitted' | 'transcription' | 'player_supplement' | null;
+}
+
 export interface SpeechRecord {
   speechId: string;
   round: number;
@@ -115,6 +129,9 @@ export interface VoteResolution {
 }
 
 export interface RoomPublicState {
+  records?: PublicConversationRecord[];
+  publicContextVersion?: number;
+  transcriptionAvailable?: boolean | null;
   speechPlayback?: { speechId: string; status: string; seatId?: string } | null;
   pk?: { round: number; stage: 'speech' | 'vote'; candidates: string[] } | null;
   roomId: string;

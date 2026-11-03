@@ -1,3 +1,4 @@
+import { syncPublicContextClocks } from '../../../packages/domain/src/public-conversation.mjs';
 import { recordTurn } from '../../server/src/turn-diagnostics.mjs';
 import { expireHunterResponse, expireLastWords, skipSpeech } from '../../../packages/domain/src/engine.mjs';
 import { completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
@@ -32,6 +33,7 @@ export class LinxTurnRuntime {
     // Host playback gates public day turns only; private night turns are independent.
     // This runtime drives Linx seats only; human seats act from the web client.
     if (room.controllers.some(c => c.status === 'failed')) return Promise.resolve();
+    if (syncPublicContextClocks(room, this.now())) return Promise.resolve();
     const eligible = room.seats.filter(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
     if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
     if (room.phase === 'SPEECH' && room.hostPlaybackBlocked) return Promise.resolve();
@@ -105,6 +107,7 @@ export class LinxTurnRuntime {
         await this.manager.ensureConnected(room, seat);
         recordTurn('connection_ready', {...context,durationMs:this.now() - connectionStartedAt});
       }
+      if (!active() || syncPublicContextClocks(room, this.now())) return;
       if (active() && responseWindow && this.now() >= Date.parse(responseWindow.expiresAt)) { expireResponse(room,this.now()); recordTurn('finished',{...context,code:expiredCode}); return; }
       if (!active() || !actionAvailable(room, seat)) return;
       const c = room.controllers.find(c => c.seatId === seat.seatId);

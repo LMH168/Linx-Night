@@ -156,6 +156,12 @@ export class GameApiClient {
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/state`);
   }
 
+  hostTasks(roomId: string, after: number): Promise<{ tasks: import('../../../../packages/protocol/src/types').HostTask[]; oldestSequence: number; latestSequence: number }> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/host/tasks?after=${after}`);
+  }
+  supplementVoice(roomId: string, kind: 'speech' | 'lastwords', recordId: string, text: string): Promise<MutationResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/voice/supplement`, { method: 'POST', body: JSON.stringify({ kind, record_id: recordId, text }) });
+  }
   hostStream(roomId: string, taskId: string, signal?: AbortSignal): Promise<Response> {
     return this.raw(`/api/rooms/${encodeURIComponent(roomId)}/host/stream?task_id=${encodeURIComponent(taskId)}`, { signal });
   }

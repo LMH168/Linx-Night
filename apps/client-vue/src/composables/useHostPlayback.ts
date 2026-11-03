@@ -106,6 +106,7 @@ export function useHostPlayback(options: HostPlaybackOptions) {
   const enabled = ref(false);
   const status = ref('开始前请启用公共声音。');
   const error = ref<string | null>(null);
+  const notice = ref('');
   const task = ref<PlaybackTask | null>(null);
   const busy = ref(false);
   const canManage = computed(() => Boolean(options.isHost() && task.value));
@@ -114,6 +115,17 @@ export function useHostPlayback(options: HostPlaybackOptions) {
   let audioContext: AudioContext | null = null;
   let epoch = 0;
   const completed = new Set<string>();
+  const cursors = new Map<string, number>();
+  const cursorKey = () => `linx-playback:${options.roomId.value}:${options.client.value?.playerId || 'anonymous'}`;
+  const cursor = () => {
+    const key = cursorKey();
+    if (!cursors.has(key)) { let value = 0; try { value = Number(localStorage.getItem(key) || 0); } catch {} cursors.set(key, Number.isSafeInteger(value) && value >= 0 ? value : 0); }
+    return cursors.get(key) || 0;
+  };
+  const advance = (sequence?: number) => {
+    if (!sequence || sequence <= cursor()) return;
+    const key = cursorKey(); cursors.set(key, sequence); try { localStorage.setItem(key, String(sequence)); } catch {}
+  };
   const pendingAcks = new Map<string, { firstPlayMs?: number; playbackMs?: number }>();
 
   const stop = () => { enabled.value = false; epoch += 1; abort?.abort(); abort = null; busy.value = false; void audioContext?.close().catch(() => undefined); audioContext = null; status.value = '公共声音已停止；重新启用后继续当前任务。'; };
@@ -125,39 +137,53 @@ export function useHostPlayback(options: HostPlaybackOptions) {
     const run = epoch; busy.value = true; let playbackFinished = false;
     try {
       const state: HostStateResponse = await client.hostState(roomId); if (!enabled.value || run !== epoch) return;
-      task.value = state.task as PlaybackTask | null;
+      let nextTask = state.task as PlaybackTask | null;
+      // Legacy test clients can use the current task; real clients request retained history.
+      if (typeof client.hostTasks === 'function') {
+        const history = await client.hostTasks(roomId, cursor());
+        if (!enabled.value || run !== epoch || options.roomId.value !== roomId) return;
+        if (cursor() < history.oldestSequence - 1) { advance(history.oldestSequence - 1); notice.value = '部分音频已超过补播保留时间，可在公开记录中重播真人原声。'; }
+        if (history.tasks.length > 1) notice.value = `还有 ${history.tasks.length} 条公共音频待补播，正在按顺序追赶。`;
+        else if (!notice.value.includes('保留时间')) notice.value = '';
+        nextTask = null;
+        for (const item of history.tasks) {
+          if (item.status === 'skipped') { advance(item.sequence); continue; }
+          nextTask = item; break;
+        }
+      }
+      task.value = nextTask;
       if (!task.value) { status.value = '等待下一条公开播报。'; return; }
       const current = task.value; status.value = current.status === 'generating' ? '主持正在生成音频……' : `${current.seatId || '主持'}：${current.text}`;
       if (current.status === 'failed') { error.value = current.errorCode || '公共音频生成失败'; status.value = `音频失败：${error.value}`; return; }
-      if (!['ready', 'generating'].includes(current.status) || !current.attemptId) return;
+      if (!['ready', 'generating', 'played'].includes(current.status) || !current.attemptId) return;
       const attempt = current.attemptId; const key = `${current.id}:${attempt}`;
       const previousMetrics = pendingAcks.get(key);
       if (previousMetrics && options.isHost()) {
-        try { await client.hostPlayed(roomId, current.id, attempt, previousMetrics); pendingAcks.delete(key); completed.add(key); status.value = '播报完成，等待下一条。'; }
+        try { await client.hostPlayed(roomId, current.id, attempt, previousMetrics); pendingAcks.delete(key); completed.add(key); advance(current.sequence); status.value = '播报完成，等待下一条。'; }
         catch (cause) { error.value = cause instanceof Error ? cause.message : '播放完成确认失败'; status.value = `播放已完成，等待确认：${error.value}`; }
         return;
       }
-      if (completed.has(key)) return;
+      if (completed.has(key)) { advance(current.sequence); return; }
       const controller = new AbortController(); abort = controller;
       const contextCtor = globalThis.AudioContext || (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!contextCtor) throw new Error('浏览器不支持公共声音');
       const context = audioContext || (audioContext = new contextCtor());
       try {
         const response = await client.hostStream(roomId, current.id, controller.signal);
-        const result = await playPcmStream(response, context, { signal: controller.signal, muted:current.source==='human'&&current.seatId===options.selfSeatId?.(), ids: { gameId: current.gameId, taskId: current.id, attemptId: attempt }, valid: () => enabled.value && run === epoch && options.roomId.value === roomId, onStart: async () => { if (options.isHost()) await client.hostStarted(roomId, current.id, attempt, controller.signal); }, onStatus: value => { status.value = `${current.seatId || '主持'}：${value}`; } });
+        const result = await playPcmStream(response, context, { signal: controller.signal, muted:current.source==='human'&&current.seatId===options.selfSeatId?.(), ids: { gameId: current.gameId, taskId: current.id, attemptId: attempt }, valid: () => enabled.value && run === epoch && options.roomId.value === roomId, onStart: async () => { if (options.isHost() && current.status !== 'played') await client.hostStarted(roomId, current.id, attempt, controller.signal); }, onStatus: value => { status.value = `${current.seatId || '主持'}：${value}`; } });
         if (!enabled.value || run !== epoch || options.roomId.value !== roomId) return;
         playbackFinished = true;
-        if (options.isHost()) {
+        if (options.isHost() && current.status !== 'played') {
           try { await client.hostPlayed(roomId, current.id, attempt, result); }
           catch (cause) { pendingAcks.set(key, result); error.value = cause instanceof Error ? cause.message : '播放完成确认失败'; status.value = `播放已完成，等待确认：${error.value}`; return; }
         }
-        completed.add(key); if (completed.size > 80) completed.delete(completed.values().next().value as string);
-        error.value = null; status.value = '播报完成，等待下一条。';
+        completed.add(key); advance(current.sequence); if (completed.size > 80) completed.delete(completed.values().next().value as string);
+        error.value = null; status.value = current.status === 'played' ? '补播完成，正在追赶最新发言。' : '播报完成，等待下一条。';
       } finally { /* keep the user activated context for the next public task */ }
     } catch (cause) {
       if (run === epoch && enabled.value && !String((cause as Error)?.name).includes('Abort')) {
         error.value = cause instanceof Error ? cause.message : '公共播放失败'; status.value = `播放失败：${error.value}`;
-        if (!playbackFinished && task.value && options.isHost() && task.value.attemptId) await client.hostInterrupted(roomId, task.value.id, task.value.attemptId).catch(() => undefined);
+        if (!playbackFinished && task.value && options.isHost() && task.value.attemptId && task.value.status !== 'played') await client.hostInterrupted(roomId, task.value.id, task.value.attemptId).catch(() => undefined);
       }
     } finally { if (run === epoch) { busy.value = false; abort = null; } }
   };
@@ -173,5 +199,5 @@ export function useHostPlayback(options: HostPlaybackOptions) {
   const skip = async () => { const client = options.client.value; const roomId = options.roomId.value; if (!client || !roomId || !task.value) return; await client.hostSkip(roomId, task.value.id); error.value = null; status.value = '已跳过当前音频。'; void poll(); };
   const notify = () => { void poll(); };
   const cleanup = () => { stop(); if (interval) clearInterval(interval); interval = null; };
-  return { enabled, status, error, task, busy, canManage, start, stop, suspend, resume, retry, skip, notify, cleanup };
+  return { enabled, status, notice, error, task, busy, canManage, start, stop, suspend, resume, retry, skip, notify, cleanup };
 }

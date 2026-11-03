@@ -100,6 +100,7 @@ try {
   room.controllers=[{seatId:'P4',status:'ready',controllerEpoch:1,sessionId:'s4',deviceId:'device',agentId:'agent'}];
   registerSession({sessionId:'s4',roomId:room.roomId,seatId:'P4',playerId:'p4',deviceId:'device',agentId:'agent',gameId:room.gameId,controllerEpoch:1});
   const lease=createTurn(room,{seatId:'P4',controlSource:'linx',controllerEpoch:1});room.turns.at(-1).expiresAt=Date.now()+60000;
+  await call('get_recent_speeches',{});
   const leasedConflict=JSON.parse((await call('submit_wolf_target',{target_player_id:'P8',turn_id:lease.turnId,action_id:'leased-fix'})).result.content[0].text);
   assert.equal(leasedConflict.accepted,true);
   assert.equal(room.turns.at(-1).status,'completed');

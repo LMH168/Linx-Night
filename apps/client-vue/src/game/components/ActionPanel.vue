@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useHumanVoice } from '../../composables/useHumanVoice';
+import PublicVoiceStatus from '../../components/PublicVoiceStatus.vue';
 import { useHostPlayback } from '../../composables/useHostPlayback';
 
 const props = defineProps<{ mode: 'desktop' | 'mobile' }>();
@@ -74,6 +75,7 @@ async function skip() { await store.skipAction(); }
       <div><span class="eyebrow">{{ eyebrow }}</span><h2 class="action-title">{{ title }}</h2></div>
       <span class="timer-ring"><span>{{ store.privateState?.currentTurn?.expiresAt ? '进行中' : '—' }}</span></span>
     </div>
+    <PublicVoiceStatus :records="store.publicState?.records" :available="store.publicState?.transcriptionAvailable" :self-seat-id="store.selfSeatId || undefined" :client="store.client" :room-id="store.roomId" @updated="store.refresh" />
     <p v-if="copy" class="action-copy">{{ copy }}</p>
 
     <template v-if="store.phase === 'DAY_ANNOUNCEMENT'">
@@ -118,6 +120,6 @@ async function skip() { await store.skipAction(); }
 
     <p v-if="store.notice" class="action-notice">{{ store.notice }}</p>
     <div v-if="!isMobile && store.privateState?.role" class="mini-id"><span class="mini-sigil" aria-hidden="true">◈</span><div><b>{{ store.selfMeta.name }}</b><span>{{ store.selfMeta.camp === 'wolf' ? '狼人阵营' : '好人阵营' }} · 仅你可见</span></div><span class="mini-lock" aria-hidden="true">⌑</span></div>
-    <div class="host-card"><span class="eyebrow">PUBLIC VOICE</span><p>{{ hostPlayback.status.value }}</p><button class="btn ghost" @click="hostPlayback.enabled.value ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled.value ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage.value && hostPlayback.error.value" class="btn ghost" @click="hostPlayback.retry">重试播报</button><button v-if="hostPlayback.canManage.value && hostPlayback.task.value" class="btn ghost" @click="hostPlayback.skip">跳过当前播报</button></div>
+    <div class="host-card"><span class="eyebrow">PUBLIC VOICE</span><p>{{ hostPlayback.status.value }}</p><p v-if="hostPlayback.notice.value" role="status">{{ hostPlayback.notice.value }}</p><button class="btn ghost" @click="hostPlayback.enabled.value ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled.value ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage.value && hostPlayback.error.value" class="btn ghost" @click="hostPlayback.retry">重试播报</button><button v-if="hostPlayback.canManage.value && hostPlayback.task.value" class="btn ghost" @click="hostPlayback.skip">跳过当前播报</button></div>
   </aside>
 </template>

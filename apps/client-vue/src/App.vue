@@ -11,6 +11,7 @@ import {
 import { ApiRequestError, GameApiClient } from "./api/client";
 import { useRoomStream } from "./composables/useRoomStream";
 import { useHumanVoice } from "./composables/useHumanVoice";
+import PublicVoiceStatus from './components/PublicVoiceStatus.vue';
 import { useHostPlayback } from "./composables/useHostPlayback";
 import { useRoomStore } from "./stores/room";
 import { legalTargets, playerAction, visibleRole } from "./game/permissions";
@@ -1026,7 +1027,7 @@ onBeforeUnmount(() => {
                 hostPlayback.enabled.value ? "已启用" : "未启用"
               }}</small>
             </div>
-            <p class="muted" role="status">{{ hostPlayback.status.value }}</p>
+            <p class="muted" role="status">{{ hostPlayback.status.value }}</p><p v-if="hostPlayback.notice.value" role="status">{{ hostPlayback.notice.value }}</p>
             <p
               v-if="state?.hostPlaybackBlocked && !hostPlayback.enabled.value"
               class="private-note"
@@ -1086,7 +1087,7 @@ onBeforeUnmount(() => {
           </article>
         </div>
         <section class="result-audio">
-          <p class="muted">{{ hostPlayback.status.value }}</p>
+          <p class="muted">{{ hostPlayback.status.value }}</p><p v-if="hostPlayback.notice.value" role="status">{{ hostPlayback.notice.value }}</p>
           <button
             @click="
               hostPlayback.enabled.value
@@ -1144,6 +1145,7 @@ onBeforeUnmount(() => {
           </section>
         </div>
       </main>
+      <PublicVoiceStatus v-if="state && !finished" :records="state.records" :available="state.transcriptionAvailable" :self-seat-id="mine?.seatId" :client="client" :room-id="roomId" @updated="refresh" />
       <details v-if="!finished" class="public-log">
         <summary>桌边记录 · {{ events.length }} 条公开动态</summary>
         <div class="log-columns">

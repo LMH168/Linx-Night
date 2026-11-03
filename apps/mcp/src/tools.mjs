@@ -6,7 +6,7 @@ const definitions = [
   ['get_host_announcements', '仅主持人读取公开播报任务', {}],
   ['get_public_game_state', '获取当前房间公开状态', {}],
   ['get_my_private_state', '获取当前会话玩家的私密身份和技能状态', {}],
-  ['get_recent_speeches', '获取最近公开发言', {}],
+  ['get_recent_speeches', '获取公开发言与遗言。records 包含当前局按顺序排列的全部记录、真实文本和转写状态；failed 表示内容未识别，不得猜测。提交行动前必须阅读。', {}],
   ['submit_speech', '仅在轮到自己时提交公开发言（最多 1200 字）', { text: speechText }],
   ['submit_wolf_target', '提交狼人目标，不能选择自己或狼人队友。私密状态 wolfProposal 非空时必须跟随该目标；冲突错误中 recovery.arguments 是最新有效目标，立即按其重试本工具，成功后停止。不能只口头回复或等待。', { target_player_id: target }],
   ['submit_seer_check', '提交预言家查验目标', { target_player_id: target }],

@@ -1,3 +1,4 @@
+import { publicContextVersion, pendingPublicContext } from '../../../packages/domain/src/public-conversation.mjs';
 import { voteTargetSeats } from '../../../packages/domain/src/engine.mjs';
 import { recordTurn, turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
@@ -101,12 +102,17 @@ async function callTool(req, name, args, requiredToken, trace) {
       }
       audit.ok = true; return resultText(state);
     }
-    if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: publicState(room).speeches.slice(-10), version: room.version }); }
+    if (name === 'get_recent_speeches') {
+      const state=publicState(room), turn=seat && currentTurn(room,seat.seatId);
+      if(turn && !pendingPublicContext(room))turn.publicContextRead={sessionId:context.sessionId,version:publicContextVersion(room)};
+      audit.ok = true; return resultText({ speeches: state.speeches.slice(-10), records: state.records, publicContextVersion: state.publicContextVersion, version: room.version });
+    }
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {
       turn = currentTurn(room, seat.seatId);
       const controller = controllerFor(room, seat.seatId);
       if (!turn || args.turn_id !== turn.turnId || turn.controllerEpoch !== context.controllerEpoch || controller?.status !== 'ready' || Date.now() >= turn.expiresAt || !actionAvailable(room, seat)) throw new RuleError('current action lease is required');
+      if (pendingPublicContext(room) || turn.publicContextRead?.sessionId!==context.sessionId || turn.publicContextRead?.version!==publicContextVersion(room)) throw new RuleError('PUBLIC_CONTEXT_REQUIRED');
     }
     const actionId = args.action_id || `mcp_${randomUUID()}`;
     trace.actionId = actionId;
@@ -128,10 +134,11 @@ async function callTool(req, name, args, requiredToken, trace) {
     return resultText({ accepted: true, requestId: trace.requestId, actionId, version: room.version, eventIds: trace.eventIds, ...(result === undefined ? {} : { result }) });
   } catch (error) {
     if (!(error instanceof RuleError || error instanceof ToolInputError)) throw error;
-    trace.resultCode = error instanceof ToolInputError ? 'INVALID_ARGUMENTS' : 'ACTION_REJECTED';
+    trace.resultCode = error.message === 'PUBLIC_CONTEXT_REQUIRED' ? 'PUBLIC_CONTEXT_REQUIRED' : error instanceof ToolInputError ? 'INVALID_ARGUMENTS' : 'ACTION_REJECTED';
     trace.failure = { code: trace.resultCode, reason: error.message };
     // Only this authenticated wolf receives the current proposal. Never audit it.
     let recovery;
+    if(error.message==='PUBLIC_CONTEXT_REQUIRED')recovery={code:'PUBLIC_CONTEXT_REQUIRED',retryable:true,tool:'get_recent_speeches',arguments:{},instruction:'先调用 get_recent_speeches 阅读 records 中的普通发言和遗言，再使用原 turn_id 重试本次行动。failed 表示内容未识别，不得猜测。'};
     if (name === 'submit_wolf_target' && error.message === 'werewolf targets must agree' && seat?.role === 'werewolf' && seat.alive && room.phase === 'NIGHT_WOLF') {
       const state = privateState(room, seat.playerId);
       const lease = state.currentTurn;
