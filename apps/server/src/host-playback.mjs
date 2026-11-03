@@ -12,7 +12,7 @@ const current = room => room.hostTasks?.find(t => !done(t));
 export class HostPlayback {
  constructor({manager,publish=()=>{},speak=speakPublic,watchdogMs=Number(process.env.HOST_PLAYBACK_WATCHDOG_MS||90000),now=Date.now}={}){
   this.manager=manager;this.publish=publish;this.speak=speak;this.watchdogMs=Number.isFinite(watchdogMs)&&watchdogMs>0?watchdogMs:90000;this.now=now;
-  this.running=new Map();this.audio=new Map();this.aborts=new Map();this.streams=new Map();
+  this.running=new Map();this.audio=new Map();this.aborts=new Map();this.streams=new Map();this.recoveryTimers=new Map();
  }
  sync(room){
   if(!room.hostPlaybackEnabled||room.invalidated||room.phase==='LOBBY')return;
@@ -61,6 +61,15 @@ export class HostPlayback {
   this.publish(room);
  }
  cancelHuman(room,live){if(!live)return;live.stream.fail('HUMAN_AUDIO_CANCELLED');live.task.status='skipped';this.streams.delete(live.task.id);room.humanAudioTask=null;this.sync(room);this.publish(room);}
+ scheduleRecovery(room,task){
+  if(this.recoveryTimers.has(task.id))return;
+  const timer=setTimeout(()=>{
+   this.recoveryTimers.delete(task.id);
+   if(current(room)===task&&task.status==='failed')this.skip(room,task.id,'HOST_AUTO_RECOVERED');
+  },1000);
+  timer.unref?.();this.recoveryTimers.set(task.id,timer);
+ }
+ clearRecovery(task){const timer=this.recoveryTimers.get(task.id);if(timer){clearTimeout(timer);this.recoveryTimers.delete(task.id);}}
  armWatchdog(task){task.watchdogDeadlineAt=this.now()+this.watchdogMs;}
  tick(room,now=this.now()){
   const task=current(room);
@@ -73,6 +82,7 @@ export class HostPlayback {
   task.status='failed';task.errorCode='HOST_PLAYBACK_TIMEOUT';task.watchdogDeadlineAt=null;room.hostPlaybackError=task.errorCode;
   this.aborts.get(room.roomId)?.abort();this.streams.get(task.id)?.fail(task.errorCode);
   if(task.kind==='speech'&&room.speechPlayback?.status==='pending')pauseSpeechPlayback(room,{speechId:room.speechPlayback.speechId,taskId:task.id,errorCode:task.errorCode});
+  this.scheduleRecovery(room,task);
   recordTurn('host_playback_timeout',{roomId:room.roomId,gameId:room.gameId,seatId:task.seatId,taskId:task.id,attemptId:task.attemptId,stage:'ready',deadlineAt:new Date(deadlineAt).toISOString(),errorCode:task.errorCode});
   this.publish(room);return true;
  }
@@ -103,6 +113,7 @@ export class HostPlayback {
     if(!task.audioPath)this.manager.clientFor(room,'HOST')?.close?.();task.attempts=(task.attempts||0)+1;task.errorCode='HOST_AUDIO_FAILED';task.watchdogDeadlineAt=null;
     if(task.status!=='failed'&&task.attempts<2&&!stream.playing&&error.message!=='HOST_TEXT_MISMATCH'){task.status='pending';}
     else{task.status='failed';if(task.kind==='speech'&&room.speechPlayback?.taskId===task.id&&room.speechPlayback.status==='pending')pauseSpeechPlayback(room,{speechId:room.speechPlayback.speechId,taskId:task.id,errorCode:task.errorCode});}
+    if(task.status==='failed')this.scheduleRecovery(room,task);
    }
   }finally{this.aborts.delete(room.roomId);this.publish(room);}
  }
@@ -117,10 +128,10 @@ export class HostPlayback {
   res.on('close',()=>{closed=true;unsubscribe();});
  }
  playbackStarted(room,id,attemptId){const t=current(room),stream=this.streams.get(id);if(room.invalidated||t?.id!==id||t.attemptId!==attemptId||!stream||!['generating','ready'].includes(t.status))throw Error('播放任务已失效');stream.playing=true;recordTurn('host_browser_started',{roomId:room.roomId,gameId:room.gameId,taskId:id,attemptId,stage:t.status,deadlineAt:t.watchdogDeadlineAt?new Date(t.watchdogDeadlineAt).toISOString():null,errorCode:null});}
- playbackFailed(room,id,attemptId){const t=current(room);if(room.invalidated||t?.id!==id||t.attemptId!==attemptId||!['generating','ready'].includes(t.status))throw Error('播放任务已失效');const deadlineAt=t.watchdogDeadlineAt;t.status='failed';t.errorCode='HOST_PLAYBACK_INTERRUPTED';t.watchdogDeadlineAt=null;this.aborts.get(room.roomId)?.abort();this.streams.get(id)?.fail(t.errorCode);if(t.kind==='speech'&&room.speechPlayback?.status==='pending')pauseSpeechPlayback(room,{speechId:room.speechPlayback.speechId,taskId:id,errorCode:t.errorCode});recordTurn('host_browser_interrupted',{roomId:room.roomId,gameId:room.gameId,taskId:id,attemptId,stage:'ready',deadlineAt:deadlineAt?new Date(deadlineAt).toISOString():null,errorCode:t.errorCode});this.publish(room);}
+ playbackFailed(room,id,attemptId){const t=current(room);if(room.invalidated||t?.id!==id||t.attemptId!==attemptId||!['generating','ready'].includes(t.status))throw Error('播放任务已失效');const deadlineAt=t.watchdogDeadlineAt;t.status='failed';t.errorCode='HOST_PLAYBACK_INTERRUPTED';t.watchdogDeadlineAt=null;this.aborts.get(room.roomId)?.abort();this.streams.get(id)?.fail(t.errorCode);if(t.kind==='speech'&&room.speechPlayback?.status==='pending')pauseSpeechPlayback(room,{speechId:room.speechPlayback.speechId,taskId:id,errorCode:t.errorCode});this.scheduleRecovery(room,t);recordTurn('host_browser_interrupted',{roomId:room.roomId,gameId:room.gameId,taskId:id,attemptId,stage:'ready',deadlineAt:deadlineAt?new Date(deadlineAt).toISOString():null,errorCode:t.errorCode});this.publish(room);}
  getAudio(room,id){const t=current(room);if(room.invalidated||t?.id!==id||t.status!=='ready'||!this.audio.has(id))throw Error('公共音频尚未就绪');return this.audio.get(id);}
- acknowledge(room,id,attemptId){const t=current(room);if(room.invalidated||t?.id!==id||t.status!=='ready'||!attemptId||attemptId!==t.attemptId)throw Error('播放任务已失效');const beforeSeat=room.currentSeatId;if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});t.status='played';t.watchdogDeadlineAt=null;this.audio.delete(id);this.streams.delete(id);room.hostPlaybackError=null;recordTurn('host_played_ack',{roomId:room.roomId,gameId:room.gameId,seatId:t.seatId,eventId:t.eventId,taskId:id});if(room.currentSeatId!==beforeSeat)recordTurn('next_turn_opened',{roomId:room.roomId,gameId:room.gameId,seatId:room.currentSeatId});this.sync(room);this.publish(room);}
- skip(room,id){const t=current(room);if(room.invalidated||t?.id!==id)throw Error('播放任务已失效');if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id,status:'skipped'});t.status='skipped';t.watchdogDeadlineAt=null;this.aborts.get(room.roomId)?.abort();this.audio.delete(id);this.streams.get(id)?.fail('HOST_TASK_CANCELLED');this.streams.delete(id);room.hostPlaybackError=null;this.sync(room);this.publish(room);}
+ acknowledge(room,id,attemptId){const t=current(room);if(room.invalidated||t?.id!==id||t.status!=='ready'||!attemptId||attemptId!==t.attemptId)throw Error('播放任务已失效');this.clearRecovery(t);const beforeSeat=room.currentSeatId;if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});t.status='played';t.watchdogDeadlineAt=null;this.audio.delete(id);this.streams.delete(id);room.hostPlaybackError=null;recordTurn('host_played_ack',{roomId:room.roomId,gameId:room.gameId,seatId:t.seatId,eventId:t.eventId,taskId:id});if(room.currentSeatId!==beforeSeat)recordTurn('next_turn_opened',{roomId:room.roomId,gameId:room.gameId,seatId:room.currentSeatId});this.sync(room);this.publish(room);}
+ skip(room,id,reason='HOST_TASK_CANCELLED'){const t=current(room);if(room.invalidated||t?.id!==id)throw Error('播放任务已失效');this.clearRecovery(t);if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id,status:'skipped'});t.status='skipped';t.watchdogDeadlineAt=null;this.aborts.get(room.roomId)?.abort();this.audio.delete(id);this.streams.get(id)?.fail(reason);this.streams.delete(id);room.hostPlaybackError=null;this.sync(room);this.publish(room);}
  async retry(room){const t=current(room),gameId=room.gameId;if(!['failed','ready'].includes(t?.status)||this.running.has(room.roomId))throw Error('没有可重试的公共任务');if(!t.audioPath)await this.manager.retry(room,'HOST');if(room.invalidated||room.gameId!==gameId||current(room)!==t)throw Error('播放任务已失效');if(t.kind==='speech'&&room.speechPlayback?.status==='paused')retrySpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});this.streams.get(t.id)?.fail('HOST_ATTEMPT_REPLACED');this.streams.delete(t.id);this.audio.delete(t.id);t.status='pending';t.watchdogDeadlineAt=null;t.attemptId=null;t.errorCode=null;room.hostPlaybackError=null;t.attempts=0;this.sync(room);this.publish(room);}
- cancel(room){this.aborts.get(room.roomId)?.abort();for(const t of room.hostTasks||[]){this.audio.delete(t.id);this.streams.get(t.id)?.fail('HOST_TASK_CANCELLED');this.streams.delete(t.id);t.watchdogDeadlineAt=null;}room.hostTasks=[];room.hostPlaybackBlocked=false;room.hostPlaybackError=null;}
+ cancel(room){this.aborts.get(room.roomId)?.abort();for(const t of room.hostTasks||[]){this.clearRecovery(t);this.audio.delete(t.id);this.streams.get(t.id)?.fail('HOST_TASK_CANCELLED');this.streams.delete(t.id);t.watchdogDeadlineAt=null;}room.hostTasks=[];room.hostPlaybackBlocked=false;room.hostPlaybackError=null;}
 }
