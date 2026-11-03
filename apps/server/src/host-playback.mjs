@@ -10,8 +10,8 @@ const done = task => ['played','skipped'].includes(task.status);
 const current = room => room.hostTasks?.find(t => !done(t));
 
 export class HostPlayback {
- constructor({manager,publish=()=>{},speak=speakPublic,watchdogMs=Number(process.env.HOST_PLAYBACK_WATCHDOG_MS||90000),now=Date.now}={}){
-  this.manager=manager;this.publish=publish;this.speak=speak;this.watchdogMs=Number.isFinite(watchdogMs)&&watchdogMs>0?watchdogMs:90000;this.now=now;
+ constructor({manager,publish=()=>{},speak=speakPublic,watchdogMs=Number(process.env.HOST_PLAYBACK_WATCHDOG_MS||15000),now=Date.now}={}){
+  this.manager=manager;this.publish=publish;this.speak=speak;this.watchdogMs=Number.isFinite(watchdogMs)&&watchdogMs>0?watchdogMs:15000;this.now=now;
   this.running=new Map();this.audio=new Map();this.aborts=new Map();this.streams=new Map();this.recoveryTimers=new Map();
  }
  sync(room){
@@ -78,6 +78,7 @@ export class HostPlayback {
  }
  timeout(room,task,now=this.now()){
   if(current(room)!==task||task.status!=='ready'||!task.watchdogDeadlineAt||now<task.watchdogDeadlineAt)return false;
+  if(this.streams.get(task.id)?.playing){this.armWatchdog(task);this.publish(room);return false;}
   const deadlineAt=task.watchdogDeadlineAt;
   task.status='failed';task.errorCode='HOST_PLAYBACK_TIMEOUT';task.watchdogDeadlineAt=null;room.hostPlaybackError=task.errorCode;
   this.aborts.get(room.roomId)?.abort();this.streams.get(task.id)?.fail(task.errorCode);
