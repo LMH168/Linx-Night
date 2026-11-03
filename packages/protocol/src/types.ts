@@ -28,6 +28,7 @@ export interface ControllerState {
 }
 
 export interface HostTask {
+  source?: 'human';
   id: string;
   attemptId?: string;
   gameId?: string;
@@ -69,6 +70,7 @@ export interface LastWordsState {
   status: 'open' | 'submitted' | 'skipped' | 'expired' | string;
   expiresAt: string;
   text?: string | null;
+  audioId?: string;
 }
 
 export interface SettlementState {
@@ -92,6 +94,7 @@ export interface SpeechRecord {
   round: number;
   seatId: string;
   text: string;
+  audioId?: string;
 }
 
 export interface VoteEntry {
@@ -139,6 +142,7 @@ export interface RoomPublicState {
   hostTasks?: HostTask[];
   speechPlaybackHistory?: Array<{ speechId: string; status: string }>;
   lastWords?: LastWordsState | null;
+  lastWordsHistory?: Array<{ lastWordsId: string; seatId: string; round: number; cause: string; status: string; text: string | null; audioId?: string }>;
   hunterResponse?: HunterResponseState | null;
   settlement?: SettlementState | null;
 }

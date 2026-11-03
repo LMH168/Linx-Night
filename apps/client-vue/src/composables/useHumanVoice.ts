@@ -126,7 +126,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     const client = options.client.value;
     const roomId = options.roomId.value;
     if (!client || !roomId) throw new Error('请先连接房间');
-    if (!globalThis.navigator?.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) throw new Error('浏览器不支持录音，请直接输入文字。');
+    if (!globalThis.navigator?.mediaDevices?.getUserMedia || (!options.realtime && !globalThis.MediaRecorder)) throw new Error('浏览器不支持录音，请直接输入文字。');
     options.onBusyStart?.();
     const run = generation;
     const key = options.contextKey();
@@ -143,7 +143,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
       if (options.realtime) {
         const context = new AudioContext({ sampleRate: 16_000 }); realtimeContext = context;
         const socket = new WebSocket(client.voiceRealtimeUrl(roomId, recording.recordingId, options.mode?.() || 'speech')); realtimeSocket = socket; socket.binaryType = 'arraybuffer';
-        socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'accepted' && message.text) { options.onDraft?.(message.text); draft.value = { ...draft.value, stage: 'confirming', text: message.text }; markSubmitted(); } else if (message.type === 'error') setError(new Error(message.message || '实时语音失败')); };
+        socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'accepted' && message.text) { options.onDraft?.(message.text); draft.value = { ...draft.value, stage: 'confirming', text: message.text }; markSubmitted(); } else if (message.type === 'error') { clearTimer(); closeRealtime(); closeStream(); setError(new Error(message.message || '实时语音失败')); } };
         socket.onerror = () => { if (run === generation) setError(new Error('实时语音连接失败')); };
         await new Promise<void>((resolve, reject) => { socket.onopen = () => { socket.send(JSON.stringify({ type: 'start' })); resolve(); }; socket.addEventListener('error', () => reject(new Error('实时语音连接失败')), { once: true }); });
         if (run !== generation || key !== options.contextKey()) return;
@@ -162,11 +162,11 @@ export function useHumanVoice(options: HumanVoiceOptions) {
       // Leave a small transport margin so encoded audio duration cannot exceed the server deadline.
       timer = setTimeout(() => recorder?.stop(), Math.max(1, remainingMs.value - 200));
     } catch (error) {
-      closeStream(); setError(error); throw error;
+      clearTimer(); closeRealtime(); closeStream(); setError(error); throw error;
     }
   };
 
-  const stop = () => { clearTimer(); if (realtimeSocket) { if (realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'stop' })); stopRealtimeCapture(); closeStream(); options.onBusyEnd?.(); setTimeout(() => { if (realtimeSocket) closeRealtime(); }, 10000); } else if (recorder?.state === 'recording') recorder.stop(); else closeStream(); };
+  const stop = () => { if(draft.value.stage !== 'recording') return; clearTimer(); if (realtimeSocket) { draft.value = {...draft.value, stage:'transcribing'}; if(realtimeBytes.length && realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(realtimeBytes); if (realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'stop' })); stopRealtimeCapture(); closeStream(); options.onBusyEnd?.(); setTimeout(() => { if (realtimeSocket) closeRealtime(); }, 10000); } else if (recorder?.state === 'recording') recorder.stop(); else closeStream(); };
   const reset = () => { void cancel(); draft.value = emptyDraft(); remainingMs.value = 0; };
   const markSubmitted = () => { clearTimer(); closeRealtime(); closeStream(); abort?.abort(); abort = null; draft.value = emptyDraft(); remainingMs.value = 0; };
 

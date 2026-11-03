@@ -86,7 +86,7 @@ async function callTool(req, name, args, requiredToken, trace) {
   try {
     validateArguments(tool, args, { requireTurnId: Boolean(room.requireActionLease && seat?.controlSource === 'linx') });
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
-    if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: room.lastWords, history: room.lastWordsHistory ?? [], version: room.version }); }
+    if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: publicState(room).lastWords, history: publicState(room).lastWordsHistory, version: room.version }); }
     if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }
     if (name === 'get_my_private_state') {
       const state = privateState(room, seat.playerId);
@@ -101,7 +101,7 @@ async function callTool(req, name, args, requiredToken, trace) {
       }
       audit.ok = true; return resultText(state);
     }
-    if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: room.speeches.slice(-10), version: room.version }); }
+    if (name === 'get_recent_speeches') { audit.ok = true; return resultText({ speeches: publicState(room).speeches.slice(-10), version: room.version }); }
     let turn;
     if (room.requireActionLease && seat.controlSource === 'linx') {
       turn = currentTurn(room, seat.seatId);

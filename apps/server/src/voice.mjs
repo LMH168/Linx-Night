@@ -3,10 +3,11 @@ export function publicNarration(room,eventId) {
   const event=room.events.find(e=>e.eventId===eventId);if(!event)throw new Error('公开事件不存在');
   if(event.type==='game.night_resolved')return event.data.deathSeatIds.length ? `天亮了，昨夜 ${event.data.deathSeatIds.join('、')} 出局。` : '天亮了，昨夜是平安夜，无人出局。';
   if(event.type==='game.speech_submitted'){
-    const speech=room.speeches.find(s=>s.speechId===event.data.speechId);if(speech)return `${speech.seatId} 发言：${speech.text}`;
+    const speech=room.speeches.find(s=>s.speechId===event.data.speechId);if(speech?.audioPath)return `${speech.seatId} 发言（语音）`;if(speech)return `${speech.seatId} 发言：${speech.text}`;
   }
   if(event.type==='game.last_words_submitted'){
     const words=room.lastWordsHistory?.find(item=>item.lastWordsId===event.data.lastWordsId);
+    if(words?.audioPath)return `${words.seatId} 遗言（语音）`;
     if(words?.text)return `${words.seatId} 遗言：${words.text}`;
   }
   if(event.type==='game.phase_changed' && event.data.pk) {

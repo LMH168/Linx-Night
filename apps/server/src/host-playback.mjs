@@ -1,5 +1,6 @@
 import {AudioStream} from './audio-stream.mjs';
 import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {publicNarration} from './voice.mjs';
 import {speakPublic} from '../../linx/src/host-audio.mjs';
 import {recordTurn} from './turn-diagnostics.mjs';
@@ -20,12 +21,17 @@ export class HostPlayback {
    if(room.hostNarratedEventIds.has(e.eventId)){room.hostEventCursor=e.version;continue;}
    if(!['game.speech_submitted','game.last_words_submitted','game.night_resolved','game.phase_changed','game.player_eliminated','game.vote_resolved','game.hunter_response_closed'].includes(e.type)){room.hostEventCursor=e.version;continue;}
    const seat=room.seats.find(s=>s.seatId===e.data?.seatId);
-   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&!room.realtimeSpeech){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
+   const live=room.humanAudioTask;
+   if(live && ['game.speech_submitted','game.last_words_submitted'].includes(e.type) && live.eventId===e.eventId){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
+   if(e.type==='game.speech_submitted'&&seat?.playerType!=='ai'&&!room.realtimeSpeech&&!room.speeches.find(item=>item.speechId===e.data.speechId)?.audioPath){room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);continue;}
    let text;try{text=publicNarration(room,e.eventId);}catch{room.hostEventCursor=e.version;continue;}
    if(room.hostTasks.filter(t=>!done(t)).length>=40){room.hostPlaybackError='HOST_QUEUE_FULL';break;}
    const speaker=e.type==='game.speech_submitted'&&seat?.playerType==='ai'?seat.seatId:'HOST';
    room.hostEventCursor=e.version;room.hostNarratedEventIds.add(e.eventId);
-   const task={id:randomUUID(),eventId:e.eventId,seatId:['game.speech_submitted','game.last_words_submitted'].includes(e.type)?e.data.seatId:null,kind:e.type==='game.speech_submitted'?'speech':'host',voiceId:room.publicVoices?.[speaker],text,status:'pending',attempts:0,errorCode:null,watchdogDeadlineAt:null};
+   const speech=e.type==='game.speech_submitted'?room.speeches.find(item=>item.speechId===e.data.speechId):null;
+   const words=e.type==='game.last_words_submitted'?room.lastWordsHistory?.find(item=>item.lastWordsId===e.data.lastWordsId):null;
+   const audioPath=speech?.audioPath||words?.audioPath||null;
+   const task={id:randomUUID(),eventId:e.eventId,seatId:['game.speech_submitted','game.last_words_submitted'].includes(e.type)?e.data.seatId:null,kind:e.type==='game.speech_submitted'?'speech':'host',audioPath,voiceId:room.publicVoices?.[speaker],text,status:'pending',attempts:0,errorCode:null,watchdogDeadlineAt:null};
    room.hostTasks.push(task);
    if(task.kind==='speech'&&room.speechPlayback?.speechId===e.data.speechId)room.speechPlayback.taskId=task.id;
    recordTurn('host_task_created',{roomId:room.roomId,gameId:room.gameId,seatId:task.seatId,eventId:task.eventId,taskId:task.id});
@@ -38,6 +44,23 @@ export class HostPlayback {
    this.running.set(room.roomId,work);
   }
  }
+ beginHuman(room,seatId,mode){
+  this.sync(room);
+  if(current(room))throw Error('请等待公共播放完成');
+  const task={id:randomUUID(),attemptId:randomUUID(),eventId:null,seatId,kind:mode==='speech'?'speech':'host',source:'human',text:mode==='speech'?'真人原声发言':'真人原声遗言',status:'generating',attempts:0,watchdogDeadlineAt:null};
+  const stream=new AudioStream({gameId:room.gameId,taskId:task.id,attemptId:task.attemptId});
+  room.hostTasks??=[];room.hostTasks.push(task);room.humanAudioTask=task;room.hostPlaybackBlocked=true;this.streams.set(task.id,stream);this.publish(room);
+  return {task,stream};
+ }
+ finishHuman(room,live,eventId,audio){
+  const {task,stream}=live;
+  if(room.invalidated||task.status!=='generating')throw Error('真人音频任务已失效');
+  task.eventId=eventId;task.audioPath=audio.path;task.status='ready';this.armWatchdog(task);stream.end();this.audio.set(task.id,audio.wav);
+  room.hostNarratedEventIds??=new Set();room.hostNarratedEventIds.add(eventId);
+  if(task.kind==='speech'&&room.speechPlayback)room.speechPlayback.taskId=task.id;
+  this.publish(room);
+ }
+ cancelHuman(room,live){if(!live)return;live.stream.fail('HUMAN_AUDIO_CANCELLED');live.task.status='skipped';this.streams.delete(live.task.id);room.humanAudioTask=null;this.sync(room);this.publish(room);}
  armWatchdog(task){task.watchdogDeadlineAt=this.now()+this.watchdogMs;}
  tick(room,now=this.now()){
   const task=current(room);
@@ -58,18 +81,26 @@ export class HostPlayback {
   const stream=new AudioStream({gameId,taskId:task.id,attemptId:task.attemptId});this.streams.set(task.id,stream);
   const diagnostic=(type,data={})=>recordTurn('host_'+type,{roomId:room.roomId,gameId,taskId:task.id,attemptId:task.attemptId,...data});diagnostic('dequeued');this.publish(room);
   try{
-   diagnostic('connection_start');await this.manager.ensureConnected(room,{seatId:'HOST'});diagnostic('connection_end');
+   if(!task.audioPath){diagnostic('connection_start');await this.manager.ensureConnected(room,{seatId:'HOST'});diagnostic('connection_end');}
    if(room.invalidated||room.gameId!==gameId||abort.signal.aborted)return;
-   if(task.text.length>1200)throw Error('PUBLIC_TEXT_TOO_LONG');
-   diagnostic('tts_started');
-   const wav=await this.speak(this.manager.clientFor(room,'HOST'),task.text,{signal:abort.signal,voiceId:task.voiceId,diagnostic,onAudio:pcm=>{if(!abort.signal.aborted&&!done(task))stream.append(pcm);}});
+   let wav;
+   if(task.audioPath){
+    diagnostic('audio_file_started');
+    wav=await readFile(task.audioPath);
+    if(wav.subarray(0,4).toString()!=='RIFF'||wav.subarray(8,12).toString()!=='WAVE'||wav.length<=44)throw Error('PUBLIC_AUDIO_INVALID');
+    stream.append(wav.subarray(44));
+   } else {
+    if(task.text.length>1200)throw Error('PUBLIC_TEXT_TOO_LONG');
+    diagnostic('tts_started');
+    wav=await this.speak(this.manager.clientFor(room,'HOST'),task.text,{signal:abort.signal,voiceId:task.voiceId,diagnostic,onAudio:pcm=>{if(!abort.signal.aborted&&!done(task))stream.append(pcm);}});
+   }
    if(room.invalidated||room.gameId!==gameId||abort.signal.aborted||done(task))return;
    if(!stream.bytes&&wav.subarray(0,4).toString()==='RIFF')stream.append(wav.subarray(44));stream.end();this.audio.set(task.id,wav);task.status='ready';this.armWatchdog(task);
    recordTurn('host_tts_ready',{roomId:room.roomId,gameId:room.gameId,seatId:task.seatId,eventId:task.eventId,taskId:task.id,watchdogDeadlineAt:new Date(task.watchdogDeadlineAt).toISOString()});
   }catch(error){
    stream.fail(error.message==='HOST_TEXT_MISMATCH'?'HOST_TEXT_MISMATCH':'HOST_AUDIO_FAILED');
    if(!room.invalidated&&room.gameId===gameId&&!done(task)){
-    this.manager.clientFor(room,'HOST')?.close?.();task.attempts=(task.attempts||0)+1;task.errorCode='HOST_AUDIO_FAILED';task.watchdogDeadlineAt=null;
+    if(!task.audioPath)this.manager.clientFor(room,'HOST')?.close?.();task.attempts=(task.attempts||0)+1;task.errorCode='HOST_AUDIO_FAILED';task.watchdogDeadlineAt=null;
     if(task.status!=='failed'&&task.attempts<2&&!stream.playing&&error.message!=='HOST_TEXT_MISMATCH'){task.status='pending';}
     else{task.status='failed';if(task.kind==='speech'&&room.speechPlayback?.taskId===task.id&&room.speechPlayback.status==='pending')pauseSpeechPlayback(room,{speechId:room.speechPlayback.speechId,taskId:task.id,errorCode:task.errorCode});}
    }
@@ -77,7 +108,7 @@ export class HostPlayback {
  }
  state(room){
   const task=current(room);const hostController=room.controllers?.find(c=>c.seatId==='HOST');
-  return {controller:hostController?{status:hostController.status,errorCode:hostController.errorCode}:null,enabled:Boolean(room.hostPlaybackEnabled),blocked:Boolean(room.hostPlaybackBlocked),errorCode:room.hostPlaybackError||task?.errorCode||null,watchdogDeadlineAt:task?.watchdogDeadlineAt?new Date(task.watchdogDeadlineAt).toISOString():null,recoveryRequired:Boolean(task&&['failed','paused'].includes(task.status)),task:task?{id:task.id,eventId:task.eventId,seatId:task.seatId,kind:task.kind,text:task.text,attemptId:task.attemptId,gameId:room.gameId,status:task.status,errorCode:task.errorCode}:null};
+  return {controller:hostController?{status:hostController.status,errorCode:hostController.errorCode}:null,enabled:Boolean(room.hostPlaybackEnabled),blocked:Boolean(room.hostPlaybackBlocked),errorCode:room.hostPlaybackError||task?.errorCode||null,watchdogDeadlineAt:task?.watchdogDeadlineAt?new Date(task.watchdogDeadlineAt).toISOString():null,recoveryRequired:Boolean(task&&['failed','paused'].includes(task.status)),task:task?{id:task.id,eventId:task.eventId,seatId:task.seatId,kind:task.kind,source:task.source,text:task.text,attemptId:task.attemptId,gameId:room.gameId,status:task.status,errorCode:task.errorCode}:null};
  }
  stream(room,id,res){
   const task=current(room),stream=this.streams.get(id);if(room.invalidated||task?.id!==id||!stream||!['generating','ready'].includes(task.status))throw Error('播放任务已失效');
@@ -90,6 +121,6 @@ export class HostPlayback {
  getAudio(room,id){const t=current(room);if(room.invalidated||t?.id!==id||t.status!=='ready'||!this.audio.has(id))throw Error('公共音频尚未就绪');return this.audio.get(id);}
  acknowledge(room,id,attemptId){const t=current(room);if(room.invalidated||t?.id!==id||t.status!=='ready'||!attemptId||attemptId!==t.attemptId)throw Error('播放任务已失效');const beforeSeat=room.currentSeatId;if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});t.status='played';t.watchdogDeadlineAt=null;this.audio.delete(id);this.streams.delete(id);room.hostPlaybackError=null;recordTurn('host_played_ack',{roomId:room.roomId,gameId:room.gameId,seatId:t.seatId,eventId:t.eventId,taskId:id});if(room.currentSeatId!==beforeSeat)recordTurn('next_turn_opened',{roomId:room.roomId,gameId:room.gameId,seatId:room.currentSeatId});this.sync(room);this.publish(room);}
  skip(room,id){const t=current(room);if(room.invalidated||t?.id!==id)throw Error('播放任务已失效');if(t.kind==='speech')completeSpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id,status:'skipped'});t.status='skipped';t.watchdogDeadlineAt=null;this.aborts.get(room.roomId)?.abort();this.audio.delete(id);this.streams.get(id)?.fail('HOST_TASK_CANCELLED');this.streams.delete(id);room.hostPlaybackError=null;this.sync(room);this.publish(room);}
- async retry(room){const t=current(room),gameId=room.gameId;if(!['failed','ready'].includes(t?.status)||this.running.has(room.roomId))throw Error('没有可重试的公共任务');await this.manager.retry(room,'HOST');if(room.invalidated||room.gameId!==gameId||current(room)!==t)throw Error('播放任务已失效');if(t.kind==='speech'&&room.speechPlayback?.status==='paused')retrySpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});this.streams.get(t.id)?.fail('HOST_ATTEMPT_REPLACED');this.streams.delete(t.id);this.audio.delete(t.id);t.status='pending';t.watchdogDeadlineAt=null;t.attemptId=null;t.errorCode=null;room.hostPlaybackError=null;t.attempts=0;this.sync(room);this.publish(room);}
+ async retry(room){const t=current(room),gameId=room.gameId;if(!['failed','ready'].includes(t?.status)||this.running.has(room.roomId))throw Error('没有可重试的公共任务');if(!t.audioPath)await this.manager.retry(room,'HOST');if(room.invalidated||room.gameId!==gameId||current(room)!==t)throw Error('播放任务已失效');if(t.kind==='speech'&&room.speechPlayback?.status==='paused')retrySpeechPlayback(room,{speechId:room.speechPlayback?.speechId,taskId:t.id});this.streams.get(t.id)?.fail('HOST_ATTEMPT_REPLACED');this.streams.delete(t.id);this.audio.delete(t.id);t.status='pending';t.watchdogDeadlineAt=null;t.attemptId=null;t.errorCode=null;room.hostPlaybackError=null;t.attempts=0;this.sync(room);this.publish(room);}
  cancel(room){this.aborts.get(room.roomId)?.abort();for(const t of room.hostTasks||[]){this.audio.delete(t.id);this.streams.get(t.id)?.fail('HOST_TASK_CANCELLED');this.streams.delete(t.id);t.watchdogDeadlineAt=null;}room.hostTasks=[];room.hostPlaybackBlocked=false;room.hostPlaybackError=null;}
 }

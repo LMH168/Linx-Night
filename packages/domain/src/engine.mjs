@@ -96,10 +96,10 @@ export function announceDay(room) {
   transition(room, PHASES.SPEECH, { seatId: aliveSeats(room)[0]?.seatId ?? null }); return room;
 }
 
-export function submitSpeech(room, seatId, text, actionId) {
+export function submitSpeech(room, seatId, text, actionId, media = null) {
   if (room.phase !== PHASES.SPEECH || room.currentSeatId !== seatId) throw new RuleError('speech is not allowed for this seat now');
   const seat = requireAlive(room, seatId); const normalized = typeof text === 'string' ? text.trim() : ''; if (!normalized || normalized.length > MAX_SPEECH_LENGTH) throw new RuleError('speech must be 1-1200 characters');
-  recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: normalized }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
+  recordAction(room, { actionId, turnId: room.round, actionType: 'speech', seatId }); room.speeches.push({ speechId: actionId, round: room.round, seatId, text: normalized, ...(media?.audioId ? { audioId: media.audioId, audioPath: media.audioPath, durationMs: media.durationMs } : {}) }); room.version += 1; appendEvent(room, { type: 'game.speech_submitted', data: { speechId: actionId, seatId } });
   if (room.hostPlaybackEnabled && ((seat.playerType === 'ai' && seat.controlSource === 'linx') || room.realtimeSpeech)) {
     room.speechPlayback = { speechId: actionId, seatId, round: room.round, taskId: null, status: 'pending', attempts: 0, errorCode: null };
     room.version += 1;
@@ -215,12 +215,12 @@ function openNextLastWords(room, extra = null) {
   appendEvent(room, { type: 'game.last_words_opened', data: { windowId, seatId: next.seatId, round: next.round, cause: next.cause, expiresAt } }); return true;
 }
 
-function closeLastWords(room, status, text = null) {
+function closeLastWords(room, status, text = null, media = null) {
   const current = room.lastWords; if (!current || current.status !== 'open') throw new RuleError('last words window is not open');
   current.status = status; current.text = text; room.version += 1;
   const type = status === 'submitted' ? 'game.last_words_submitted' : status === 'skipped' ? 'game.last_words_skipped' : 'game.last_words_expired';
   appendEvent(room, { type, data: { lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, ...(status === 'submitted' ? { text } : {}) } });
-  room.lastWordsHistory ??= []; room.lastWordsHistory.push({ lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, cause: current.cause, status, text });
+  room.lastWordsHistory ??= []; room.lastWordsHistory.push({ lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, cause: current.cause, status, text, ...(media?.audioId ? { audioId: media.audioId, audioPath: media.audioPath, durationMs: media.durationMs } : {}) });
   room.lastWords = null; room.currentSeatId = null; return openNextLastWords(room) || continueAfterLastWords(room);
 }
 
@@ -239,10 +239,10 @@ export function announceNight(room) {
   return room;
 }
 
-export function submitLastWords(room, seatId, text, actionId, windowId) {
+export function submitLastWords(room, seatId, text, actionId, windowId, media = null) {
   if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.seatId !== seatId || room.lastWords.windowId !== windowId) throw new RuleError('last words window mismatch');
   if (commandKey(room, actionId)) throw new RuleError('duplicate action'); if (typeof text !== 'string' || !text.trim() || text.trim().length > MAX_LAST_WORDS_LENGTH) throw new RuleError('last words must be 1-200 characters');
-  recordAction(room, { actionId, turnId: room.round, actionType: 'last_words', seatId }); return closeLastWords(room, 'submitted', text.trim());
+  recordAction(room, { actionId, turnId: room.round, actionType: 'last_words', seatId }); return closeLastWords(room, 'submitted', text.trim(), media);
 }
 
 export function skipLastWords(room, seatId, actionId, windowId) {

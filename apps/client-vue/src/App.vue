@@ -203,9 +203,8 @@ const voice = useHumanVoice({
   realtime: true,
   mode: () => action.value === "lastwords" ? "lastwords" : "speech",
   contextKey: () => actionKey.value,
-  canRecord: () => (action.value === "speech" || action.value === "lastwords") && !actionDisabled.value,
-  onBusyStart: () => hostPlayback.suspend(),
-  onBusyEnd: () => hostPlayback.resume(),
+  canRecord: () => (action.value === "speech" || action.value === "lastwords") && !actionDisabled.value && !state.value?.hostPlaybackBlocked,
+
   onDraft: () => {
     actionMessage.value = "语音发言已自动提交。";
     void refresh();
@@ -215,7 +214,7 @@ const hostPlayback = useHostPlayback({
   client,
   roomId,
   isHost: () => isHost.value,
-  suspended: () => voice.busy.value,
+  selfSeatId: () => mine.value?.seatId,
 });
 const artRole = (role?: Role | null) =>
   role === "werewolf" ? ("wolf" as const) : role || null;
@@ -503,6 +502,16 @@ async function announceNight() {
   if (playerId.value !== state.value?.hostPlayerId) return;
   await submit("actions", { type: "announce_night" });
 }
+let replayAudio: HTMLAudioElement | null = null;
+let replayUrl: string | null = null;
+async function replayVoice(audioId: string) {
+  if (!client.value) return;
+  replayAudio?.pause(); if(replayUrl) URL.revokeObjectURL(replayUrl);
+  try {
+    const response=await client.value.raw(`/api/rooms/${encodeURIComponent(roomId.value)}/voice/audio?audio_id=${encodeURIComponent(audioId)}`);
+    replayUrl=URL.createObjectURL(await response.blob());replayAudio=new Audio(replayUrl);await replayAudio.play();
+  }catch(error){actionMessage.value=errorText(error);}
+}
 async function startRecording() {
   try {
     await voice.start();
@@ -612,9 +621,12 @@ watch(actionKey, () => {
   voice.reset();
   if (action.value === "speech" || action.value === "lastwords") {
     window.setTimeout(() => {
-      if (!actionDisabled.value && voice.draft.value.stage === "idle") void startRecording();
+      if (!actionDisabled.value && !state.value?.hostPlaybackBlocked && voice.draft.value.stage === "idle") void startRecording();
     }, 0);
   }
+});
+watch(() => actionDisabled.value || state.value?.hostPlaybackBlocked, disabled => {
+  if (!disabled && (action.value === "speech" || action.value === "lastwords") && voice.draft.value.stage === "idle") void startRecording();
 });
 watch(targets, () => {
   if (!targets.value.some((s) => s.seatId === targetSeatId.value))
@@ -676,6 +688,7 @@ onMounted(() => {
     void run(() => openRoom(roomId.value, playerId.value));
 });
 onBeforeUnmount(() => {
+  replayAudio?.pause(); if(replayUrl) URL.revokeObjectURL(replayUrl);
   generation++;
   stream?.close();
   voice.reset();
@@ -869,7 +882,7 @@ onBeforeUnmount(() => {
             <template v-if="action === 'speech'"
               ><p class="muted">
                 {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·
-                点击开始说话，再次点击结束并自动提交
+                自动开启麦克风，点击结束保存原声发言
               </p>
               <div class="voice-controls">
                 <p role="status">
@@ -877,9 +890,9 @@ onBeforeUnmount(() => {
                     voice.draft.value.stage === "recording"
                       ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒`
                       : voice.draft.value.stage === "transcribing"
-                        ? "正在转写，请稍候"
+                        ? "正在保存语音，请稍候"
                         : voice.draft.value.stage === "confirming"
-                          ? "转写完成，请检查文字后提交"
+                          ? "语音已提交"
                           : voice.draft.value.error ||
                             "点击开始录音并直接说话。"
                   }}
@@ -901,17 +914,12 @@ onBeforeUnmount(() => {
               </template
             >
             <template v-if="action === 'lastwords'"
-              ><p class="muted">点击开始说遗言，再次点击结束并自动提交，最多 200 字。</p>
-              <p role="status">{{ voice.draft.value.stage === 'recording' ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在转写，请稍候' : voice.draft.value.error || '请使用麦克风发表遗言。' }}</p>
+              ><p class="muted">自动开启麦克风，点击结束保存原声遗言。</p>
+              <p role="status">{{ voice.draft.value.stage === 'recording' ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在保存语音，请稍候' : voice.draft.value.error || '请使用麦克风发表遗言。' }}</p>
               <div class="buttons">
                 <button class="gold" :disabled="actionDisabled" @click="toggleRecording">
                   {{ voice.draft.value.stage === 'recording' ? '结束遗言' : '开始遗言' }}</button
-                ><button
-                  :disabled="actionDisabled"
-                  @click="submitLastWords(true)"
                 >
-                  跳过遗言
-                </button>
               </div></template
             >
             <template v-if="action === 'skill' && mine?.role === 'witch'"
@@ -1130,8 +1138,9 @@ onBeforeUnmount(() => {
             <h3>公开发言</h3>
             <p v-for="s in reportSpeeches" :key="s.speechId">
               <strong>{{ s.seatId }}</strong
-              >：{{ s.text }}
+              >：{{ s.text }} <button v-if="s.audioId" @click="replayVoice(s.audioId)">重播原声</button>
             </p>
+            <p v-for="w in state?.lastWordsHistory" :key="w.lastWordsId"><strong>{{ w.seatId }} 遗言</strong>：{{ w.text }} <button v-if="w.audioId" @click="replayVoice(w.audioId)">重播原声</button></p>
           </section>
         </div>
       </main>
@@ -1146,8 +1155,9 @@ onBeforeUnmount(() => {
             <h3>公开发言</h3>
             <p v-for="s in state?.speeches" :key="s.speechId">
               <strong>{{ s.seatId }}</strong
-              >：{{ s.text }}
+              >：{{ s.text }} <button v-if="s.audioId" @click="replayVoice(s.audioId)">重播原声</button>
             </p>
+            <p v-for="w in state?.lastWordsHistory" :key="w.lastWordsId"><strong>{{ w.seatId }} 遗言</strong>：{{ w.text }} <button v-if="w.audioId" @click="replayVoice(w.audioId)">重播原声</button></p>
           </section>
           <section>
             <h3>已结算投票</h3>

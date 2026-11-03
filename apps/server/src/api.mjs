@@ -1,6 +1,9 @@
 import { tickHumanSpeech, startRecording, beginTranscription, confirmRecording, speechSession, lastWordsSession } from './human-speech.mjs';
 import { parseWav } from '../../linx/src/wav.mjs';
 import { EventEmitter } from 'node:events';
+import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { tickNightWindow } from '../../scheduler/src/local.mjs';
@@ -19,6 +22,7 @@ export const rooms = new Map();
 export const roomCodes = new Map();
 export const settlements = new Map();
 const settlementParticipants = new Map();
+const publicAudioRecords = new Map();
 export const events = new EventHub();
 export const hostCoordinator = createHostCoordinator({ publish: (roomId, event) => events.publish(roomId, event) });
 export const controllerManager = { async prepare(room) { for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.READY; controller.boundAt = new Date().toISOString(); controller.lastSeenAt = controller.boundAt; controller.sessionId = `sim-${controller.seatId}-${room.controllerEpoch}`; controller.agentId = 'simulated-agent'; controller.deviceId = `simulated-device-${controller.seatId}`; controller.profileName = `simulated-${controller.seatId}`; controller.runId = `simulated-run-${controller.seatId}`; room.version += 1; } room.controllerPhase = 'ready'; return room; }, async release(room) { for (const controller of room.controllers ?? []) { controller.status = CONTROLLER_STATES.RELEASED; controller.sessionId = null; controller.runId = null; } room.controllerPhase = 'released'; room.version += 1; } };
@@ -26,6 +30,9 @@ const configuredLinxSeats = env => env.LINX_SEATS === undefined ? null : String(
 const controllerEvent = (room, type, data = {}) => appendEvent(room, { type, data });
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => { let data = ''; let rejected = false; req.on('data', chunk => { if (rejected) return; data += chunk; if (Buffer.byteLength(data) > 1_000_000) { rejected = true; reject(new Error('request body too large')); } }); req.on('end', () => { if (rejected) return; try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Error('request body must be valid JSON')); } }); req.on('error', reject); });
+const publicAudioRoot = () => process.env.LINX_PUBLIC_AUDIO_DIR || join(process.env.HOME || tmpdir(), 'LinxNight', 'audio', 'public');
+const pcmWav = pcm => { const wav = Buffer.alloc(44 + pcm.length); wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(pcm.length, 40); pcm.copy(wav, 44); return wav; };
+const savePublicAudio = async (room, seatId, chunks) => { const audioId = `audio_${randomUUID()}`; const root = join(publicAudioRoot(), room.roomId); await mkdir(root, { recursive: true, mode: 0o700 }); const path = join(root, `${audioId}.wav`); const pcm = Buffer.concat(chunks); await writeFile(path, pcmWav(pcm), { mode: 0o600 }); room.audioRecords ??= []; room.audioRecords.push({ audioId, path, seatId, roomId: room.roomId, gameId: room.gameId, durationMs: Math.round(pcm.length / 32) }); return room.audioRecords.at(-1); };
 const currentPlayer = (req, room) => { const playerId = req.headers['x-player-id']; const seat = room.seats.find(item => item.playerId === playerId); if (!seat) throw Object.assign(new Error('player identity is unauthorized'), { status: 403 }); return seat; };
 const roomReference = value => String(value || '').trim();
 const roomOrFail = roomRef => {
@@ -62,6 +69,12 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (parts[0] === 'api' && parts[1] === 'rooms' && parts[3] === 'settlement' && req.method === 'GET') { const report = settlementForReference(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, report.settlementId); return json(res, 200, { settlement: structuredClone(report) }); }
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
       if (req.method === 'POST' && parts[3] === 'end' && !rooms.has(roomId)) { const report=settlementForReference(roomId); if(report){ settlementActor(req,report.settlementId); return json(res,200,{ended:true,idempotent:true,settlement_id:report.settlementId,settlement:structuredClone(report)}); } }
+      if (req.method === 'GET' && parts[3] === 'voice' && parts[4] === 'audio') {
+        const audio = publicAudioRecords.get(url.searchParams.get('audio_id'));
+        if (!audio || ![audio.roomId,audio.roomCode].includes(roomId)) return json(res,404,{error:{code:'AUDIO_NOT_FOUND',message:'语音记录不存在'}});
+        if (!audio.participants.has(req.headers['x-player-id'])) throw Object.assign(Error('语音记录访问未授权'),{status:403});
+        const body = await readFile(audio.path);res.writeHead(200,{'content-type':'audio/wav','cache-control':'private, no-store','content-length':body.length,'access-control-allow-origin':'*'});return res.end(body);
+      }
       const room = roomOrFail(roomId);
       if (req.method === 'POST' && parts[3] === 'players') { const body = await readBody(req); if (body.player_type === 'ai') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can add AI players'), { status: 403, code: 'FORBIDDEN' }); if (room.preparing) throw Object.assign(new Error('room is preparing'), { status: 409, code: 'ROOM_PREPARING' }); } const nextSeat = room.seats.find(seat => !seat.playerId); const player = addPlayer(room, { playerId: body.player_id || (body.player_type === 'ai' ? `ai_${randomUUID()}` : `player_${randomUUID()}`), displayName: body.display_name || (body.player_type === 'ai' ? defaultAiDisplayName(nextSeat?.seatId) : '玩家'), playerType: body.player_type === 'ai' ? 'ai' : 'human' }); publishNewEvents(room); return json(res, 201, { player, state: publicState(room) }); }
       if (req.method === 'PATCH' && parts[3] === 'players' && parts[4]) { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can rename AI players'), { status: 403, code: 'FORBIDDEN' }); if (room.phase !== 'LOBBY' || room.preparing) throw Object.assign(new Error('AI players can only be renamed in lobby'), { status: 409, code: 'ROOM_NOT_EDITABLE' }); const seat = room.seats.find(item => item.seatId === parts[4]); if (!seat || seat.playerType !== 'ai') throw Object.assign(new Error('target seat is not an AI player'), { status: 400, code: 'AI_SEAT_REQUIRED' }); const body = await readBody(req); if (typeof body.display_name !== 'string' || !body.display_name.trim() || body.display_name.length > 24) throw Object.assign(new Error('display_name must be 1-24 characters'), { status: 400, code: 'INVALID_DISPLAY_NAME' }); seat.displayName = body.display_name.trim(); room.version += 1; appendEvent(room, { type: 'room.player_renamed', data: { seatId: seat.seatId, playerType: 'ai' } }); publishNewEvents(room); return json(res, 200, { player: { seatId: seat.seatId, displayName: seat.displayName, playerType: seat.playerType }, state: publicState(room) }); }
@@ -80,7 +93,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         const actor=currentPlayer(req,room);if(actor.playerType!=='human')throw new Error('仅真人可使用网页语音');
         const body=await readVoiceBody(req), kind=parts[4];const abort=new AbortController();res.on('close',()=>{if(!res.writableEnded)abort.abort();});
         if(kind==='skip'){speechSession(room,actor);skipSpeech(room,actor.seatId,actionId(req,body));publishNewEvents(room);return json(res,200,{skipped:true});}
-        if(kind==='recording-start'){const recording=startRecording(room,actor);if(realtimeVoice&&room.speechClock)room.speechClock.realtime=true;publishNewEvents(room);return json(res,200,recording);}
+        if(kind==='recording-start'){const recording=startRecording(room,actor);if(room.speechClock)room.speechClock.realtime=true;publishNewEvents(room);return json(res,200,recording);}
         if(kind==='recording-cancel'){confirmRecording(room,actor,body.recording_id);publishNewEvents(room);return json(res,200,{cancelled:true});}
         if(kind==='transcribe') {
           if(realtimeVoice)throw Object.assign(new Error('请使用实时麦克风发言'),{status:410,code:'REALTIME_VOICE_REQUIRED'});
@@ -129,6 +142,7 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       if (req.method === 'GET' && parts[3] === 'last-words') return json(res, 200, { last_words: publicState(room).lastWords });
       if (req.method === 'POST' && parts[3] === 'last-words') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipLastWords(room, actor.seatId, id, body.window_id); else submitLastWords(room, actor.seatId, body.text, id, body.window_id); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'GET' && parts[3] === 'events') return eventStream(res, events, room.roomId, { version: Number(url.searchParams.get('after') || 0), history: room.events });
+
       if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if(realtimeVoice)throw Object.assign(new Error('请使用实时麦克风发言'),{status:410,code:'REALTIME_VOICE_REQUIRED'}); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const speechClock=speechSession(room,actor);if(['recording','transcribing'].includes(speechClock.stage))throw Error('请先结束或取消录音转写'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'hunter-response') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipHunterResponse(room, actor.seatId, id, body.window_id); else if (body.action === 'shoot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else throw new Error('invalid hunter action'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'actions') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); const privatePhase = room.phase.startsWith('NIGHT_') || room.phase === 'HUNTER_RESPONSE'; const hostAction = body.type === 'announce_day' || body.type === 'announce_night'; if(room.hostPlaybackBlocked && !privatePhase && !hostAction)throw new Error('请等待主持播报完成'); if (body.type === 'wolf_target') wolfTarget(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'seer_check') seerCheck(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'witch_action') witchAction(room, actor.seatId, body.action, body.target_seat_id, id); else if (body.type === 'hunter_shot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else if (hostAction) { if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can announce phase'), { status: 403 }); if (body.type === 'announce_day') announceDay(room); else announceNight(room); } else throw new Error('invalid action type'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
@@ -140,60 +154,63 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, 'http://localhost');
     const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/voice\/realtime$/);
-    if (!match || !realtimeVoice) { socket.destroy(); return; }
+    if (!match) { socket.destroy(); return; }
     let room, seat, clock;
     const mode = url.searchParams.get('mode') === 'lastwords' ? 'lastwords' : 'speech';
-    try { room = roomOrFail(decodeURIComponent(match[1])); seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id')); if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言'); clock = mode === 'lastwords' ? lastWordsSession(room, seat) : speechSession(room,seat); }
-    catch { socket.destroy(); return; }
+    try {
+      room = roomOrFail(decodeURIComponent(match[1]));
+      seat = room.seats.find(item => item.playerId === url.searchParams.get('player_id'));
+      if (!seat || seat.playerType !== 'human' || seat.controlSource !== 'human' || !actionAvailable(room, seat)) throw new Error('当前不能进行实时发言');
+      clock = mode === 'lastwords' ? lastWordsSession(room, seat) : speechSession(room, seat);
+      if (room.speechAudioRelay && !room.speechAudioRelay.ended) throw Error('本轮麦克风已连接');
+      if (url.searchParams.get('recording_id') !== clock.recordingId || !clock.recordingId || clock.stage !== 'recording') throw Error('录音请求已失效');
+    } catch { socket.destroy(); return; }
     realtime.handleUpgrade(req, socket, head, ws => {
-      const recordingId = url.searchParams.get('recording_id'); let session, ready, closed = false, submitted = false;
-      let resolveRelay; const done = new Promise(resolve => { resolveRelay = resolve; });
-      const relay = { seatId: seat.seatId, chunks: [], ended: false, stream: null, resolve: resolveRelay, done };
-      clock.realtime = true;
-      room.speechAudioRelay = relay; room.realtimeSpeech = true;
-      roomChanges.emit('changed',room);
-      const finish = () => { if (closed) return; closed = true; relay.ended = true; relay.resolve(); room.realtimeSpeech = false; session?.close?.(); ws.close(); };
+      const gameId=room.gameId, controlEpoch=seat.controlEpoch;
+      const recordingId = url.searchParams.get('recording_id'); let closed = false; let submitted = false; let stopping = false; let live = null;
+      const relay = { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, resolve: () => {} };
+      clock.realtime = true; room.speechAudioRelay = relay; room.realtimeSpeech = true; roomChanges.emit('changed', room);
+      const finish = () => { if (closed) return; closed = true; clearInterval(validityTimer); if(!submitted)hostPlayback?.cancelHuman(room,live); relay.ended = true; if (room.speechAudioRelay === relay) room.speechAudioRelay = null; room.realtimeSpeech = false; ws.close(); };
+      const valid = () => { const windowValid = mode === 'lastwords' ? room.lastWords?.windowId === clock.windowId : room.speechClock === clock; const expiresAt = mode === 'lastwords' ? clock.expiresAtMs : clock.expiresAt; return !closed && !room.invalidated && rooms.get(room.roomId)===room && room.gameId===gameId && seat.controlEpoch===controlEpoch && seat.controlSource==='human' && windowValid && (!live || live.task.status==='generating') && actionAvailable(room, seat) && Date.now() < expiresAt; };
+      const validityTimer=setInterval(()=>{if(!submitted&&!stopping&&!valid())finish();},250);validityTimer.unref();
+      const submitAudio = async () => {
+        if (submitted || !relay.chunks.length) return false;
+        if (!valid()) { finish(); return false; }
+        const audio = await savePublicAudio(room, seat.seatId, relay.chunks);
+        if (!valid()) { await unlink(audio.path).catch(() => {}); room.audioRecords = room.audioRecords.filter(item => item !== audio); finish(); return false; }
+        try {
+        const action = `realtime_${randomUUID()}`;
+        if (recordingId) confirmRecording(room, seat, recordingId);
+        const media = { audioId: audio.audioId, audioPath: audio.path, durationMs: audio.durationMs };
+        if (mode === 'lastwords') submitLastWords(room, seat.seatId, '语音遗言', action, room.lastWords?.windowId, media);
+        else submitSpeech(room, seat.seatId, '语音发言', action, media);
+        publicAudioRecords.set(audio.audioId,{...audio,roomCode:room.roomCode,participants:new Set(room.seats.map(s=>s.playerId).filter(Boolean))});
+        submitted = true;
+        const acceptedEvent=room.events.findLast(event=>event.type===(mode==='lastwords'?'game.last_words_submitted':'game.speech_submitted'));
+        if(live)hostPlayback.finishHuman(room,live,acceptedEvent.eventId,{...audio,wav:pcmWav(Buffer.concat(relay.chunks))});
+        publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text: mode === 'lastwords' ? '语音遗言' : '语音发言', audio_id: audio.audioId }));
+        // Transcription is supplementary; it never owns the turn or the audio task.
+        const record=(mode==='lastwords'?room.lastWordsHistory:room.speeches).find(item=>item.audioId===audio.audioId);
+        if(voice&&record){record.transcriptStatus='pending';void Promise.resolve().then(()=>voice({kind:'transcribe',wav:pcmWav(Buffer.concat(relay.chunks)),signal:AbortSignal.timeout(60000)})).then(result=>{
+          if(room.invalidated||room.gameId!==gameId||!result?.text?.trim())return;
+          record.text=result.text.trim().slice(0,mode==='lastwords'?200:1200);record.transcriptStatus='completed';
+          appendEvent(room,{type:'game.speech_transcript_updated',data:{speechId:record.speechId||record.lastWordsId,seatId:seat.seatId}});publishNewEvents(room);
+        }).catch(()=>{record.transcriptStatus='failed';});}
+        return true;
+        } catch(error) { if(!submitted){await unlink(audio.path).catch(()=>{});room.audioRecords=room.audioRecords.filter(item=>item!==audio);}throw error;}
+      };
       ws.on('message', async (raw, binary) => {
         try {
-          await ready;
-          if (closed) return;
-          const windowValid = mode === 'lastwords' ? room.lastWords?.windowId === clock.windowId : room.speechClock === clock;
-          const expiresAt = mode === 'lastwords' ? clock.expiresAtMs : clock.expiresAt;
-          if (!submitted && (!windowValid || !actionAvailable(room,seat) || Date.now() >= expiresAt)) { finish(); return; }
-          if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920) throw new Error('PCM 音频帧无效'); relay.chunks.push(frame); relay.stream?.append(frame); relay.target?.(frame); await session?.send(frame); return; }
+          if (closed || stopping) return;
+          if (!submitted && !valid()) { finish(); return; }
+          if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920 || relay.bytes + frame.length > 960000) throw new Error('语音长度或格式无效'); if(!live&&hostPlayback)live=hostPlayback.beginHuman(room,seat.seatId,mode); relay.chunks.push(frame); relay.bytes += frame.length; live?.stream.append(frame); return; }
           const message = JSON.parse(raw.toString());
-          if (message.type === 'stop') {
-            await session?.stop();
-            if (!submitted) {
-              const actionId = `realtime_skip_${randomUUID()}`;
-              if (mode === 'lastwords') skipLastWords(room, seat.seatId, actionId, room.lastWords?.windowId);
-              else skipSpeech(room, seat.seatId, actionId);
-              publishNewEvents(room);
-            }
-            finish(); return;
-          }
-          if (message.type !== 'start') throw new Error('实时语音控制消息无效');
+          if (message.type === 'start') { ws.send(JSON.stringify({ type: 'ready' })); return; }
+          if (message.type === 'stop') { stopping = true; await submitAudio(); if (!submitted && !closed && valid()) { const action = `realtime_skip_${randomUUID()}`; if (mode === 'lastwords') skipLastWords(room, seat.seatId, action, room.lastWords?.windowId); else skipSpeech(room, seat.seatId, action); publishNewEvents(room); } finish(); return; }
+          throw new Error('实时语音控制消息无效');
         } catch (error) { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } }
       });
       ws.on('close', finish);
-      ready = realtimeVoice({ onAudio: chunk => { /* Human input is the public stream; Linx TTS stays private. */ void chunk; }, onMessage: message => {
-        if (closed) return;
-        if (message.type === 'stt' && typeof message.text === 'string' && message.text.trim() && !submitted) {
-          const windowValid = mode === 'lastwords' ? room.lastWords?.windowId === clock.windowId : room.speechClock === clock;
-          const expiresAt = mode === 'lastwords' ? clock.expiresAtMs : clock.expiresAt;
-          if (!windowValid || !actionAvailable(room,seat) || Date.now() >= expiresAt) { finish(); return; }
-          try {
-            submitted = true;
-            if (recordingId) confirmRecording(room, seat, recordingId);
-            const actionId = `realtime_${randomUUID()}`;
-            if (mode === 'lastwords') submitLastWords(room, seat.seatId, message.text.trim(), actionId, room.lastWords?.windowId);
-            else submitSpeech(room, seat.seatId, message.text.trim(), actionId);
-            publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text: message.text.trim() }));
-          }
-          catch (error) { ws.send(JSON.stringify({ type: 'error', message: error.message })); }
-        }
-        if (message.type === 'tts' && message.state === 'stop') ws.send(JSON.stringify({ type: 'tts_stop' }));
-      }}).then(value => { if (closed) { value.close?.(); return; } session = value; ws.send(JSON.stringify({ type: 'ready' })); }).catch(error => { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } });
     });
   });
   let hunterTimer;
