@@ -4,7 +4,7 @@ import {createRoom,addPlayer,fillAiSeats,beginControllerPreparation} from '../..
 const wav=Buffer.alloc(46);wav.write('RIFF');wav.writeUInt32LE(38,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(2,40);
 const setup=()=>{const room=createRoom();addPlayer(room,{playerId:room.hostPlayerId,displayName:'host'});fillAiSeats(room);beginControllerPreparation(room,{aiSeatIds:['P2']});return room;};
 let count=0,sends=0,closed=0,lastAudio,lastOptions; const voteWav=Buffer.from(wav);voteWav.writeInt16LE(7,44);
-const manager=createLinxControllerManager({env:{LINX_AGENT_ID:'agent',LINX_PROFILES:'a',LINX_VOTE_WAV:'vote',LINX_MCP_ADMIN_URL:'http://test',LINX_MCP_ADMIN_TOKEN:'secret'},loadAudio:async path=>path==='vote'?voteWav:wav,readIdentity:async()=>({deviceId:'device'}),fetchImpl:async url=>Response.json(url.endsWith('/admin/diagnostics')?{requests:[{authenticated:true,status:200,method:'tools/call',tool:'get_my_private_state',resultCode:'OK',sessionId:`s-${count}`,deviceId:'device',agentId:'agent'}]}:url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'secret'}}:{registered:true}),clientFactory:()=>({state:'closed',sessionId:`s-${++count}`,async connect(){this.state='ready';},async send(audio,options){sends++;lastAudio=audio;lastOptions=options;if(typeof audio==='string'&&audio.includes('会话准备'))await new Promise(resolve=>{this.warmupDone=resolve;});},cancelTurn(){this.warmupDone?.();},close(){closed++;this.state='closed';}})});
+const manager=createLinxControllerManager({env:{LINX_AGENT_ID:'agent',LINX_PROFILES:'a',LINX_VOTE_WAV:'vote',LINX_MCP_ADMIN_URL:'http://test',LINX_MCP_ADMIN_TOKEN:'secret'},loadAudio:async path=>path==='vote'?voteWav:wav,readIdentity:async()=>({deviceId:'device'}),fetchImpl:async url=>Response.json(url.endsWith('/admin/diagnostics')?{requests:[{authenticated:true,status:200,method:'tools/call',tool:'get_my_private_state',resultCode:'OK',sessionId:`s-${count}`,deviceId:'device',agentId:'agent'}]}:url.includes('/ota')?{websocket:{url:'wss://xrobo-io.qiniuapi.com/v1/ws/',token:'secret'}}:{registered:true}),clientFactory:()=>({state:'closed',sessionId:`s-${++count}`,async connect(){this.state='ready';},async send(audio,options){sends++;lastAudio=audio;lastOptions=options;if(options?.inputOnly)return {text:'我认为五号值得怀疑'};if(typeof audio==='string'&&audio.includes('会话准备'))await new Promise(resolve=>{this.warmupDone=resolve;});},cancelTurn(){this.warmupDone?.();},close(){closed++;this.state='closed';}})});
 const room=setup();await manager.prepare(room);assert.match(lastAudio,/会话准备/);sends=0;room.publicVoices={P2:'seat-two-voice'};await manager.sendTurn(room,room.seats[1]);assert.equal(lastOptions.voiceId,'seat-two-voice');assert.equal(sends,1);assert.equal(lastAudio,wav);room.phase='VOTE';await manager.sendTurn(room,room.seats[1]);assert.match(lastAudio,/submit_vote/);assert.match(lastAudio,/currentTurn.turnId/);
 await assert.rejects(Promise.resolve().then(() => manager.checkAvailability(setup())), { code: 'PROFILE_IN_USE' });
 await manager.releaseSeat(room,room.seats[1]);
@@ -14,6 +14,30 @@ await manager.release(room);const preparedRoom=setup();await manager.prepare(pre
 const speechRoom=setup(); await manager.prepare(speechRoom);
 speechRoom.phase='SPEECH'; speechRoom.currentSeatId='P2'; speechRoom.requireActionLease=true; speechRoom.gameId=speechRoom.gameId || 'game';
 await manager.sendTurn(speechRoom,speechRoom.seats[1]); assert.match(lastAudio,/submit_speech/); assert.match(lastAudio,/公开发言/);
+speechRoom.speeches.push({speechId:'human-audio',seatId:'P1',round:1,text:'',audioId:'a1',audioPath:'human.wav'});
+speechRoom.events.push({eventId:'human-event',type:'game.speech_submitted',data:{speechId:'human-audio',seatId:'P1'}});
+const beforeHearing=sends;
+await manager.ensureConnected(speechRoom,speechRoom.seats[1]);
+assert.equal(sends,beforeHearing+1);assert.equal(lastAudio,wav);assert.equal(lastOptions.inputOnly,true);
+assert.equal(speechRoom.speeches.at(-1).text,'我认为五号值得怀疑');
+await manager.ensureConnected(speechRoom,speechRoom.seats[1]);assert.equal(sends,beforeHearing+1);
+await manager.sendTurn(speechRoom,speechRoom.seats[1]);assert.match(lastAudio,/submit_speech/);
+await manager.releaseSeat(speechRoom,speechRoom.seats[1]);
+const beforeReconnect=sends;
+await manager.ensureConnected(speechRoom,speechRoom.seats[1]);assert.equal(sends,beforeReconnect+1);assert.match(lastAudio,/会话准备/);
+// A different AI queries the confirmed text through the real HTTP MCP API.
+const {createMcpServer,registerSession,sessions}=await import('../../mcp/src/server.mjs');
+const {rooms}=await import('../src/api.mjs');
+rooms.set(speechRoom.roomId,speechRoom);
+const {server:mcpServer}=createMcpServer({authToken:'query-test'});
+await new Promise(resolve=>mcpServer.listen(0,'127.0.0.1',resolve));
+registerSession({sessionId:'listener-test',roomId:speechRoom.roomId,seatId:'P3',playerId:speechRoom.seats[2].playerId});
+try {
+ const response=await fetch(`http://127.0.0.1:${mcpServer.address().port}/mcp`,{method:'POST',headers:{authorization:'Bearer query-test','content-type':'application/json','x-linx-session-id':'listener-test'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'get_recent_speeches',arguments:{}}})});
+ const result=await response.json();
+ assert.equal(JSON.parse(result.result.content[0].text).speeches.at(-1).text,'我认为五号值得怀疑');
+} finally {sessions.delete('listener-test');rooms.delete(speechRoom.roomId);mcpServer.closeAllConnections();await new Promise(resolve=>mcpServer.close(resolve));}
+await manager.release(speechRoom);
 import { sanitizePublicSpeech } from '../src/linx-manager.mjs';
 assert.equal(sanitizePublicSpeech('我先正常发言。The speech submission failed。P4有问题。', {role:'villager'}), '我先正常发言。P4有问题。');
 assert.equal(sanitizePublicSpeech('我是狼人阵营，P7是我队友。P2很可疑。', {role:'werewolf'}), 'P2很可疑。');

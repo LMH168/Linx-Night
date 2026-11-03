@@ -907,7 +907,7 @@ onBeforeUnmount(() => {
                     v-if="voice.draft.value.stage !== 'idle'"
                     @click="cancelRecording"
                   >
-                    取消录音/转写
+                    取消录音
                   </button>
                 </div>
               </div>

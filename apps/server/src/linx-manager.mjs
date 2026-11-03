@@ -1,3 +1,4 @@
+import { appendEvent } from '../../../packages/domain/src/model.mjs';
 import { recordTurn } from './turn-diagnostics.mjs';
 import { voiceConfig } from './voice-config.mjs';
 import { readFile } from 'node:fs/promises';
@@ -67,6 +68,7 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
     return clientFactory ? clientFactory(identity,options) : new LinxClient(identity,options);
   };
   const sends = new Map();
+  const humanTranscriptions = new Map();
   const adapters = new Map(), profiles = new Map(), reservations = new Map();
   const audioPath = env.LINX_TURN_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'turn.wav');
   const hunterAudioPath = env.LINX_HUNTER_WAV || join(env.LOCALAPPDATA || '.', 'LinxNight', 'audio', 'hunter.wav');
@@ -193,6 +195,36 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
         await adapter.reconnect(room, seat.seatId);
         if(seat.seatId!=='HOST')await this.prepareSession(room,seat.seatId);
       }
+      if (seat.seatId !== 'HOST') await this.transcribePublicHumanAudio(room, seat);
+    },
+    async transcribePublicHumanAudio(room, seat) {
+      if (humanTranscriptions.has(room.roomId)) await humanTranscriptions.get(room.roomId);
+      const client = this.clientFor(room, seat.seatId);
+      if (!client) throw Error('CONTROLLER_MISSING');
+      const work = (async () => {
+        // One game session supplies STT. All AI players then query the same
+        // public transcript through get_recent_speeches, including on reconnect.
+        for (const event of room.events) {
+          const words = event.type === 'game.last_words_submitted';
+          if (!words && event.type !== 'game.speech_submitted') continue;
+          const speech = words ? room.lastWordsHistory?.find(s => s.lastWordsId === event.data.lastWordsId) : room.speeches.find(s => s.speechId === event.data.speechId);
+          if (!speech?.audioPath || speech.text || room.seats.find(s => s.seatId === speech.seatId)?.playerType !== 'human') continue;
+          if (room.invalidated) throw Error('CONTROLLER_RELEASED');
+          recordTurn('human_transcription_started', { roomId: room.roomId, gameId: room.gameId, seatId: speech.seatId });
+          const result = await client.send(await loadAudio(speech.audioPath), { inputOnly: true });
+          if (room.invalidated) throw Error('CONTROLLER_RELEASED');
+          if (!result?.text?.trim()) throw Error('PUBLIC_AUDIO_EMPTY_TRANSCRIPT');
+          speech.text = result.text.trim().slice(0, words ? 200 : 1200);
+          room.version += 1;
+          appendEvent(room, { type: words ? 'game.last_words_transcript_updated' : 'game.speech_transcript_updated', data: { seatId: speech.seatId, ...(words ? { lastWordsId: speech.lastWordsId } : { speechId: speech.speechId }) } });
+          onChange(room);
+          recordTurn('human_transcription_completed', { roomId: room.roomId, gameId: room.gameId, seatId: speech.seatId });
+        }
+      })();
+      humanTranscriptions.set(room.roomId, work);
+      try { await work; }
+      catch (error) { recordTurn('human_transcription_failed', { roomId: room.roomId, gameId: room.gameId, seatId: seat.seatId, code: error.message }); throw error; }
+      finally { if (humanTranscriptions.get(room.roomId) === work) humanTranscriptions.delete(room.roomId); }
     },
     async cancelTurn(room, seat) {
       const work = sends.get(room.roomId+':'+seat.seatId);
