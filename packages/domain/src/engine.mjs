@@ -17,8 +17,9 @@ const transition = (room, phase, data = {}) => {
     room.nightWindow.next = {phase, data};
     return;
   }
+  if (phase === PHASES.NIGHT_ANNOUNCEMENT && room.requireHostConfirmation) room.nightConfirmation = { gameId: room.gameId, windowId: `night_${randomUUID()}`, status: 'waiting', first: room.round === 0 && !room.events.some(e => e.type === 'game.night_confirmed') };
   room.phase = phase; room.currentSeatId = data.seatId ?? null;
-  room.nightWindow = room.nightPhaseDurationMs && phase.startsWith('NIGHT_') ? {phase, expiresAt:Date.now()+room.nightPhaseDurationMs} : null;
+  room.nightWindow = room.nightPhaseDurationMs && ['NIGHT_WOLF','NIGHT_SEER','NIGHT_WITCH'].includes(phase) ? {phase, expiresAt:Date.now()+room.nightPhaseDurationMs} : null;
   room.version += 1; appendEvent(room, { type: 'game.phase_changed', data: { phase, ...data } });
 };
 
@@ -30,7 +31,7 @@ export function advanceNightWindow(room) {
 
 export function startGame(room) {
   if (room.phase !== PHASES.ROLE_ASSIGNMENT) throw new RuleError('roles must be assigned before starting');
-  transition(room, PHASES.NIGHT_WOLF); return room;
+  transition(room, room.requireHostConfirmation ? PHASES.NIGHT_ANNOUNCEMENT : PHASES.NIGHT_WOLF); return room;
 }
 
 export function wolfTarget(room, seatId, targetSeatId, actionId) {
@@ -210,7 +211,7 @@ function openNextLastWords(room, extra = null) {
   if (room.lastWords?.status === 'open') return true;
   const next = room.lastWordsQueue?.shift(); if (!next) return false;
   const windowId = `last_words_${randomUUID()}`; const expiresAt = new Date(Date.now() + LAST_WORDS_TIMEOUT_MS).toISOString();
-  room.lastWords = { windowId, lastWordsId: windowId, seatId: next.seatId, round: next.round, cause: next.cause, status: 'open', expiresAt, text: null };
+  room.lastWords = { windowId, lastWordsId: windowId, seatId: next.seatId, round: next.round, cause: next.cause, status: 'open', waitingForPlayback: Boolean(room.hostPlaybackBlocked), expiresAt, text: null };
   room.phase = PHASES.LAST_WORDS; room.currentSeatId = next.seatId; room.version += 1;
   appendEvent(room, { type: 'game.last_words_opened', data: { windowId, seatId: next.seatId, round: next.round, cause: next.cause, expiresAt } }); return true;
 }
@@ -221,7 +222,9 @@ function closeLastWords(room, status, text = null, media = null) {
   const type = status === 'submitted' ? 'game.last_words_submitted' : status === 'skipped' ? 'game.last_words_skipped' : 'game.last_words_expired';
   appendEvent(room, { type, data: { lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, ...(status === 'submitted' ? { text } : {}) } });
   room.lastWordsHistory ??= []; room.lastWordsHistory.push({ lastWordsId: current.lastWordsId, seatId: current.seatId, round: current.round, cause: current.cause, status, text, ...(media?.audioId ? { audioId: media.audioId, audioPath: media.audioPath, durationMs: media.durationMs } : {}) });
-  room.lastWords = null; room.currentSeatId = null; return openNextLastWords(room) || continueAfterLastWords(room);
+  room.lastWords = null; room.currentSeatId = null;
+  if (status === 'submitted' && room.hostPlaybackEnabled) { room.lastWordsPlayback = { lastWordsId: current.lastWordsId, seatId: current.seatId }; return room; }
+  return openNextLastWords(room) || continueAfterLastWords(room);
 }
 
 function continueAfterLastWords(room) {
@@ -232,7 +235,33 @@ function continueAfterLastWords(room) {
   return room;
 }
 
+export function completeLastWordsPlayback(room, lastWordsId) {
+  if (room.lastWordsPlayback?.lastWordsId !== lastWordsId) throw new RuleError('last words playback is not pending');
+  const seatId = room.lastWordsPlayback.seatId; room.lastWordsPlayback = null; room.version += 1;
+  appendEvent(room, { type: 'game.last_words_playback_completed', data: { lastWordsId, seatId } });
+  return openNextLastWords(room) || continueAfterLastWords(room);
+}
+
+export function confirmNight(room, gameId, windowId) {
+  const window = room.nightConfirmation;
+  if (!room.requireHostConfirmation || room.invalidated || room.phase !== PHASES.NIGHT_ANNOUNCEMENT || room.gameId !== gameId || window?.windowId !== windowId) throw new RuleError('night confirmation window mismatch');
+  if (window.status === 'announcing' || window.status === 'completed') return room;
+  if (!['waiting', 'requesting'].includes(window.status)) throw new RuleError('night confirmation request is inactive');
+  if (room.lastWords || room.lastWordsPlayback || room.hunterResponse?.status === 'open' || room.hostPlaybackBlocked) throw new RuleError('public playback must finish first');
+  window.status = 'announcing'; window.errorCode = null; room.version += 1;
+  appendEvent(room, { type: 'game.night_confirmed', data: { windowId } }); return room;
+}
+
+export function completeNightAnnouncement(room, windowId) {
+  const window = room.nightConfirmation;
+  if (room.invalidated || room.phase !== PHASES.NIGHT_ANNOUNCEMENT || window?.windowId !== windowId || window.status !== 'announcing') throw new RuleError('night announcement is not pending');
+  window.status = 'completed';
+  if (!window.first) room.round += 1;
+  transition(room, PHASES.NIGHT_WOLF); return room;
+}
+
 export function announceNight(room) {
+  if (room.requireHostConfirmation) throw new RuleError('only the independent host can confirm night');
   if (room.phase !== PHASES.NIGHT_ANNOUNCEMENT) throw new RuleError('night announcement is not allowed now');
   room.round += 1;
   transition(room, PHASES.NIGHT_WOLF);
@@ -251,6 +280,7 @@ export function skipLastWords(room, seatId, actionId, windowId) {
 }
 
 export function expireLastWords(room, now = Date.now()) {
+  if (room.lastWords?.waitingForPlayback && room.humanAudioTask?.status !== 'generating') return false;
   if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.status !== 'open' || now < Date.parse(room.lastWords.expiresAt)) return false;
   closeLastWords(room, 'expired'); return true;
 }
@@ -303,7 +333,8 @@ function finishVoteDay(room) {
   room.lastWordsContinuation = PHASES.NIGHT_WOLF;
   if (openNextLastWords(room)) return room;
   const winner = checkWinner(room); if (winner) return winner;
-  room.round += 1; transition(room, PHASES.NIGHT_WOLF); return room;
+  if (room.requireHostConfirmation) transition(room, PHASES.NIGHT_ANNOUNCEMENT);
+  else { room.round += 1; transition(room, PHASES.NIGHT_WOLF); } return room;
 }
 
 function resolveVotes(room) {

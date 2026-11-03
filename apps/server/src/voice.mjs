@@ -1,6 +1,9 @@
 const phases={NIGHT_ANNOUNCEMENT:'遗言结束，请主持人宣布天黑。',NIGHT_WOLF:'天黑请闭眼，狼人行动。',NIGHT_SEER:'预言家行动。',NIGHT_WITCH:'女巫行动。',SPEECH:'天亮了，开始依次发言。',VOTE:'发言结束，请投票。',GAME_OVER:'本局结束。'};
 export function publicNarration(room,eventId) {
   const event=room.events.find(e=>e.eventId===eventId);if(!event)throw new Error('公开事件不存在');
+  if(event.type==='game.night_confirmed')return '天黑请闭眼。';
+  if(event.type==='game.phase_changed' && event.data.phase==='NIGHT_ANNOUNCEMENT' && room.requireHostConfirmation)throw new Error('等待主持确认');
+  if(event.type==='game.phase_changed' && event.data.phase==='NIGHT_WOLF' && room.requireHostConfirmation)return '狼人请行动。';
   if(event.type==='game.night_resolved')return event.data.deathSeatIds.length ? `天亮了，昨夜 ${event.data.deathSeatIds.join('、')} 出局。` : '天亮了，昨夜是平安夜，无人出局。';
   if(event.type==='game.speech_submitted'){
     const speech=room.speeches.find(s=>s.speechId===event.data.speechId);if(speech?.audioPath)return `${speech.seatId} 发言（语音）`;if(speech)return `${speech.seatId} 发言：${speech.text}`;
@@ -8,7 +11,7 @@ export function publicNarration(room,eventId) {
   if(event.type==='game.last_words_submitted'){
     const words=room.lastWordsHistory?.find(item=>item.lastWordsId===event.data.lastWordsId);
     if(words?.audioPath)return `${words.seatId} 遗言（语音）`;
-    if(words?.text)return `${words.seatId} 遗言：${words.text}`;
+    if(words?.text)return words.text;
   }
   if(event.type==='game.phase_changed' && event.data.pk) {
     if(event.data.phase==='SPEECH')return `请平票候选 ${event.data.seatId} 进行 PK 发言。`;

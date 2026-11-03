@@ -1,3 +1,4 @@
+import { confirmNight } from '../../../packages/domain/src/engine.mjs';
 import { voteTargetSeats } from '../../../packages/domain/src/engine.mjs';
 import { recordTurn, turnDiagnostics } from '../../server/src/turn-diagnostics.mjs';
 import { actionAvailable, currentTurn } from '../../../packages/domain/src/turns.mjs';
@@ -81,10 +82,16 @@ async function callTool(req, name, args, requiredToken, trace) {
   Object.assign(trace, { roomId: room.roomId, seatId: context.seatId, beforeVersion: room.version, eventIds: [] });
   const tool = toolMap.get(name);
   if (!tool) throw Object.assign(new Error('unknown tool'), { code: -32601 });
-  if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches','get_host_announcements'].includes(name)) throw Object.assign(new Error('host is read-only'), { code: -32002 });
+  if (context.role === 'host' && !['get_public_game_state', 'get_recent_speeches','get_host_announcements','confirm_night'].includes(name)) throw Object.assign(new Error('host is read-only'), { code: -32002 });
   const audit = { at: new Date().toISOString(), sessionId: context.sessionId, agentId: context.agentId, tool: name, ok: false };
   try {
     validateArguments(tool, args, { requireTurnId: Boolean(room.requireActionLease && seat?.controlSource === 'linx') });
+    if (name === 'confirm_night') {
+      const controller = controllerFor(room, 'HOST');
+      if (context.role !== 'host' || context.seatId !== 'HOST' || !controllerBindings.has(context.sessionId) || controller?.status !== 'ready' || controller.sessionId !== context.sessionId || context.gameId !== room.gameId || context.controllerEpoch !== room.controllerEpoch) throw Object.assign(new Error('bound independent host required'), { code: -32002 });
+      confirmNight(room, args.game_id, args.window_id); publishNewEvents(room); audit.ok = true;
+      return resultText({ accepted: true, version: room.version });
+    }
     if (name === 'get_public_game_state') { audit.ok = true; return resultText(publicState(room)); }
     if (name === 'get_last_words_state') { audit.ok = true; return resultText({ lastWords: publicState(room).lastWords, history: publicState(room).lastWordsHistory, version: room.version }); }
     if(name==='get_host_announcements') { if(context.role!=='host')throw Object.assign(new Error('host only'),{code:-32002});audit.ok=true;return resultText({tasks:(room.hostTasks||[]).map(({id,text,status})=>({id,text,status}))}); }

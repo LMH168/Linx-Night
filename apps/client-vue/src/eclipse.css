@@ -649,3 +649,31 @@
     gap: 16px;
   }
 }
+
+/* 正式数据驱动的原型牌桌、光照与展示动画。 */
+.council .glass { background:var(--panel-bg); border-color:var(--panel-line); box-shadow:var(--panel-shadow); }
+.council-header { background:var(--bar-bg); }
+.council-ring { --size:min(55vw,800px); --radius:calc(var(--size) * .44); --tw:calc(var(--size) * .84); --th:calc(var(--tw) * .56); height:calc(var(--size) * .75); background:none; }
+.council .council-seat { z-index:3; transform:translate(calc(var(--sin) * var(--radius)),calc(var(--cos) * var(--radius) * .56)) translate(-50%,-50%); }
+.council-hub { z-index:2; inset:32% 25%; }
+.council-seat .seat-art { box-shadow:0 10px 20px #0008,inset 0 0 0 3px #ccb08320; border-color:#ccb08366; }
+.council-seat.speaking .seat-art:before { content:''; position:absolute; inset:-7px; border:1px solid #c8d8b3aa; border-radius:50%; animation:voice-ring 1.8s ease-out infinite; }
+.council-seat.eliminated .seat-art { animation:elimination 1s ease-out both; }
+.council .motion-setting { position:relative; z-index:7; display:flex; gap:6px; align-items:center; justify-content:flex-end; margin:0; padding:8px 24px; font-size:10px; background:rgb(5 8 12 / .25); color:var(--ink-2); }
+.council .motion-setting input { width:auto; accent-color:#d5b184; }
+.scene-wipe { position:fixed; z-index:8; inset:0; pointer-events:none; display:grid; place-items:center; background:linear-gradient(100deg,transparent,#05080a44,transparent); }
+.scene-wipe span { font-family:var(--font-display); font-size:clamp(24px,4vw,48px); letter-spacing:.35em; color:#f2dfba; text-shadow:0 2px 25px #000; }
+.scene-wipe-enter-active { animation:scene-arrive .7s both; }
+.scene-wipe-leave-active { transition:opacity .5s; }
+.scene-wipe-leave-to { opacity:0; }
+.result-roles.reveal article { animation:role-reveal .75s var(--ease-out) both; animation-delay:var(--reveal-delay); }
+.council-result.live-result { animation:result-arrive .7s var(--ease-out); }
+@keyframes voice-ring { from { transform:scale(.98); opacity:.8; } to { transform:scale(1.1); opacity:0; } }
+@keyframes elimination { 0% { transform:scale(1); opacity:1; } 30% { transform:scale(1.08); box-shadow:0 0 35px #c25a4e88; } 100% { transform:scale(1); opacity:.6; } }
+@keyframes scene-arrive { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes role-reveal { from { opacity:0; transform:perspective(600px) rotateY(90deg); } to { opacity:1; transform:perspective(600px) rotateY(0); } }
+@keyframes result-arrive { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.reduce-motion *, .reduce-motion *:before, .reduce-motion *:after { animation:none !important; transition:none !important; }
+@media(prefers-reduced-motion:reduce) { .council *, .council *:before, .council *:after { animation:none !important; transition:none !important; } }
+@media(max-width:900px) { .council-ring { --size:min(84vw,650px); --radius:calc(var(--size) * .44); } .council-stage { padding-top:8px; } }
+@media(max-width:450px) { .council-ring { --size:88vw; --seat-size:46px; height:calc(var(--size) * .85); } .council .council-seat { width:64px; } .seat-name { font-size:10px; } .council-hub h2 { font-size:13px; } .council-hub > span { font-size:18px; } .council .motion-setting { padding:6px 14px; } }

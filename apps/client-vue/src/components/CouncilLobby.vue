@@ -2,8 +2,12 @@
 import { computed } from "vue";
 import type { RoomPublicState } from "../../../../packages/protocol/src/types";
 import RoleSilhouette from "./seats/RoleSilhouette.vue";
+import TableTop from './seats/TableTop.vue';
+import { evenRingPoints } from '../composables/useRing';
+const ringPoints = evenRingPoints(9);
 const props = defineProps<{
   state: RoomPublicState | null;
+  selfSeatId?: string;
   nickname: string;
   code: string;
   host: boolean;
@@ -11,6 +15,7 @@ const props = defineProps<{
   message: string;
 }>();
 defineEmits([
+  "seat-change",
   "update:nickname",
   "update:code",
   "create",
@@ -157,7 +162,7 @@ const statusNames: Record<string, string> = {
       <section class="table-zone">
         <template v-if="!state?.preparing">
           <div class="orbit">
-            <div class="inner-orbit"></div>
+            <TableTop />
             <div class="core">
               <span>☾</span>
               <h2 class="display">{{ state ? "等待旅人入席" : "九席虚位" }}</h2>
@@ -167,15 +172,18 @@ const statusNames: Record<string, string> = {
               v-for="(seat, i) in seats"
               :key="seat.seatId"
               class="seat"
-              :class="{ empty: !seat.playerType }"
+              :class="{ empty: !seat.playerType, self: seat.seatId === selfSeatId }"
               :style="{
-                '--x': Math.sin((i / 9) * Math.PI * 2),
-                '--y': -Math.cos((i / 9) * Math.PI * 2),
+                '--x': ringPoints[i]?.x,
+                '--y': ringPoints[i]?.y,
               }"
             >
-              <div class="portrait">
+              <button class="portrait" type="button"
+                :aria-label="`${i + 1} 号 ${seat.displayName || '空位'}${seat.seatId === selfSeatId ? '，你的座位' : '，选择换座'}`"
+                :disabled="!state || state.preparing || busy || seat.seatId === selfSeatId || seat.playerType === 'human'"
+                @click="$emit('seat-change', seat.seatId)">
                 <RoleSilhouette :veiled="true" /><b>{{ i + 1 }}</b>
-              </div>
+              </button>
               <template v-if="seat.playerType"
                 ><button
                   v-if="host && seat.playerType === 'ai'"
@@ -194,6 +202,7 @@ const statusNames: Record<string, string> = {
               >
             </div>
           </div>
+          <p v-if="state && !state.preparing" class="seat-help">点击空位或 AI 头像换座 · 准备后锁定</p>
           <p class="table-note">
             {{
               state
@@ -248,7 +257,8 @@ const statusNames: Record<string, string> = {
 </template>
 <style scoped>
 .lobby {
-  height: 100dvh;
+  min-height: calc(100dvh - 31px);
+  height: calc(100dvh - 31px);
   overflow: auto;
   padding: 26px 5vw 20px;
   background: linear-gradient(90deg, rgba(4, 7, 12, 0.5), transparent);
@@ -533,6 +543,7 @@ footer {
   color: var(--ink-3);
 }
 @media (max-width: 900px) {
+  .lobby { height:auto; overflow:visible; }
   .layout {
     grid-template-columns: 1fr;
     gap: 65px;
@@ -599,6 +610,18 @@ footer {
     height: 46px;
   }
 }
+/* 共用原型椭圆桌与等弧长席位；身份与操作仍来自正式房间。 */
+.orbit { --size: min(48vw, 700px); --radius: calc(var(--size) * .44); --tw: calc(var(--size) * .84); --th: calc(var(--tw) * .56); width:var(--size); height:calc(var(--size) * .76); border:0; background:none; }
+.seat { z-index:3; transform:translate(calc(var(--x) * var(--radius)), calc(var(--y) * var(--radius) * .56)) translate(-50%,-50%); }
+.core { z-index:2; inset:32% 25%; }
+.portrait { padding:3px; border-radius:50%; box-shadow:0 8px 15px #0009,inset 0 0 0 3px #bda37330; }
+.portrait:disabled { opacity:1; cursor:default; }
+.empty .portrait { opacity:.6; }
+.portrait:not(:disabled):hover { border-color:#f6d8a0; transform:translateY(-3px); }
+.self .portrait { border:2px solid #e6c792; }
+.seat-help { text-align:center; font-size:11px; color:var(--gold-text); }
+@media(max-width:900px) { .orbit { --size:min(84vw,620px); } }
+@media(max-width:450px) { .orbit { --size:86vw; --radius:calc(var(--size) * .43); height:calc(var(--size) * .86); } .seat { width:64px; } .portrait { width:46px; height:46px; } .core h2 { font-size:12px; } .core > span { font-size:20px; } }
 </style>
 
 <style scoped>

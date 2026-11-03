@@ -106,6 +106,31 @@ export function addPlayer(room, { playerId = id('player'), displayName, playerTy
   Object.assign(seat, { playerId, displayName, playerType, controlSource: playerType === PLAYER_TYPES.HUMAN ? 'human' : 'rule_bot', linxControlled: false, connectionState, lastHeartbeat: Date.now(), controlEpoch: 0 }); room.version += 1; return clone(seat);
 }
 
+export function changeSeat(room, playerId, { target_seat_id, version, action_id } = {}) {
+  const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status, code: status === 409 ? 'SEAT_CONFLICT' : 'INVALID_SEAT_CHANGE' }); };
+  const source = room.seats.find(seat => seat.playerId === playerId);
+  if (!source || source.playerType !== 'human') fail('only humans can move themselves', 403);
+  if (room.phase !== PHASES.LOBBY || room.preparing || room.gameId) fail('seats are locked during preparation and play', 409);
+  if (!Number.isInteger(version) || typeof action_id !== 'string' || !action_id.trim() || action_id.length > 128) fail('version and action_id are required');
+  room.seatChanges ??= [];
+  const previous = room.seatChanges.find(item => item.actionId === action_id);
+  if (previous) {
+    if (previous.playerId !== playerId || previous.targetSeatId !== target_seat_id) fail('action_id already used', 409);
+    return source;
+  }
+  if (version !== room.version) fail('room changed; refresh before choosing again', 409);
+  const target = room.seats.find(seat => seat.seatId === target_seat_id);
+  if (!target || target === source) fail('choose another seat');
+  if (target.playerId && target.playerType !== 'ai') fail('another human occupies this seat', 409);
+  const from = { ...source }, to = { ...target };
+  Object.assign(source, to, { seatId: from.seatId });
+  Object.assign(target, from, { seatId: to.seatId });
+  room.seatChanges.push({ actionId: action_id, playerId, targetSeatId: target_seat_id });
+  room.version += 1;
+  appendEvent(room, { type: 'room.seat_changed', data: { fromSeatId: from.seatId, targetSeatId: target.seatId } });
+  return target;
+}
+
 export function fillAiSeats(room, name = null) {
   room.seats.filter(seat => !seat.playerId).forEach((seat, index) => addPlayer(room, { playerId: id('ai'), displayName: typeof name === 'function' ? name(index + 1) : (name || defaultAiDisplayName(seat.seatId)), playerType: PLAYER_TYPES.AI }));
   return room;
@@ -118,7 +143,7 @@ export function publicState(room) {
   if (room.speechPlayback && !['completed', 'skipped'].includes(room.speechPlayback.status)) hiddenSpeechIds.add(room.speechPlayback.speechId);
   const publicLastWordsHistory = (room.lastWordsHistory ?? []).map(({ lastWordsId, seatId, round, cause, status, text, audioId }) => ({ lastWordsId, seatId, round, cause, status, text, ...(audioId ? { audioId } : {}) }));
   const publicSpeeches = (room.speeches ?? []).filter(speech => !hiddenSpeechIds.has(speech.speechId)).map(({ speechId, round, seatId, text, audioId }) => ({ speechId, round, seatId, text, ...(audioId ? { audioId } : {}) }));
-  return { roomId: room.roomId, roomCode: room.roomCode ?? null, hostPlayerId: room.hostPlayerId, settlement: room.settlement ? { settlementId: room.settlement.settlementId, settlementType: room.settlement.settlementType, reason: room.settlement.reason, endedAt: room.settlement.endedAt, finalVersion: room.settlement.finalVersion, winner: room.settlement.winner } : null, speechDeadline: room.speechClock?.phase === room.phase && room.speechClock?.seatId === room.currentSeatId && room.speechClock?.round === room.round ? room.speechClock.expiresAt : null, speechPlayback: clone(room.speechPlayback), speechPlaybackHistory: clone(room.speechPlaybackHistory ?? []), speechPrewarm: clone(room.speechPrewarm), hostPlaybackBlocked: Boolean(room.hostPlaybackBlocked), hostPlaybackEnabled: Boolean(room.hostPlaybackEnabled), gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: resolving ? 'RESOLUTION' : room.phase, version: room.version, round: room.round, currentSeatId: resolving ? null : room.currentSeatId, submittedVoteRound: room.phase === PHASES.VOTE ? room.submittedVoteRound : null, submittedVoteSeatIds: room.phase === PHASES.VOTE ? [...(room.submittedVoteSeatIds ?? [])] : [], pk: room.pk ? clone(room.pk) : null, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), hostController: publicController(room.controllers?.find(c=>c.seatId==='HOST')), controllers: (room.controllers ?? []).filter(c=>c.seatId!=='HOST').map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => resolving ? {seatId,status:'active',retryCount:0,boundAt:null,lastSeenAt:null,errorCode:null} : ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: publicSpeeches, voteResolutions: clone(room.voteResolutions ?? []), lastWords: clone(room.lastWords), lastWordsHistory: publicLastWordsHistory, events: (room.events ?? []).map(publicEvent).filter(Boolean) };
+  return { nightConfirmation: room.nightConfirmation ? { windowId: room.nightConfirmation.windowId, status: room.nightConfirmation.status, errorCode: room.nightConfirmation.errorCode ?? null } : null, roomId: room.roomId, roomCode: room.roomCode ?? null, hostPlayerId: room.hostPlayerId, settlement: room.settlement ? { settlementId: room.settlement.settlementId, settlementType: room.settlement.settlementType, reason: room.settlement.reason, endedAt: room.settlement.endedAt, finalVersion: room.settlement.finalVersion, winner: room.settlement.winner } : null, speechDeadline: room.speechClock?.phase === room.phase && room.speechClock?.seatId === room.currentSeatId && room.speechClock?.round === room.round ? room.speechClock.expiresAt : null, speechPlayback: clone(room.speechPlayback), speechPlaybackHistory: clone(room.speechPlaybackHistory ?? []), speechPrewarm: clone(room.speechPrewarm), hostPlaybackBlocked: Boolean(room.hostPlaybackBlocked), hostPlaybackEnabled: Boolean(room.hostPlaybackEnabled), gameId: room.gameId, controllerEpoch: room.controllerEpoch, controllerPhase: room.controllerPhase, preparing: Boolean(room.preparing), phase: resolving ? 'RESOLUTION' : room.phase, version: room.version, round: room.round, currentSeatId: resolving ? null : room.currentSeatId, submittedVoteRound: room.phase === PHASES.VOTE ? room.submittedVoteRound : null, submittedVoteSeatIds: room.phase === PHASES.VOTE ? [...(room.submittedVoteSeatIds ?? [])] : [], pk: room.pk ? clone(room.pk) : null, hunterResponse, seats: room.seats.map(({ seatId, displayName, playerType, controlSource, connectionState, alive }) => ({ seatId, displayName, playerType, controlSource, connectionState, alive })), hostController: publicController(room.controllers?.find(c=>c.seatId==='HOST')), controllers: (room.controllers ?? []).filter(c=>c.seatId!=='HOST').map(({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode }) => resolving ? {seatId,status:'active',retryCount:0,boundAt:null,lastSeenAt:null,errorCode:null} : ({ seatId, status, retryCount, boundAt, lastSeenAt, errorCode })), turns: (room.turns ?? []).filter(turn => turn.status === 'active' && ['SPEECH','VOTE'].includes(turn.phase)).map(({ turnId, seatId, phase, controlSource, status, createdAt }) => ({ turnId, seatId, phase, controlSource, status, createdAt })), speeches: publicSpeeches, voteResolutions: clone(room.voteResolutions ?? []), lastWords: clone(room.lastWords), lastWordsHistory: publicLastWordsHistory, events: (room.events ?? []).map(publicEvent).filter(Boolean) };
 }
 
 export function publicController(c) { if (!c) return null; const {status,errorCode,retryCount,boundAt,lastSeenAt}=c; return {status,errorCode,retryCount,boundAt,lastSeenAt}; }
@@ -139,6 +164,10 @@ export function publicEventData(type, data = {}) {
   if(type==='game.hunter_shot') return {seatId:data.seatId,targetSeatId:data.targetSeatId};
   if (type.startsWith('game.turn_') && !['SPEECH','VOTE','HUNTER_RESPONSE'].includes(data.phase)) return {phase: data.phase};
   const fields = {
+    'room.seat_changed': ['fromSeatId', 'targetSeatId'],
+    'game.night_confirmed': ['windowId'],
+    'game.night_confirmation_changed': ['windowId', 'status'],
+    'game.last_words_playback_completed': ['lastWordsId', 'seatId'],
     'game.phase_changed': ['phase', 'seatId', 'winner', 'pk', 'candidates'],
     'game.night_resolved': ['round', 'deathSeatIds'],
     'game.speech_submitted': ['speechId', 'seatId'],

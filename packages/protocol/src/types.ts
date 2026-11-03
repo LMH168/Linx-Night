@@ -34,7 +34,7 @@ export interface HostTask {
   gameId?: string;
   eventId?: string;
   seatId?: string | null;
-  kind?: string;
+  kind?: 'host' | 'speech' | 'lastwords' | 'night-announcement';
   text: string;
   status: string;
   taskType?: string;
@@ -115,6 +115,7 @@ export interface VoteResolution {
 }
 
 export interface RoomPublicState {
+  nightConfirmation?: { windowId: string; status: string; errorCode?: string | null } | null;
   speechPlayback?: { speechId: string; status: string; seatId?: string } | null;
   pk?: { round: number; stage: 'speech' | 'vote'; candidates: string[] } | null;
   roomId: string;
