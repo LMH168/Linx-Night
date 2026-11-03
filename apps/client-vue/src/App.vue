@@ -13,6 +13,7 @@ import { ApiRequestError, GameApiClient } from "./api/client";
 import { useRoomStream } from "./composables/useRoomStream";
 import { useHumanVoice } from "./composables/useHumanVoice";
 import PublicVoiceStatus from './components/PublicVoiceStatus.vue';
+import GameRecords from './components/GameRecords.vue';
 import { useHostPlayback } from "./composables/useHostPlayback";
 import { useRoomStore } from "./stores/room";
 import { legalTargets, playerAction, visibleRole } from "./game/permissions";
@@ -56,6 +57,7 @@ const message = ref("");
 const actionMessage = ref("");
 const targetSeatId = ref("");
 const lastWordsText = ref("");
+const manualVoiceInput = ref(false);
 const witchAction = ref<"skip" | "save" | "poison">("skip");
 const settlement = ref<SettlementState | null>(null);
 const settlementError = ref("");
@@ -522,16 +524,6 @@ async function changeSeat(target: string) {
     await refresh();
   });
 }
-let replayAudio: HTMLAudioElement | null = null;
-let replayUrl: string | null = null;
-async function replayVoice(audioId: string) {
-  if (!client.value) return;
-  replayAudio?.pause(); if(replayUrl) URL.revokeObjectURL(replayUrl);
-  try {
-    const response=await client.value.raw(`/api/rooms/${encodeURIComponent(roomId.value)}/voice/audio?audio_id=${encodeURIComponent(audioId)}`);
-    replayUrl=URL.createObjectURL(await response.blob());replayAudio=new Audio(replayUrl);await replayAudio.play();
-  }catch(error){actionMessage.value=errorText(error);}
-}
 async function startRecording() {
   try {
     await voice.start();
@@ -542,7 +534,7 @@ async function startRecording() {
 }
 async function toggleRecording() {
   if (voice.draft.value.stage === "recording") voice.stop();
-  else await startRecording();
+  else if (!voice.busy.value) await startRecording();
 }
 async function cancelRecording() {
   await voice.cancel();
@@ -584,31 +576,6 @@ function downloadReport() {
   a.click();
   URL.revokeObjectURL(url);
 }
-function eventText(event: { type: string; data: Record<string, unknown> }) {
-  const d = event.data;
-  if (event.type === "game.pk_started") return "首次平票，进入候选人 PK 发言";
-  if (event.type === "game.phase_changed")
-    return String(d.phase).startsWith("NIGHT_")
-      ? "夜间行动中"
-      : phaseNames[String(d.phase)] || "流程推进";
-  if (event.type === "game.player_eliminated")
-    return `${seatName(String(d.seatId))} 已出局`;
-  if (event.type === "game.vote_resolved")
-    return `${d.pk ? "PK" : "首轮"}投票结算：${d.eliminatedSeatId ? seatName(String(d.eliminatedSeatId)) + " 出局" : "平票，无人出局"}`;
-  if (event.type === "game.night_resolved")
-    return `昨夜出局：${((d.deathSeatIds as string[]) || []).join("、") || "平安夜"}`;
-  if (event.type === "game.last_words_submitted")
-    return `${seatName(String(d.seatId))} 遗言：${d.text}`;
-  if (event.type === "game.vote_submitted")
-    return `${seatName(String(d.seatId))} 已投票`;
-  return "";
-}
-const events = computed(() =>
-  store.recentEvents
-    .map((e) => ({ ...e, text: eventText(e) }))
-    .filter((e) => e.text)
-    .reverse(),
-);
 const reportSeats = computed(
   () =>
     (settlement.value?.seats || []) as Array<{
@@ -625,13 +592,16 @@ const reportEliminations = computed(
       cause: string;
     }>,
 );
-const reportVotes = computed(
-  () => settlement.value?.voteResolutions || state.value?.voteResolutions || [],
-);
-const reportSpeeches = computed(
-  () => settlement.value?.speeches || state.value?.speeches || [],
-);
+const recordSource = computed(() => ({
+  round: state.value?.round ?? Math.max(0, ...(settlement.value?.speeches || []).map(s => s.round), ...(settlement.value?.voteResolutions || []).map(v => v.round)),
+  events: settlement.value?.publicEvents || state.value?.events || [],
+  speeches: settlement.value?.speeches || state.value?.speeches || [],
+  records: state.value?.records,
+  lastWordsHistory: state.value?.lastWordsHistory,
+  voteResolutions: settlement.value?.voteResolutions || state.value?.voteResolutions || [],
+}));
 watch(actionKey, () => {
+  manualVoiceInput.value = false;
   targetSeatId.value = "";
   lastWordsText.value = "";
   witchAction.value = "skip";
@@ -708,7 +678,6 @@ onMounted(() => {
     void run(() => openRoom(roomId.value, playerId.value));
 });
 onBeforeUnmount(() => {
-  replayAudio?.pause(); if(replayUrl) URL.revokeObjectURL(replayUrl);
   generation++;
   stream?.close();
   voice.reset();
@@ -907,7 +876,7 @@ onBeforeUnmount(() => {
             <template v-if="action === 'speech'"
               ><p class="muted">
                 {{ state?.pk ? "平票候选发言" : "按存活席位号码递增发言" }} ·
-                自动开启麦克风，点击结束保存原声发言
+                说话时实时显示文字，结束或到时自动提交
               </p>
               <div class="voice-controls">
                 <p role="status">
@@ -924,12 +893,12 @@ onBeforeUnmount(() => {
                 </p>
                 <div class="buttons">
                   <button
-                    :disabled="actionDisabled"
+                    :disabled="actionDisabled || voice.draft.value.stage === 'transcribing'"
                     @click="toggleRecording"
                   >
                     {{ voice.draft.value.stage === 'recording' ? '结束发言' : '开始发言' }}</button
                   ><button
-                    v-if="voice.draft.value.stage !== 'idle'"
+                    v-if="voice.draft.value.stage === 'recording' || voice.draft.value.stage === 'failed'"
                     @click="cancelRecording"
                   >
                     取消录音
@@ -939,21 +908,21 @@ onBeforeUnmount(() => {
               </template
             >
             <template v-if="action === 'lastwords'"
-              ><p class="muted">自动开启麦克风，点击结束保存原声遗言。</p>
+              ><p class="muted">说话时实时显示文字，结束或到时自动提交遗言。</p>
               <p role="status">{{ voice.draft.value.stage === 'recording' ? `正在录音 · 剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在保存语音，请稍候' : voice.draft.value.error || '请使用麦克风发表遗言。' }}</p>
               <div class="buttons">
-                <button class="gold" :disabled="actionDisabled" @click="toggleRecording">
+                <button class="gold" :disabled="actionDisabled || voice.draft.value.stage === 'transcribing'" @click="toggleRecording">
                   {{ voice.draft.value.stage === 'recording' ? '结束遗言' : '开始遗言' }}</button
                 >
               </div></template
             >
             <section v-if="action === 'speech' || action === 'lastwords'" class="voice-transcript">
               <p v-if="voice.recognitionWarning.value" role="alert">{{ voice.recognitionWarning.value }}</p>
-              <label>发言文字（可手动修正）
-                <textarea :value="voice.draft.value.text" :maxlength="action === 'lastwords' ? 200 : 1200" @input="voice.setTranscript(($event.target as HTMLTextAreaElement).value)" placeholder="说话时实时识别；也可直接输入文字" />
+              <label v-if="voice.draft.value.text || manualVoiceInput">{{ action === 'lastwords' ? '遗言文字' : '发言文字' }}
+                <textarea :value="voice.draft.value.text" :disabled="voice.draft.value.stage === 'transcribing'" :maxlength="action === 'lastwords' ? 200 : 1200" @input="voice.setTranscript(($event.target as HTMLTextAreaElement).value)" placeholder="说话时实时识别；结束后自动提交，也可手动修正" />
               </label>
-              <p v-if="voice.savedRevision.value" role="status">识别文字已实时保存，结束后供 AI 查询。</p>
-              <button :disabled="actionDisabled || !voice.draft.value.text.trim() || voice.draft.value.stage === 'transcribing'" @click="voice.submitText">{{ voice.draft.value.stage === 'recording' ? '保存文字并结束' : '提交文字' }}</button>
+              <button v-if="!voice.draft.value.text && !manualVoiceInput" :disabled="actionDisabled || voice.draft.value.stage === 'transcribing'" @click="manualVoiceInput = true">输入文字</button>
+              <button v-if="!voice.busy.value && (manualVoiceInput || voice.draft.value.text)" :disabled="actionDisabled || !voice.draft.value.text.trim()" @click="voice.submitText">提交文字</button>
             </section>
             <template v-if="action === 'skill' && mine?.role === 'witch'"
               ><label
@@ -1090,6 +1059,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </section>
+          <PublicVoiceStatus :records="state?.records" :self-seat-id="mine?.seatId" :client="client" :room-id="roomId" @updated="refresh" />
           <p class="muted" role="status">{{ message }}</p>
         </aside>
       </main>
@@ -1158,51 +1128,10 @@ onBeforeUnmount(() => {
             </p>
             <p v-if="!reportEliminations.length" class="muted">暂无出局记录</p>
           </section>
-          <section class="glass">
-            <h3>投票记录</h3>
-            <p v-for="r in reportVotes" :key="r.resolutionId">
-              第 {{ r.round + 1 }} 轮 {{ r.pk ? "PK" : "首轮" }}：{{
-                r.entries.map((e) => `${e.seatId} ${e.votes}票`).join("、")
-              }}
-              · {{ r.eliminatedSeatId || "无人出局" }}
-            </p>
-          </section>
-          <section class="glass">
-            <h3>公开发言</h3>
-            <p v-for="s in reportSpeeches" :key="s.speechId">
-              <strong>{{ s.seatId }}</strong
-              >：{{ s.text }} <button v-if="s.audioId" @click="replayVoice(s.audioId)">重播原声</button>
-            </p>
-            <p v-for="w in state?.lastWordsHistory" :key="w.lastWordsId"><strong>{{ w.seatId }} 遗言</strong>：{{ w.text }} <button v-if="w.audioId" @click="replayVoice(w.audioId)">重播原声</button></p>
-          </section>
         </div>
+        <GameRecords :source="recordSource" :seat-name="seatName" finished />
       </main>
-      <PublicVoiceStatus v-if="state && !finished" :records="state.records" :available="state.transcriptionAvailable" :self-seat-id="mine?.seatId" :client="client" :room-id="roomId" @updated="refresh" />
-      <details v-if="!finished" class="public-log">
-        <summary>桌边记录 · {{ events.length }} 条公开动态</summary>
-        <div class="log-columns">
-          <section>
-            <h3>公开动态</h3>
-            <p v-for="e in events" :key="e.eventId">{{ e.text }}</p>
-          </section>
-          <section>
-            <h3>公开发言</h3>
-            <p v-for="s in state?.speeches" :key="s.speechId">
-              <strong>{{ s.seatId }}</strong
-              >：{{ s.text }} <button v-if="s.audioId" @click="replayVoice(s.audioId)">重播原声</button>
-            </p>
-            <p v-for="w in state?.lastWordsHistory" :key="w.lastWordsId"><strong>{{ w.seatId }} 遗言</strong>：{{ w.text }} <button v-if="w.audioId" @click="replayVoice(w.audioId)">重播原声</button></p>
-          </section>
-          <section>
-            <h3>已结算投票</h3>
-            <p v-for="r in state?.voteResolutions" :key="r.resolutionId">
-              第 {{ r.round + 1 }} 轮 {{ r.pk ? "PK" : "首轮" }}：{{
-                r.entries.map((e) => `${e.seatId} ${e.votes}票`).join("、")
-              }}
-            </p>
-          </section>
-        </div>
-      </details>
+      <GameRecords v-if="!finished" :key="state?.gameId || roomId" :source="recordSource" :seat-name="seatName" />
     </template>
     <div
       v-if="showRules || endConfirm || renameSeat"

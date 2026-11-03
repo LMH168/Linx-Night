@@ -5,7 +5,7 @@ import App from './App.vue';
 import { useRoomStore } from './stores/room';
 
 describe('Vue game shell', () => {
-  it('renders public seats and the private action for the current player', () => {
+  it('renders public seats and the private action for the current player', async () => {
     setActivePinia(createPinia());
     const store = useRoomStore();
     store.publicState = {
@@ -21,6 +21,11 @@ describe('Vue game shell', () => {
     expect(wrapper.text()).toContain('灵矽 AI');
     expect(wrapper.text()).toContain('我的私密状态');
     expect(wrapper.text()).toContain('开始发言');
+    expect(wrapper.find('.voice-transcript textarea').exists()).toBe(false);
+    store.connectionStatus = 'connected';
+    await wrapper.vm.$nextTick();
+    await wrapper.find('.voice-transcript button').trigger('click');
+    expect(wrapper.find('.voice-transcript textarea').exists()).toBe(true);
     wrapper.unmount();
   });
   it('reveals roles only after the authenticated settlement response arrives', async () => {

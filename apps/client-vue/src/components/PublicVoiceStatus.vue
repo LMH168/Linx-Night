@@ -2,11 +2,11 @@
 import { computed, reactive, ref } from 'vue';
 import type { PublicConversationRecord } from '../../../../packages/protocol/src/types';
 import type { GameApiClient } from '../api/client';
-const props = defineProps<{ records?: PublicConversationRecord[]; available?: boolean | null; selfSeatId?: string; client: GameApiClient | null; roomId: string }>();
+const props = defineProps<{ records?: PublicConversationRecord[]; selfSeatId?: string; client: GameApiClient | null; roomId: string }>();
 const emit = defineEmits<{ updated: [] }>();
 const drafts = reactive<Record<string, string>>({});
 const busy = ref(false), error = ref('');
-const visible = computed(() => (props.records || []).filter(r => r.audioId || r.transcriptionStatus === 'processing'));
+const visible = computed(() => (props.records || []).filter(r => r.seatId === props.selfSeatId && r.transcriptionStatus === 'failed'));
 async function supplement(record: PublicConversationRecord) {
   if (!props.client || busy.value) return;
   busy.value = true; error.value = '';
@@ -16,11 +16,9 @@ async function supplement(record: PublicConversationRecord) {
 }
 </script>
 <template>
-  <section v-if="available === false || visible.length" aria-label="公开语音文字状态">
-    <p v-if="available === false" role="status">AI 暂时无法获得语音文字，请补充文字。原声仍可实时收听。</p>
+  <section v-if="visible.length" class="voice-supplement glass" aria-label="补充我的发言">
     <div v-for="record in visible" :key="record.id">
-      <p>{{ record.seatId }} {{ record.kind === 'lastwords' ? '遗言' : '发言' }}：{{ record.transcriptionStatus === 'failed' ? '内容未识别，原声已保留' : record.textSource === 'player_supplement' ? '玩家补充' : record.transcriptionStatus === 'completed' ? '语音文字已确认' : '正在说话，文字实时保存' }}</p>
-      <p v-if="record.text">{{ record.text }}</p>
+      <p>你的{{ record.kind === 'lastwords' ? '遗言' : '发言' }}未能识别，可补充文字供 AI 阅读。</p>
       <form v-if="record.transcriptionStatus === 'failed' && record.seatId === selfSeatId" @submit.prevent="supplement(record)">
         <textarea v-model="drafts[record.id]" :maxlength="record.kind === 'lastwords' ? 200 : 1200" aria-label="补充本条录音文字" placeholder="请输入刚才发言的内容，供 AI 阅读"></textarea>
         <button :disabled="busy || !drafts[record.id]?.trim()">提交补充文字</button>
@@ -29,3 +27,7 @@ async function supplement(record: PublicConversationRecord) {
     <p v-if="error" role="alert">{{ error }}</p>
   </section>
 </template>
+<style scoped>
+.voice-supplement { padding: 12px; font-size: 12px; }
+.voice-supplement textarea { width: 100%; box-sizing: border-box; min-height: 70px; margin-bottom: 8px; }
+</style>
