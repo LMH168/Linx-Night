@@ -257,8 +257,8 @@ const statusNames: Record<string, string> = {
 </template>
 <style scoped>
 .lobby {
-  min-height: calc(100dvh - 31px);
-  height: calc(100dvh - 31px);
+  min-height: 100dvh;
+  height: 100dvh;
   overflow: auto;
   padding: 26px 5vw 20px;
   background: linear-gradient(90deg, rgba(4, 7, 12, 0.5), transparent);

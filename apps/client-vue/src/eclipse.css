@@ -4,6 +4,20 @@
   color: var(--ink);
   isolation: isolate;
 }
+.council.in-game {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.council.in-game > header,
+.council.in-game > .connection-banner,
+.council.in-game > details {
+  flex-shrink: 0;
+}
+.council.in-game > main {
+  flex: 1;
+  min-height: 0;
+}
 .council > header,
 .council > main,
 .council > details {
@@ -126,8 +140,9 @@
   align-items: center;
   justify-content: center;
   gap: clamp(22px, 4vw, 65px);
-  height: calc(100dvh - 130px);
-  min-height: 560px;
+  width: 100%;
+  max-width: 1680px;
+  align-self: center;
   padding: 24px 3vw;
 }
 .ring-zone {
@@ -136,6 +151,9 @@
   justify-items: center;
   min-width: 0;
   gap: 24px;
+  height: 100%;
+  container-type: size;
+  align-content: center;
 }
 .council-ring {
   --size: min(53vw, 62vh, 660px);
@@ -296,6 +314,10 @@
   flex: 0 0 365px;
   max-height: 100%;
   overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  scrollbar-gutter: stable;
   display: grid;
   gap: 13px;
   padding: 3px;
@@ -512,6 +534,8 @@
   }
 }
 @media (max-width: 900px) {
+  .council.in-game { height: auto; }
+  .council.in-game > main { flex: auto; }
   body {
     overflow: auto;
   }
@@ -549,6 +573,8 @@
     width: 100%;
     gap: 30px;
     padding: 22px 0;
+    height: auto;
+    container-type: normal;
   }
   .council-ring {
     --size: min(82vw, 480px);
@@ -653,14 +679,12 @@
 /* 正式数据驱动的原型牌桌、光照与展示动画。 */
 .council .glass { background:var(--panel-bg); border-color:var(--panel-line); box-shadow:var(--panel-shadow); }
 .council-header { background:var(--bar-bg); }
-.council-ring { --size:min(55vw,800px); --radius:calc(var(--size) * .44); --tw:calc(var(--size) * .84); --th:calc(var(--tw) * .56); height:calc(var(--size) * .75); background:none; }
+.council-ring { --size:min(calc(100cqw - 24px),calc((100cqh - 60px) / .75),800px); --radius:calc(var(--size) * .44); --tw:calc(var(--size) * .84); --th:calc(var(--tw) * .56); height:calc(var(--size) * .75); background:none; }
 .council .council-seat { z-index:3; transform:translate(calc(var(--sin) * var(--radius)),calc(var(--cos) * var(--radius) * .56)) translate(-50%,-50%); }
 .council-hub { z-index:2; inset:32% 25%; }
 .council-seat .seat-art { box-shadow:0 10px 20px #0008,inset 0 0 0 3px #ccb08320; border-color:#ccb08366; }
 .council-seat.speaking .seat-art:before { content:''; position:absolute; inset:-7px; border:1px solid #c8d8b3aa; border-radius:50%; animation:voice-ring 1.8s ease-out infinite; }
 .council-seat.eliminated .seat-art { animation:elimination 1s ease-out both; }
-.council .motion-setting { position:relative; z-index:7; display:flex; gap:6px; align-items:center; justify-content:flex-end; margin:0; padding:8px 24px; font-size:10px; background:rgb(5 8 12 / .25); color:var(--ink-2); }
-.council .motion-setting input { width:auto; accent-color:#d5b184; }
 .scene-wipe { position:fixed; z-index:8; inset:0; pointer-events:none; display:grid; place-items:center; background:linear-gradient(100deg,transparent,#05080a44,transparent); }
 .scene-wipe span { font-family:var(--font-display); font-size:clamp(24px,4vw,48px); letter-spacing:.35em; color:#f2dfba; text-shadow:0 2px 25px #000; }
 .scene-wipe-enter-active { animation:scene-arrive .7s both; }
@@ -676,4 +700,10 @@
 .reduce-motion *, .reduce-motion *:before, .reduce-motion *:after { animation:none !important; transition:none !important; }
 @media(prefers-reduced-motion:reduce) { .council *, .council *:before, .council *:after { animation:none !important; transition:none !important; } }
 @media(max-width:900px) { .council-ring { --size:min(84vw,650px); --radius:calc(var(--size) * .44); } .council-stage { padding-top:8px; } }
-@media(max-width:450px) { .council-ring { --size:88vw; --seat-size:46px; height:calc(var(--size) * .85); } .council .council-seat { width:64px; } .seat-name { font-size:10px; } .council-hub h2 { font-size:13px; } .council-hub > span { font-size:18px; } .council .motion-setting { padding:6px 14px; } }
+@media(max-width:450px) {
+  .council-ring { --size:88vw; --seat-size:46px; height:calc(var(--size) * .95); }
+  .council .council-seat { width:64px; transform:translate(calc(var(--sin) * var(--radius)),calc(var(--cos) * var(--radius) * .7)) translate(-50%,-50%); }
+  .seat-name { font-size:10px; }
+  .council-hub h2 { font-size:13px; }
+  .council-hub > span { font-size:18px; }
+}

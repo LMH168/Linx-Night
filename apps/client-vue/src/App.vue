@@ -719,10 +719,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="council" :data-scene="scene" :data-light="presentation.light.value" :class="{ 'reduce-motion': presentation.reduced.value }">
+  <div class="council" :data-scene="scene" :data-light="presentation.light.value" :class="{ 'in-game': !inLobby, 'reduce-motion': presentation.reduced.value }">
     <SceneBackground :light="presentation.light.value" :reduced="presentation.reduced.value" />
     <Transition name="scene-wipe"><div v-if="presentation.transition.value" :key="presentation.transition.value" class="scene-wipe" aria-hidden="true"><span>{{ presentation.transition.value }}</span></div></Transition>
-    <label class="motion-setting"><input type="checkbox" v-model="presentation.reduced.value" />减少动态效果</label>
     <CouncilLobby
       v-if="inLobby"
       :state="state"
