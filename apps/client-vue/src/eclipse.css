@@ -384,43 +384,6 @@
   color: var(--ink-3);
   font-size: 10px;
 }
-.public-log {
-  position: relative;
-  margin: 0 28px 15px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #080c14ee;
-  padding: 12px 18px;
-  font-size: 11px;
-}
-.public-log summary {
-  cursor: pointer;
-  color: var(--gold-text);
-}
-.public-log[open] {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 8;
-  max-height: 55vh;
-  overflow: auto;
-}
-.log-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 28px;
-  padding: 18px 0;
-}
-.log-columns p {
-  margin: 10px 0;
-  color: var(--ink-2);
-  overflow-wrap: anywhere;
-}
-.log-columns h3 {
-  font-size: 13px;
-  font-weight: 500;
-}
 .council-result {
   height: calc(100dvh - 76px);
   overflow: auto;
@@ -468,7 +431,7 @@
 }
 .result-records {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.5fr;
+  grid-template-columns: 1fr;
   gap: 20px;
   text-align: left;
   max-width: 1350px;
@@ -593,10 +556,6 @@
   .council .glass {
     padding: 18px;
   }
-  .public-log {
-    margin: 0 14px 20px;
-  }
-  .log-columns,
   .result-records {
     grid-template-columns: 1fr;
   }

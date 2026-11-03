@@ -75,6 +75,7 @@ export interface LastWordsState {
 }
 
 export interface SettlementState {
+  publicEvents?: RoomEvent[];
   eliminations?: Array<{ seatId: string; cause: string; eventId?: string }>;
   speeches?: SpeechRecord[];
   voteResolutions?: VoteResolution[];
