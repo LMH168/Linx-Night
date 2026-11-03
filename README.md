@@ -6,15 +6,12 @@
 [![TypeScript 5.9](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite 7.1](https://img.shields.io/badge/Vite-7.1-646cff?logo=vite&logoColor=white)](https://vite.dev/)
 
-**[在线试玩 → https://linxnight.mimi-api.cn](https://linxnight.mimi-api.cn)**
-
 Linx Night 是一个把 **真人网页玩家、灵矽 AI 玩家和独立 AI 主持** 放进同一局九人狼人杀的应用。默认阵容为 3 名狼人、预言家、女巫、猎人和 3 名平民，支持多名真人加入，由灵矽 AI 补齐九席。
 
 当前运行配置为 **1 名真人 + 8 名灵矽 AI 玩家 + 独立 AI 主持**，通过固定域名绑定的公网 MCP 接入，不使用规则机器人补位或故障降级。项目支持本机联调和服务器容器部署；房间状态仍保存在进程内存中，服务重启后需要重新创建房间。真实语音及完整对局的验收范围见下方“当前限制”。
 
 ## 访问入口
 
-- 正式网页：[https://linxnight.mimi-api.cn](https://linxnight.mimi-api.cn)
 - 对局入口：[https://linxnight.mimi-api.cn/game.html](https://linxnight.mimi-api.cn/game.html)
 
 两个入口使用同一套正式 Vue 客户端。线上通过 Cloudflare Tunnel 转发网页、`/api/` 和 `/mcp`，客户端使用同源 API；服务器 IP 和内部端口用于运维排查。主线合并与线上部署是两个步骤，仓库代码可能先于线上版本。
@@ -23,7 +20,7 @@ https://github.com/user-attachments/assets/b0b711d2-c47f-4c16-9743-b97e77e60d71
 
 ## 功能
 
-默认网页使用月蚀议会界面：摄影背景、四档光照、椭圆九席牌桌、私密行动面板和授权结算翻牌，适配桌面与手机。原型仅作为视觉参考，真实房间、行动和胜负由服务端决定。接入契约与验证记录见 [原型正式接入说明](docs/prototype-alignment.md)。
+默认网页使用月蚀议会界面：摄影背景、四档光照、椭圆九席牌桌、私密行动面板和授权结算翻牌，适配桌面与手机。原型仅作为视觉参考，真实房间、行动和胜负由服务端决定。接入契约与验证记录见 [原型正式接入说明]
 
 - 九席房间：创建/加入房间，添加 AI，满九席后开始游戏。所有真人可在准备前移动本人到空位或与 AI 换座，不能占用其他真人席位；开始准备后锁定座位。
 - 完整狼人杀流程：角色分配、狼人讨论与袭击、预言家查验、女巫用药、白天发言、投票、猎人响应、遗言和结算。
