@@ -100,7 +100,7 @@ export interface PublicConversationRecord {
   text: string;
   audioId?: string;
   transcriptionStatus: TranscriptionStatus;
-  textSource: 'submitted' | 'transcription' | 'player_supplement' | null;
+  textSource: 'submitted' | 'transcription' | 'browser_transcription' | 'player_supplement' | null;
 }
 
 export interface SpeechRecord {

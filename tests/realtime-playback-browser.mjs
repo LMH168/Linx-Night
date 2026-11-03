@@ -27,10 +27,12 @@ try {
   rooms.set(room.roomId,room);
   const a=await browser.newContext({permissions:['local-network-access']}),b=await browser.newContext({permissions:['local-network-access']}),speaker=await a.newPage(),listener=await b.newPage();
   for(const page of [speaker,listener]) {page.on('console',m=>{if(m.type()==='error')console.error(m.text());});page.on('requestfailed',r=>console.error(r.url(),r.failure()));await page.route('**/voice-acceptance',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Voice acceptance</title>'}));await page.goto(origin+'/voice-acceptance');}
+  await listener.evaluate(() => import('/apps/client-vue/src/composables/useHostPlayback.ts'));
   const base=origin+'/api/rooms/'+room.roomId;
   const sending=speaker.evaluate(async({base,kind})=>{
    const response=await fetch(base+'/voice/recording-start',{method:'POST',headers:{'content-type':'application/json','x-player-id':'speaker'},body:'{}'});const recording=await response.json();if(!response.ok)throw Error(JSON.stringify(recording));
    const ws=new WebSocket(base.replace('http:','ws:')+`/voice/realtime?player_id=speaker&mode=${kind}&recording_id=${recording.recordingId}`);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});ws.send(JSON.stringify({type:'start'}));window.firstSent=Date.now();window.doneSending=false;
+   ws.send(JSON.stringify({type:'transcript',recording_id:recording.recordingId,text:kind==='speech'?'五号值得怀疑':'遗言请观察五号',revision:1,source:'browser_transcription'}));
    for(let i=0;i<500;i++){const pcm=new Int16Array(320);for(let j=0;j<320;j++)pcm[j]=Math.round(Math.sin((i*320+j)*2*Math.PI*440/16000)*8000);ws.send(pcm.buffer);await new Promise(r=>setTimeout(r,20));}
    window.doneSending=true;ws.send(JSON.stringify({type:'stop'}));await new Promise((r,j)=>{ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='accepted')r();if(m.type==='error')j(Error(m.message));};});return {firstSent:window.firstSent,ended:Date.now()};
   },{base,kind});
@@ -44,7 +46,10 @@ try {
    try{const response=await fetch(base+'/host/stream?task_id='+task.id,{headers:{'x-player-id':'listener'}});const result=await playPcmStream(response,context,{ids:{gameId:task.gameId,taskId:task.id,attemptId:task.attemptId}});return {firstAudible,...result};}finally{clearInterval(timer);await context.close();}
   },{base,task});
   const [sent,heard]=await Promise.all([sending,listening]);assert.ok(heard.firstAudible);const latency=heard.firstAudible-sent.firstSent;assert.ok(latency<2000,`${kind}: ${latency} ms`);assert.ok(heard.firstAudible<sent.ended);assert.equal(heard.samples,160000);
-  console.log(JSON.stringify({kind,firstAudibleLatencyMs:latency,samples:heard.samples,recordingEndedAfterFirstAudibleMs:sent.ended-heard.firstAudible,measurement:'WebAudio analyser output, two isolated browser contexts'}));
+  assert.equal(room.liveTranscript,undefined);
+  const confirmed=kind==='speech'?room.speeches.at(-1):room.lastWordsHistory.at(-1);
+  assert.equal(confirmed.text,kind==='speech'?'五号值得怀疑':'遗言请观察五号');assert.equal(confirmed.transcriptionStatus,'completed');
+  console.log(JSON.stringify({kind,textDelivery:'WebSocket snapshots (recognizer simulated)',firstAudibleLatencyMs:latency,samples:heard.samples,recordingEndedAfterFirstAudibleMs:sent.ended-heard.firstAudible,measurement:'WebAudio analyser output, two isolated browser contexts'}));
   // Host acknowledgement must preserve a late subscriber's complete PCM cache.
   room.hostPlaybackEnabled=false;playback.acknowledge(room,task.id,task.attemptId);const late=await fetch(base+'/host/stream?task_id='+task.id,{headers:{'x-player-id':'listener'}});assert.equal(late.status,200);assert.match(await late.text(),/"type":"end"/);
   await a.close();await b.close();playback.cancel(room);rooms.delete(room.roomId);

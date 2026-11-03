@@ -1,4 +1,5 @@
 import { computed, ref, type Ref } from 'vue';
+import { startBrowserTranscription } from './browserTranscription';
 import type { GameApiClient } from '../api/client';
 import type { VoiceDraft } from '../../../../packages/protocol/src/types';
 
@@ -16,6 +17,7 @@ export interface HumanVoiceOptions {
   onBusyEnd?: () => void;
   realtime?: boolean;
   mode?: () => 'speech' | 'lastwords';
+  lastWordsWindowId?: () => string | undefined;
 }
 
 const emptyDraft = (): VoiceDraft => ({ recordingId: null, stage: 'idle', text: '', expiresAt: null, error: null });
@@ -58,7 +60,7 @@ export function bytesToBase64(buffer: ArrayBuffer): string {
   return globalThis.btoa(binary);
 }
 
-/** Browser microphone lifecycle. It only creates a draft; submitting text remains a normal game action. */
+/** Stream human audio and browser text together; confirming closes one public record. */
 export function useHumanVoice(options: HumanVoiceOptions) {
   const draft = ref<VoiceDraftState>(emptyDraft());
   const remainingMs = ref(0);
@@ -75,11 +77,27 @@ export function useHumanVoice(options: HumanVoiceOptions) {
   let realtimeProcessor: ScriptProcessorNode | null = null;
   let realtimeSource: MediaStreamAudioSourceNode | null = null;
   let realtimeBytes = new Uint8Array(0);
+  const recognitionWarning = ref('');
+  const savedRevision = ref(0);
+  let revision = 0, textSource = 'browser_transcription';
+  let recognition: ReturnType<typeof startBrowserTranscription> = null;
+  let textTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushText = () => {
+    if (textTimer) clearTimeout(textTimer); textTimer = null;
+    if (revision > 0 && realtimeSocket?.readyState === WebSocket.OPEN && draft.value.recordingId) realtimeSocket.send(JSON.stringify({ type: 'transcript', recording_id: draft.value.recordingId, text: draft.value.text, revision, source: textSource }));
+  };
+  const setTranscript = (text: string, manual = true) => {
+    if (manual) { recognition?.abort(); recognition = null; textSource = 'submitted'; }
+    const max = options.mode?.() === 'lastwords' ? 200 : 1200;
+    draft.value = { ...draft.value, text: text.slice(0, max) }; revision++;
+    if (text.length > max) recognitionWarning.value = `文字最多 ${max} 字，已保留前 ${max} 字。`;
+    if (!textTimer && realtimeSocket) textTimer = setTimeout(flushText, 150);
+  };
 
   const clearTimer = () => { if (timer) clearTimeout(timer); timer = null; if (countdownTimer) clearInterval(countdownTimer); countdownTimer = null; };
   const closeStream = () => { mediaStream?.getTracks().forEach(track => track.stop()); mediaStream = null; };
   const stopRealtimeCapture = () => { realtimeProcessor?.disconnect(); realtimeSource?.disconnect(); realtimeProcessor = null; realtimeSource = null; void realtimeContext?.close().catch(() => undefined); realtimeContext = null; realtimeBytes = new Uint8Array(0); };
-  const closeRealtime = () => { stopRealtimeCapture(); realtimeSocket?.close(); realtimeSocket = null; };
+  const closeRealtime = () => { recognition?.abort(); recognition = null; if(textTimer)clearTimeout(textTimer);textTimer=null;stopRealtimeCapture(); if(realtimeSocket?.readyState === WebSocket.OPEN)realtimeSocket.send(JSON.stringify({type:'cancel'})); realtimeSocket?.close(); realtimeSocket = null; };
   const setError = (error: unknown) => {
     draft.value = { ...draft.value, stage: 'failed', error: error instanceof Error ? error.message : '录音或转写失败' };
   };
@@ -127,6 +145,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     const roomId = options.roomId.value;
     if (!client || !roomId) throw new Error('请先连接房间');
     if (!globalThis.navigator?.mediaDevices?.getUserMedia || (!options.realtime && !globalThis.MediaRecorder)) throw new Error('浏览器不支持录音，请直接输入文字。');
+    recognitionWarning.value='';savedRevision.value=0;revision=0;textSource='browser_transcription';
     options.onBusyStart?.();
     const run = generation;
     const key = options.contextKey();
@@ -143,15 +162,18 @@ export function useHumanVoice(options: HumanVoiceOptions) {
       if (options.realtime) {
         const context = new AudioContext({ sampleRate: 16_000 }); realtimeContext = context;
         const socket = new WebSocket(client.voiceRealtimeUrl(roomId, recording.recordingId, options.mode?.() || 'speech')); realtimeSocket = socket; socket.binaryType = 'arraybuffer';
-        socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'accepted') { options.onDraft?.(message.text || ''); draft.value = { ...draft.value, stage: 'confirming', text: message.text || '' }; markSubmitted(); } else if (message.type === 'error') { clearTimer(); closeRealtime(); closeStream(); setError(new Error(message.message || '实时语音失败')); } };
+        socket.onmessage = event => { if (run !== generation || key !== options.contextKey()) return; if (typeof event.data !== 'string') return; let message: { type?: string; text?: string; message?: string }; try { message = JSON.parse(event.data); } catch { return; } if (message.type === 'transcript_saved') { savedRevision.value = Number((message as {revision?:number}).revision) || 0; return; } if (message.type === 'accepted') { options.onDraft?.(message.text || ''); draft.value = { ...draft.value, stage: 'confirming', text: message.text || '' }; markSubmitted(); } else if (message.type === 'error') { clearTimer(); closeRealtime(); closeStream(); setError(new Error(message.message || '实时语音失败')); } };
+        socket.onclose = () => { if(run===generation && socket===realtimeSocket && ['recording','transcribing'].includes(draft.value.stage)){recognition?.abort();recognition=null;clearTimer();stopRealtimeCapture();closeStream();setError(new Error('语音连接已关闭，请检查已保存记录，必要时补充文字。'));options.onBusyEnd?.();} };
         socket.onerror = () => { if (run === generation) setError(new Error('实时语音连接失败')); };
         await new Promise<void>((resolve, reject) => { socket.onopen = () => { socket.send(JSON.stringify({ type: 'start' })); resolve(); }; socket.addEventListener('error', () => reject(new Error('实时语音连接失败')), { once: true }); });
         if (run !== generation || key !== options.contextKey()) return;
+        await context.resume?.();
+        recognition = startBrowserTranscription({ onText: text => setTranscript(text, false), onWarning: message => {recognitionWarning.value=message;}, valid: () => run===generation && key===options.contextKey() });
         realtimeSource = context.createMediaStreamSource(mediaStream); realtimeProcessor = context.createScriptProcessor(4096, 1, 1);
         const send = (data: Uint8Array) => { if (socket.readyState === WebSocket.OPEN) socket.send(data); };
         realtimeProcessor.onaudioprocess = event => { if (run !== generation || socket.readyState !== WebSocket.OPEN) return; const input = event.inputBuffer.getChannelData(0); const ratio = event.inputBuffer.sampleRate / 16_000; const samples = new Int16Array(Math.floor(input.length / ratio)); for (let i = 0; i < samples.length; i += 1) { const value = input[Math.min(input.length - 1, Math.floor(i * ratio))]; samples[i] = Math.max(-1, Math.min(1, value)) * 32767; } const next = new Uint8Array(realtimeBytes.length + samples.byteLength); next.set(realtimeBytes); next.set(new Uint8Array(samples.buffer), realtimeBytes.length); realtimeBytes = next; while (realtimeBytes.length >= 640) { send(realtimeBytes.slice(0, 640)); realtimeBytes = realtimeBytes.slice(640); } };
         realtimeSource.connect(realtimeProcessor); realtimeProcessor.connect(context.destination);
-        timer = setTimeout(() => stop(), Math.max(1, remainingMs.value - 200));
+        timer = setTimeout(() => stop(), Math.max(1, remainingMs.value - 1200));
         return;
       }
       const chunks: Blob[] = [];
@@ -166,9 +188,37 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     }
   };
 
-  const stop = () => { if(draft.value.stage !== 'recording') return; clearTimer(); if (realtimeSocket) { draft.value = {...draft.value, stage:'transcribing'}; if(realtimeBytes.length && realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(realtimeBytes); if (realtimeSocket.readyState === WebSocket.OPEN) realtimeSocket.send(JSON.stringify({ type: 'stop' })); stopRealtimeCapture(); closeStream(); options.onBusyEnd?.(); setTimeout(() => { if (realtimeSocket) closeRealtime(); }, 10000); } else if (recorder?.state === 'recording') recorder.stop(); else closeStream(); };
+  const stop = () => {
+    if (draft.value.stage !== 'recording') return;
+    clearTimer();
+    if (realtimeSocket) {
+      const socket=realtimeSocket, run=generation;
+      draft.value={...draft.value,stage:'transcribing'};
+      if(realtimeBytes.length && socket.readyState===WebSocket.OPEN)socket.send(realtimeBytes);
+      stopRealtimeCapture();
+      void (async()=>{
+        await recognition?.stop();recognition=null;closeStream();
+        if(run!==generation || socket!==realtimeSocket)return;
+        flushText();
+        if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'stop',recording_id:draft.value.recordingId,text:draft.value.text,revision:Math.max(1,revision),source:textSource}));
+        options.onBusyEnd?.();
+        setTimeout(()=>{if(socket===realtimeSocket)closeRealtime();},5000);
+      })();
+    } else if (recorder?.state==='recording')recorder.stop(); else closeStream();
+  };
+  const submitText = async () => {
+    const text=draft.value.text.trim(), client=options.client.value, roomId=options.roomId.value, windowId=options.lastWordsWindowId?.();
+    if(!text || !client || !roomId)return;
+    if(realtimeSocket && draft.value.stage==='recording'){setTranscript(text);stop();return;}
+    await cancel();
+    try {
+      if(options.mode?.()==='lastwords') {if(!windowId)throw Error('遗言窗口已结束');await client.submitLastWords(roomId,{action:'submit',text,window_id:windowId});}
+      else await client.submitSpeech(roomId,{text});
+      options.onDraft?.(text);markSubmitted();
+    } catch(error){setError(error);}
+  };
   const reset = () => { void cancel(); draft.value = emptyDraft(); remainingMs.value = 0; };
   const markSubmitted = () => { clearTimer(); closeRealtime(); closeStream(); abort?.abort(); abort = null; draft.value = emptyDraft(); remainingMs.value = 0; };
 
-  return { draft, remainingMs, busy, start, stop, cancel, reset, markSubmitted };
+  return { draft, remainingMs, busy, recognitionWarning, savedRevision, setTranscript, submitText, start, stop, cancel, reset, markSubmitted };
 }

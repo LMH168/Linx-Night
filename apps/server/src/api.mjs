@@ -1,4 +1,4 @@
-import { HumanTranscriptions, updateTranscript } from './human-transcription.mjs';
+import { updateTranscript } from './human-transcription.mjs';
 import { syncPublicContextClocks } from '../../../packages/domain/src/public-conversation.mjs';
 import { changeSeat } from '../../../packages/domain/src/model.mjs';
 import { tickHumanSpeech, startRecording, beginTranscription, confirmRecording, speechSession, lastWordsSession } from './human-speech.mjs';
@@ -62,19 +62,12 @@ const settlementActor = (req, settlementId) => { const playerId = req.headers['x
 
 export function createApiServer({ port = Number(process.env.PORT || 5000), sessions = controllerManager, voice, realtimeVoice, hostPlayback, linxSeats = configuredLinxSeats(process.env) } = {}) {
   const transcriptions = new Set();
-  const humanTranscriptions = new HumanTranscriptions({ voice, publish: publishNewEvents, valid: room => !room.invalidated && room.phase !== 'GAME_OVER' && rooms.get(room.roomId) === room });
-  let transcriptionAvailable = Boolean(voice);
-  const refreshTranscription = async () => {
-    try { if (!voice) throw Error('REALTIME_TRANSCRIBE_UNAVAILABLE'); await voice.checkReady?.(); transcriptionAvailable = true; }
-    catch (error) { transcriptionAvailable = false; recordTurn('human_transcription_unavailable', { code: error.code || 'REALTIME_TRANSCRIBE_UNAVAILABLE' }); }
-    for (const room of rooms.values()) { room.transcriptionAvailable = transcriptionAvailable; room.version++; publishNewEvents(room); }
-  };
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost'); const parts = url.pathname.split('/').filter(Boolean); const roomId = parts[2];
       if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-player-id,idempotency-key', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' }); return res.end(); }
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, service: 'linx-night-server', version: '0.1.0' });
-      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRegisteredRoom({ hostPlayerId: playerId }); room.transcriptionAvailable = transcriptionAvailable; room.requireHostConfirmation = Boolean(sessions.requireHost); room.hostCoordinatorEnabled = true; room.hostPlaybackEnabled=Boolean(hostPlayback); room.realtimeVoiceEnabled=Boolean(realtimeVoice); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); return json(res, 201, { room_id: room.roomId, room_code: room.roomCode, player_id: playerId, state: publicState(room) }); }
+      if (req.method === 'POST' && url.pathname === '/api/rooms') { const body = await readBody(req); const playerId = body.player_id || `player_${randomUUID()}`; const room = createRegisteredRoom({ hostPlayerId: playerId }); room.requireHostConfirmation = Boolean(sessions.requireHost); room.hostCoordinatorEnabled = true; room.hostPlaybackEnabled=Boolean(hostPlayback); room.realtimeVoiceEnabled=Boolean(realtimeVoice); addPlayer(room, { playerId, displayName: body.display_name || '玩家 1' }); return json(res, 201, { room_id: room.roomId, room_code: room.roomCode, player_id: playerId, state: publicState(room) }); }
       if (parts[0] === 'api' && parts[1] === 'settlements' && parts[2]) { const report = settlements.get(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, parts[2]); return json(res, 200, { settlement: structuredClone(report) }); }
       if (parts[0] === 'api' && parts[1] === 'rooms' && parts[3] === 'settlement' && req.method === 'GET') { const report = settlementForReference(parts[2]); if (!report) return json(res, 404, { error: { code: 'NOT_FOUND', message: '结算不存在' } }); settlementActor(req, report.settlementId); return json(res, 200, { settlement: structuredClone(report) }); }
       if (!roomId || parts[0] !== 'api' || parts[1] !== 'rooms') return json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在' } });
@@ -127,10 +120,16 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         }
         if(kind==='skip'){speechSession(room,actor);skipSpeech(room,actor.seatId,actionId(req,body));publishNewEvents(room);return json(res,200,{skipped:true});}
         if(kind==='recording-start'){const recording=startRecording(room,actor);if(room.speechClock)room.speechClock.realtime=true;publishNewEvents(room);return json(res,200,recording);}
-        if(kind==='recording-cancel'){confirmRecording(room,actor,body.recording_id);publishNewEvents(room);return json(res,200,{cancelled:true});}
+        if(kind==='recording-cancel'){
+          if(realtimeVoice){
+            const clock=room.phase==='LAST_WORDS'?lastWordsSession(room,actor):speechSession(room,actor);
+            if(clock.recordingId){if(clock.recordingId!==body.recording_id)throw Error('录音请求已失效');clock.stage='speaking';delete clock.recordingId;delete clock.recordingStartedAt;delete clock.recordingDeadline;room.version++;}
+          }else confirmRecording(room,actor,body.recording_id);
+          publishNewEvents(room);return json(res,200,{cancelled:true});
+        }
         if(kind==='transcribe') {
           if(realtimeVoice)throw Object.assign(new Error('请使用实时麦克风发言'),{status:410,code:'REALTIME_VOICE_REQUIRED'});
-          if(!voice)throw new Error('未配置灵矽语音');
+          if(!voice)throw Object.assign(new Error('请使用浏览器实时语音识别或文字输入'),{status:410,code:'BROWSER_TRANSCRIPTION_REQUIRED'});
           if(actor.controlSource!=='human' || !actionAvailable(room,actor))throw new Error('当前不能生成发言草稿');
           if(typeof body.wav!=='string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.wav))throw new Error('无效录音');
           const wav=Buffer.from(body.wav,'base64'),duration=parseWav(wav).length/32;
@@ -166,17 +165,17 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
       }
       if (req.method === 'POST' && parts[3] === 'controllers' && parts[4] === 'retry') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can retry controllers'), { status: 403 }); if (!room.preparing || !['failed', 'connecting', 'binding'].includes(room.controllerPhase)) throw new Error('room is not waiting for controllers'); invalidateRoomControllers(room); hostPlayback?.cancel(room); await sessions.release(room); for (const controller of room.controllers ?? []) controllerEvent(room, 'controller.released', { seatId: controller.seatId }); invalidateRoomControllers(room); room.phase = 'LOBBY'; room.gameId = null; room.controllers = []; room.preparing = false; publishNewEvents(room); return json(res, 202, { retried: true, state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'controllers' && parts[4] === 'cancel') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can cancel controllers'), { status: 403 }); invalidateRoomControllers(room); hostPlayback?.cancel(room); await sessions.release(room); for (const controller of room.controllers ?? []) controllerEvent(room, 'controller.released', { seatId: controller.seatId }); invalidateRoomControllers(room); room.phase = 'LOBBY'; room.gameId = null; room.controllers = []; room.preparing = false; publishNewEvents(room); return json(res, 200, { cancelled: true, state: publicState(room) }); }
-      if (req.method === 'POST' && parts[3] === 'end') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can end the game'), { status: 403 }); if (room.settlement) { const report=storeSettlement(room); return json(res,200,{ended:true,idempotent:true,settlement_id:report.settlementId,settlement:report}); } createSettlement(room,{settlementType:SETTLEMENT_TYPES.HOST_ENDED,reason:'房主提前结束本局'}); room.invalidated = true; humanTranscriptions.cancel(room); let releaseError=null; try { hostPlayback?.cancel(room); await sessions.release(room); room.settlement.release.controllers='released'; room.settlement.release.hostPlayback='released'; room.settlement.release.mcpBindings='released'; } catch(error) { releaseError=error; room.settlement.release.controllers='failed'; room.settlement.release.hostPlayback='failed'; room.settlement.release.mcpBindings='failed'; room.settlement.release.error=error.message; } const finalReport=storeSettlement(room); removeRoom(room); return json(res, 200, { ended: true, settlement_id: finalReport.settlementId, settlement: finalReport, ...(releaseError ? { release_error: releaseError.message } : {}) }); }
+      if (req.method === 'POST' && parts[3] === 'end') { const actor = currentPlayer(req, room); if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can end the game'), { status: 403 }); if (room.settlement) { const report=storeSettlement(room); return json(res,200,{ended:true,idempotent:true,settlement_id:report.settlementId,settlement:report}); } createSettlement(room,{settlementType:SETTLEMENT_TYPES.HOST_ENDED,reason:'房主提前结束本局'}); room.invalidated = true; let releaseError=null; try { hostPlayback?.cancel(room); await sessions.release(room); room.settlement.release.controllers='released'; room.settlement.release.hostPlayback='released'; room.settlement.release.mcpBindings='released'; } catch(error) { releaseError=error; room.settlement.release.controllers='failed'; room.settlement.release.hostPlayback='failed'; room.settlement.release.mcpBindings='failed'; room.settlement.release.error=error.message; } const finalReport=storeSettlement(room); removeRoom(room); return json(res, 200, { ended: true, settlement_id: finalReport.settlementId, settlement: finalReport, ...(releaseError ? { release_error: releaseError.message } : {}) }); }
       if (req.method === 'GET' && parts[3] === 'settlement') { const player=currentPlayer(req,room); const report=storeSettlement(room); if(!report)return json(res,404,{error:{code:'NOT_FOUND',message:'结算不存在'}}); return json(res,200,{settlement:report}); }
       if (req.method === 'GET' && parts[3] === 'state') return json(res, 200, { state: publicState(room) });
       if (req.method === 'GET' && parts[3] === 'private-state') return json(res, 200, { private_state: privateState(room, currentPlayer(req, room).playerId) });
       if (req.method === 'GET' && parts[3] === 'speeches') return json(res, 200, { speeches: publicState(room).speeches, version: room.version });
       if (req.method === 'GET' && parts[3] === 'hunter-response') return json(res, 200, { hunter_response: publicState(room).hunterResponse });
       if (req.method === 'GET' && parts[3] === 'last-words') return json(res, 200, { last_words: publicState(room).lastWords });
-      if (req.method === 'POST' && parts[3] === 'last-words') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipLastWords(room, actor.seatId, id, body.window_id); else { if (realtimeVoice) throw Object.assign(new Error('请使用实时麦克风发表遗言'), { status: 410, code: 'REALTIME_VOICE_REQUIRED' }); submitLastWords(room, actor.seatId, body.text, id, body.window_id); } publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'last-words') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipLastWords(room, actor.seatId, id, body.window_id); else { submitLastWords(room, actor.seatId, body.text, id, body.window_id); } publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'GET' && parts[3] === 'events') return eventStream(res, events, room.roomId, { version: Number(url.searchParams.get('after') || 0), history: room.events });
 
-      if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if(realtimeVoice)throw Object.assign(new Error('请使用实时麦克风发言'),{status:410,code:'REALTIME_VOICE_REQUIRED'}); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const speechClock=speechSession(room,actor);if(['recording','transcribing'].includes(speechClock.stage))throw Error('请先结束或取消录音转写'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
+      if (req.method === 'POST' && parts[3] === 'speeches') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const speechClock=speechSession(room,actor);if(['recording','transcribing'].includes(speechClock.stage))throw Error('请先结束或取消录音转写'); submitSpeech(room, actor.seatId, body.text, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'hunter-response') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); if (body.action === 'skip') skipHunterResponse(room, actor.seatId, id, body.window_id); else if (body.action === 'shoot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else throw new Error('invalid hunter action'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'actions') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); const id = actionId(req, body); const privatePhase = room.phase.startsWith('NIGHT_') || room.phase === 'HUNTER_RESPONSE'; const hostAction = body.type === 'announce_day' || body.type === 'announce_night'; if(room.hostPlaybackBlocked && !privatePhase && !hostAction)throw new Error('请等待主持播报完成'); if (body.type === 'wolf_target') wolfTarget(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'seer_check') seerCheck(room, actor.seatId, body.target_seat_id, id); else if (body.type === 'witch_action') witchAction(room, actor.seatId, body.action, body.target_seat_id, id); else if (body.type === 'hunter_shot') submitHunterResponse(room, actor.seatId, body.target_seat_id, id, body.window_id); else if (hostAction) { if (actor.playerId !== room.hostPlayerId) throw Object.assign(new Error('only the host can announce phase'), { status: 403 }); if (body.type === 'announce_day') announceDay(room); else announceNight(room); } else throw new Error('invalid action type'); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
       if (req.method === 'POST' && parts[3] === 'votes') { const body = await readBody(req); const actor = currentPlayer(req, room); if (actor.controlSource !== 'human') throw Object.assign(new Error('请先恢复本人控制'), {status:403}); submitVote(room, actor.seatId, body.target_seat_id, actionId(req, body)); publishNewEvents(room); return json(res, 200, { state: publicState(room) }); }
@@ -200,35 +199,40 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
     } catch { socket.destroy(); return; }
     realtime.handleUpgrade(req, socket, head, ws => {
       const gameId=room.gameId, controlEpoch=seat.controlEpoch;
-      const recordingId = url.searchParams.get('recording_id'); let closed = false; let submitted = false; let stopping = false; let live = null;
+      const recordingId = url.searchParams.get('recording_id');
+      const transcript = { id: mode==='lastwords'?clock.windowId:`realtime_${recordingId}`, recordingId, gameId, kind:mode, seatId:seat.seatId, round:room.round, text:'', transcriptionStatus:'processing', textSource:'browser_transcription', revision:0, sequence:room.version+1 };
+      room.liveTranscript=transcript; room.version++; appendEvent(room,{type:'game.live_transcript_started',data:{recordingId,seatId:seat.seatId}});publishNewEvents(room);
+      let closed = false; let submitted = false; let stopping = false; let live = null;
       const relay = { seatId: seat.seatId, chunks: [], bytes: 0, ended: false, resolve: () => {} };
       clock.realtime = true; room.speechAudioRelay = relay; room.realtimeSpeech = true; roomChanges.emit('changed', room);
-      const finish = () => { if (closed) return; closed = true; clearInterval(validityTimer); if(!submitted)hostPlayback?.cancelHuman(room,live); relay.ended = true; if (room.speechAudioRelay === relay) room.speechAudioRelay = null; room.realtimeSpeech = false; ws.close(); };
-      const valid = () => { const windowValid = mode === 'lastwords' ? room.lastWords?.windowId === clock.windowId : room.speechClock === clock; const expiresAt = mode === 'lastwords' ? clock.expiresAtMs : clock.expiresAt; return !closed && !room.invalidated && rooms.get(room.roomId)===room && room.gameId===gameId && seat.controlEpoch===controlEpoch && seat.controlSource==='human' && windowValid && (!live || live.task.status==='generating') && actionAvailable(room, seat) && Date.now() < expiresAt; };
+      const finish = () => { if (closed) return; closed = true; clearInterval(validityTimer); if(room.liveTranscript===transcript){delete room.liveTranscript;if(!room.invalidated && rooms.get(room.roomId)===room && room.gameId===gameId){room.version++;appendEvent(room,{type:'game.live_transcript_cancelled',data:{recordingId,seatId:seat.seatId}});publishNewEvents(room);}} if(!submitted){hostPlayback?.cancelHuman(room,live);if(clock.recordingId===recordingId && clock.stage==='recording'){clock.stage='speaking';delete clock.recordingId;delete clock.recordingStartedAt;delete clock.recordingDeadline;}} relay.ended = true; if (room.speechAudioRelay === relay) room.speechAudioRelay = null; room.realtimeSpeech = false; ws.close(); };
+      const valid = () => { const windowValid = mode === 'lastwords' ? room.lastWords?.windowId === clock.windowId : room.speechClock === clock; const expiresAt = mode === 'lastwords' ? clock.expiresAtMs : clock.expiresAt; return !closed && !room.invalidated && rooms.get(room.roomId)===room && room.gameId===gameId && seat.controlEpoch===controlEpoch && seat.controlSource==='human' && windowValid && clock.recordingId===recordingId && (!live || live.task.status==='generating') && actionAvailable(room, seat) && Date.now() < expiresAt; };
       const validityTimer=setInterval(()=>{if(!submitted&&!stopping&&!valid())finish();},250);validityTimer.unref();
       const submitAudio = async () => {
-        if (submitted || !relay.chunks.length) return false;
+        if (submitted || (!relay.chunks.length && !transcript.text.trim())) return false;
         if (!valid()) { finish(); return false; }
-        const audio = await savePublicAudio(room, seat.seatId, relay.chunks);
-        if (!valid()) { await unlink(audio.path).catch(() => {}); room.audioRecords = room.audioRecords.filter(item => item !== audio); finish(); return false; }
+        const audio = relay.chunks.length ? await savePublicAudio(room, seat.seatId, relay.chunks) : null;
+        if (!valid()) { if(audio){await unlink(audio.path).catch(() => {}); room.audioRecords = room.audioRecords.filter(item => item !== audio);} finish(); return false; }
         try {
-        const text = ''; // Original audio is the human speech; transcription never gates submission.
-        const action = `realtime_${randomUUID()}`;
+        const text = transcript.text.trim();
+        const action = `realtime_${recordingId}`;
         if (recordingId) confirmRecording(room, seat, recordingId);
-        const media = { audioId: audio.audioId, audioPath: audio.path, durationMs: audio.durationMs };
+        const media = audio ? { audioId: audio.audioId, audioPath: audio.path, durationMs: audio.durationMs } : null;
         if (mode === 'lastwords') submitLastWords(room, seat.seatId, text, action, room.lastWords?.windowId, media);
         else submitSpeech(room, seat.seatId, text, action, media);
-        publicAudioRecords.set(audio.audioId,{...audio,roomCode:room.roomCode,participants:new Set(room.seats.map(s=>s.playerId).filter(Boolean))});
+        if(audio)publicAudioRecords.set(audio.audioId,{...audio,roomCode:room.roomCode,participants:new Set(room.seats.map(s=>s.playerId).filter(Boolean))});
         submitted = true;
         const record = mode === 'lastwords' ? room.lastWordsHistory.at(-1) : room.speeches.at(-1);
-        humanTranscriptions.enqueue(room, record, mode);
+        record.sequence=transcript.sequence;
+        if(room.liveTranscript===transcript)delete room.liveTranscript;
+        updateTranscript(room,record,mode,text?'completed':'failed',text,text?transcript.textSource:null);
         const acceptedEvent=room.events.findLast(event=>event.type===(mode==='lastwords'?'game.last_words_submitted':'game.speech_submitted'));
-        if(live)hostPlayback.finishHuman(room,live,acceptedEvent.eventId,{...audio,wav:pcmWav(Buffer.concat(relay.chunks))});
-        publishNewEvents(room); ws.send(JSON.stringify({ type: 'accepted', text, audio_id: audio.audioId }));
+        if(live && audio)hostPlayback.finishHuman(room,live,acceptedEvent.eventId,{...audio,wav:pcmWav(Buffer.concat(relay.chunks))});
+        publishNewEvents(room); if(ws.readyState===ws.OPEN)ws.send(JSON.stringify({ type: 'accepted', text, audio_id: audio?.audioId }));
         return true;
         } catch(error) {
           recordTurn('human_audio_failed', { roomId: room.roomId, gameId, seatId: seat.seatId, code: error.code || 'HUMAN_AUDIO_FAILED' });
-          if(!submitted){await unlink(audio.path).catch(()=>{});room.audioRecords=room.audioRecords.filter(item=>item!==audio);}
+          if(!submitted && audio){await unlink(audio.path).catch(()=>{});room.audioRecords=room.audioRecords.filter(item=>item!==audio);}
           const window = mode === 'lastwords' ? room.lastWords : room.speechClock;
           if (!submitted && window?.recordingId === recordingId) {
             window.stage = 'speaking'; window.expiresAt = window.recordingDeadline ?? window.expiresAt;
@@ -238,26 +242,36 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
           throw error;
         }
       };
+      const saveTranscript = message => {
+        if(message.recording_id!==recordingId || typeof message.text!=='string' || message.text.length>(mode==='lastwords'?200:1200) || !Number.isSafeInteger(message.revision) || message.revision<1 || message.revision>10000 || !['browser_transcription','submitted'].includes(message.source))throw Error('实时文字格式或录音身份无效');
+        if(message.revision<=transcript.revision)return;
+        transcript.text=message.text.trim();transcript.revision=message.revision;transcript.textSource=message.source;
+        room.version++;appendEvent(room,{type:'game.live_transcript_updated',data:{recordingId,seatId:seat.seatId,revision:message.revision}});publishNewEvents(room);
+        if(ws.readyState===ws.OPEN)ws.send(JSON.stringify({type:'transcript_saved',revision:transcript.revision}));
+      };
       ws.on('message', async (raw, binary) => {
         try {
           if (closed || stopping) return;
           if (!submitted && !valid()) { finish(); return; }
           if (binary) { const frame = Buffer.from(raw); if (!frame.length || frame.length % 2 || frame.length > 1920 || relay.bytes + frame.length > 960000) throw new Error('语音长度或格式无效'); if(!live&&hostPlayback)live=hostPlayback.beginHuman(room,seat.seatId,mode); relay.chunks.push(frame); relay.bytes += frame.length; live?.stream.append(frame); return; }
+          if(raw.length>12000)throw Error('实时文字消息过长');
           const message = JSON.parse(raw.toString());
           if (message.type === 'start') { ws.send(JSON.stringify({ type: 'ready' })); return; }
-          if (message.type === 'stop') { stopping = true; await submitAudio(); if (!submitted && !closed && valid()) { const action = `realtime_skip_${randomUUID()}`; if (mode === 'lastwords') skipLastWords(room, seat.seatId, action, room.lastWords?.windowId); else skipSpeech(room, seat.seatId, action); publishNewEvents(room); } finish(); return; }
+          if (message.type === 'cancel') { finish(); return; }
+          if (message.type === 'transcript') {saveTranscript(message);return;}
+          if (message.type === 'stop') { if(message.text!==undefined)saveTranscript(message); stopping = true; await submitAudio(); if (!submitted && !closed && valid()) { const action = `realtime_skip_${randomUUID()}`; if (mode === 'lastwords') skipLastWords(room, seat.seatId, action, room.lastWords?.windowId); else skipSpeech(room, seat.seatId, action); publishNewEvents(room); } finish(); return; }
           throw new Error('实时语音控制消息无效');
         } catch (error) { if (!closed) { ws.send(JSON.stringify({ type: 'error', message: error.message })); finish(); } }
       });
-      ws.on('close', finish);
+      ws.on('close', () => {if(!closed&&!submitted&&!stopping&&valid()&&relay.chunks.length){stopping=true;void submitAudio().catch(()=>{}).finally(finish);}else finish();});
     });
   });
   let hunterTimer;
-  server.on('listening', () => { void refreshTranscription(); hunterTimer = setInterval(() => {
-    for (const room of rooms.values()) { if(room.invalidated || room.phase==='GAME_OVER')humanTranscriptions.cancel(room); tickNightWindow(room); expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
+  server.on('listening', () => { hunterTimer = setInterval(() => {
+    for (const room of rooms.values()) { tickNightWindow(room); expirePresence(room); expireHunterResponse(room); expireLastWords(room); tickHumanSpeech(room); publishNewEvents(room); }
     for (const active of transcriptions) if(!active.valid())active.abort.abort();
   }, 250); hunterTimer.unref(); });
-  server.on('close', () => {humanTranscriptions.cancel();clearInterval(hunterTimer);for(const active of transcriptions)active.abort.abort();transcriptions.clear();});
+  server.on('close', () => {clearInterval(hunterTimer);for(const active of transcriptions)active.abort.abort();transcriptions.clear();});
   return { server, port };
 }
 
