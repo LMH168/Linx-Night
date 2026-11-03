@@ -16,7 +16,6 @@ Linx Night 是一个把 **真人网页玩家、灵矽 AI 玩家和独立 AI 主�
 
 两个入口使用同一套正式 Vue 客户端。线上通过 Cloudflare Tunnel 转发网页、`/api/` 和 `/mcp`，客户端使用同源 API；服务器 IP 和内部端口用于运维排查。主线合并与线上部署是两个步骤，仓库代码可能先于线上版本。
 
-https://github.com/user-attachments/assets/b0b711d2-c47f-4c16-9743-b97e77e60d71
 
 ## 功能
 
