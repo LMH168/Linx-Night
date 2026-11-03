@@ -44,6 +44,7 @@ jobs:
 
       - name: 后端与领域回归
         run: |
+          npm run test:alignment
           npm run test:domain
           npm run test:api
           npm run test:realtime

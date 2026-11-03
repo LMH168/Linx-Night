@@ -6,6 +6,7 @@ import {
   onMounted,
   ref,
   shallowRef,
+  toRef,
   watch,
 } from "vue";
 import { ApiRequestError, GameApiClient } from "./api/client";
@@ -30,6 +31,10 @@ import CouncilLobby from "./components/CouncilLobby.vue";
 import SceneBackground from "./components/scene/SceneBackground.vue";
 import RoleSilhouette from "./components/seats/RoleSilhouette.vue";
 
+import TableTop from './components/seats/TableTop.vue';
+import { evenRingPoints } from './composables/useRing';
+import { usePresentation } from './composables/usePresentation';
+const ringPoints = evenRingPoints(9);
 const store = useRoomStore();
 const query = new URLSearchParams(location.search);
 const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
@@ -84,6 +89,7 @@ const roleNames: Record<string, string> = {
   villager: "平民",
 };
 const state = computed(() => store.publicState);
+const presentation = usePresentation(state, toRef(store, "connectionStatus"));
 const mine = computed(() => store.privateState);
 const isHost = computed(() =>
   Boolean(state.value && state.value.hostPlayerId === playerId.value),
@@ -142,7 +148,7 @@ const scene = computed(() =>
     ? "lobby"
     : finished.value
       ? "vote"
-      : state.value?.phase.startsWith("NIGHT_")
+      : ["NIGHT_WOLF", "NIGHT_SEER", "NIGHT_WITCH"].includes(state.value?.phase || "")
         ? "night"
         : state.value?.phase === "VOTE"
           ? "vote"
@@ -499,9 +505,21 @@ async function submitLastWords(skip = false) {
   )
     lastWordsText.value = "";
 }
-async function announceNight() {
-  if (playerId.value !== state.value?.hostPlayerId) return;
-  await submit("actions", { type: "announce_night" });
+async function retryNightConfirmation() {
+  if (!client.value || !isHost.value) return;
+  await run(async () => { await client.value!.mutate(roomId.value, '/host/retry-confirmation'); await refresh(); });
+}
+async function changeSeat(target: string) {
+  if (!client.value || !state.value || busy.value || state.value.preparing) return;
+  const version = state.value.version;
+  await run(async () => {
+    try { await client.value!.changeSeat(roomId.value, { target_seat_id: target, version, action_id: crypto.randomUUID() }); }
+    catch (error) {
+      if (error instanceof ApiRequestError && error.status === 409) { await refresh(); throw new Error('房间席位已变化，已刷新，请重新选择。'); }
+      throw error;
+    }
+    await refresh();
+  });
 }
 let replayAudio: HTMLAudioElement | null = null;
 let replayUrl: string | null = null;
@@ -701,14 +719,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="council" :data-scene="scene">
-    <SceneBackground :scene="scene" />
+  <div class="council" :data-scene="scene" :data-light="presentation.light.value" :class="{ 'reduce-motion': presentation.reduced.value }">
+    <SceneBackground :light="presentation.light.value" :reduced="presentation.reduced.value" />
+    <Transition name="scene-wipe"><div v-if="presentation.transition.value" :key="presentation.transition.value" class="scene-wipe" aria-hidden="true"><span>{{ presentation.transition.value }}</span></div></Transition>
+    <label class="motion-setting"><input type="checkbox" v-model="presentation.reduced.value" />减少动态效果</label>
     <CouncilLobby
       v-if="inLobby"
       :state="state"
       v-model:nickname="displayName"
       v-model:code="joinCode"
       :host="isHost"
+      :self-seat-id="mine?.seatId"
+      @seat-change="changeSeat"
       :busy="busy"
       :message="message"
       @create="createRoom"
@@ -758,13 +780,14 @@ onBeforeUnmount(() => {
       <main v-if="!finished" class="council-stage">
         <section class="ring-zone" aria-label="九人席位">
           <div class="council-ring">
-            <div class="ring-line"></div>
+            <TableTop />
             <button
               v-for="(seat, index) in state?.seats"
               :key="seat.seatId"
               class="council-seat"
               :class="{
                 dead: !seat.alive,
+                eliminated: presentation.eliminated.value.includes(seat.seatId),
                 self: seat.seatId === mine?.seatId,
                 speaking:
                   state?.phase === 'SPEECH' &&
@@ -775,8 +798,8 @@ onBeforeUnmount(() => {
                 selected: targetSeatId === seat.seatId,
               }"
               :style="{
-                '--sin': Math.sin((index / 9) * Math.PI * 2),
-                '--cos': -Math.cos((index / 9) * Math.PI * 2),
+                '--sin': ringPoints[index]?.x,
+                '--cos': ringPoints[index]?.y,
               }"
               :aria-label="`${index + 1} 号 ${seat.displayName} ${!seat.alive ? '已出局' : ''}`"
               :aria-pressed="targetSeatId === seat.seatId"
@@ -877,8 +900,9 @@ onBeforeUnmount(() => {
               响应时间已到，等待服务端结算。
             </p>
             <template v-if="state?.phase === 'NIGHT_ANNOUNCEMENT'">
-              <p class="muted">遗言结束，保持黄昏状态，等待房主宣布天黑。</p>
-              <button v-if="playerId === state?.hostPlayerId" class="gold" :disabled="actionDisabled" @click="announceNight">宣布天黑</button>
+              <p class="muted">请等待主持人宣布入夜。</p>
+              <p class="muted">{{ state?.nightConfirmation?.status === 'announcing' ? '正在播报天黑请闭眼，播放完成后开放夜间行动。' : '主持人确认后将播放入夜播报。' }}</p>
+              <button v-if="isHost && state?.nightConfirmation?.status === 'failed'" @click="retryNightConfirmation" :disabled="busy">重新请求主持确认</button>
             </template>
             <template v-if="action === 'speech'"
               ><p class="muted">
@@ -1052,7 +1076,7 @@ onBeforeUnmount(() => {
                 重试音频</button
               ><button
                 v-if="hostPlayback.canManage.value && hostPlayback.task.value"
-                @click="audioControl('skip')"
+                v-show="!['night-announcement', 'lastwords'].includes(hostPlayback.task.value?.kind || '')" @click="audioControl('skip')"
               >
                 跳过当前音频
               </button>
@@ -1061,8 +1085,8 @@ onBeforeUnmount(() => {
           <p class="muted" role="status">{{ message }}</p>
         </aside>
       </main>
-      <main v-else class="council-result">
-        <p class="eyebrow">THE END · 身份公开</p>
+      <main v-else class="council-result" :class="{ 'live-result': presentation.reveal.value }">
+        <p class="eyebrow">THE END · {{ settlement ? "身份公开" : "等待授权结算" }}</p>
         <h2 class="display">
           {{
             settlement?.winner === "good"
@@ -1077,8 +1101,8 @@ onBeforeUnmount(() => {
           {{ settlementError }}
           <button @click="loadSettlement">重试结算</button>
         </p>
-        <div class="result-roles">
-          <article v-for="s in reportSeats" :key="s.seatId" class="glass">
+        <div class="result-roles" :class="{ reveal: presentation.reveal.value }">
+          <article v-for="(s, index) in reportSeats" :key="s.seatId" class="glass" :style="{ '--reveal-delay': `${index * 140}ms` }">
             <RoleSilhouette :role="artRole(s.role)" /><strong>{{
               roleNames[s.role] || "身份未知"
             }}</strong
@@ -1199,11 +1223,11 @@ onBeforeUnmount(() => {
             发言，台下存活玩家重投候选；再次平票无人出局。
           </p>
           <p>
-            狼人必须确认一致目标，不能攻击自己或队友。查验结果仅预言家本人可见。女巫每夜限一种行动；药品、自救和刀口以服务端状态为准。
+            狼人分别投票，以最高票决定目标，最高票并列时随机决定；合法目标以服务端为准。查验结果仅预言家本人可见。女巫每夜限一种行动；药品、自救和刀口以服务端状态为准。
           </p>
           <p>
             猎人响应与遗言均由服务端计时。遗言最多 200
-            字；首夜死亡、白天放逐可留遗言。AI 失败由房主重试。
+            字；首夜死亡、白天放逐可留遗言。真人发表原声遗言，AI 使用自己的声音，主持不代读。好人消灭全部狼人获胜，狼人数量达到好人数量时获胜。AI 失败由房主重试。
           </p>
           <button class="gold" @click="showRules = false">
             知道了

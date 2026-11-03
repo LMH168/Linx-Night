@@ -39,3 +39,7 @@ export type Settlement = SettlementState;
 export type EndRoomResponse = { ended?: boolean; idempotent?: boolean; settlement_id?: string; settlement?: SettlementState; state?: RoomPublicState };
 export type SettlementResponse = { settlement: SettlementState };
 export type ControllersResponse = { game_id: string | null; controller_epoch: number; phase: string; controllers: RoomPublicState['controllers']; host?: RoomPublicState['hostController'] };
+
+export type SeatChangeRequest = { target_seat_id: string; version: number; action_id: string };
+export type SeatChangeResponse = StateResponse & { player: { seatId: string } };
+export type ConfirmNightRequest = { game_id: string; window_id: string };

@@ -1,3 +1,4 @@
+import type { SeatChangeRequest, SeatChangeResponse } from '../../../../packages/protocol/src/api';
 import type { ApiEnvelope, ApiError, PrivateState, RoomPublicState } from '../../../../packages/protocol/src/types';
 import type { ControlRequest, PresenceResponse } from '../../../../packages/protocol/src/api';
 import type { ActionRequest, AddPlayerRequest, CreateRoomRequest, CreateRoomResponse, EndRoomResponse, HostStateResponse, HunterResponseRequest, JoinRoomRequest, JoinRoomResponse, LastWordsRequest, MutationResponse, PrivateStateResponse, RecordingStartResponse, RenamePlayerRequest, SettlementResponse, SpeechRequest, StartGameResponse, StateResponse, VoteRequest } from '../../../../packages/protocol/src/api';
@@ -89,6 +90,10 @@ export class GameApiClient {
   addAi(roomId: string, displayName?: string): Promise<MutationResponse> {
     const body: AddPlayerRequest = { player_type: 'ai', ...(displayName ? { display_name: displayName } : {}) };
     return this.request(`/api/rooms/${encodeURIComponent(roomId)}/players`, { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  changeSeat(roomId: string, body: SeatChangeRequest): Promise<SeatChangeResponse> {
+    return this.request(`/api/rooms/${encodeURIComponent(roomId)}/seat-change`, { method: 'POST', body: JSON.stringify(body) });
   }
 
   renameAi(roomId: string, seatId: string, displayName: string): Promise<MutationResponse> {

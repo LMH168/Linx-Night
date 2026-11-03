@@ -1,7 +1,7 @@
 import { syncPublicContextClocks } from '../../../packages/domain/src/public-conversation.mjs';
 import { recordTurn } from '../../server/src/turn-diagnostics.mjs';
 import { expireHunterResponse, expireLastWords, skipSpeech } from '../../../packages/domain/src/engine.mjs';
-import { completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
+import { appendEvent, completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { defaultTurn } from './local.mjs';
 
@@ -30,17 +30,37 @@ export class LinxTurnRuntime {
       if (room.controllers.some(c => c.status !== 'released') || room.settlement?.release?.controllers === 'pending') return this.track(room, () => this.releaseGame(room));
       return Promise.resolve();
     }
+    if (room.phase === 'NIGHT_ANNOUNCEMENT' && room.requireHostConfirmation) {
+      const window = room.nightConfirmation;
+      if (!room.hostPlaybackBlocked && window?.status === 'waiting' && this.manager.requestNight) return this.track(room, () => this.requestNight(room, window));
+      return Promise.resolve();
+    }
     // Host playback gates public day turns only; private night turns are independent.
     // This runtime drives Linx seats only; human seats act from the web client.
     if (room.controllers.some(c => c.status === 'failed')) return Promise.resolve();
     if (syncPublicContextClocks(room, this.now())) return Promise.resolve();
     const eligible = room.seats.filter(s => s.controlSource === 'linx' && actionAvailable(room, s) && room.controllers.some(c => c.seatId === s.seatId && ['ready','released'].includes(c.status)));
     if (room.phase === 'SPEECH' && room.speechPlayback?.status === 'pending') this.prewarmNext(room);
-    if (room.phase === 'SPEECH' && room.hostPlaybackBlocked) return Promise.resolve();
+    if (['SPEECH','LAST_WORDS'].includes(room.phase) && room.hostPlaybackBlocked) return Promise.resolve();
     if (!eligible.length) return Promise.resolve();
     const concurrent = room.phase === 'NIGHT_WOLF' || room.phase === 'VOTE';
     const seats = concurrent ? eligible : eligible.slice(0, 1);
     return this.track(room, () => Promise.allSettled(seats.map(seat => this.play(room, seat))));
+  }
+  async requestNight(room, window) {
+    const gameId = room.gameId; let timer;
+    window.status = 'requesting'; window.errorCode = null; room.hostDecisionRunning = true;
+    appendEvent(room, { type: 'game.night_confirmation_changed', data: { windowId: window.windowId, status: window.status } }); this.publish(room);
+    try {
+      await Promise.race([this.manager.requestNight(room, window), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('HOST_CONFIRM_TIMEOUT')), this.timeoutMs); })]);
+      if (room.gameId === gameId && room.nightConfirmation === window && window.status === 'requesting') throw Error('HOST_CONFIRM_NOT_SUBMITTED');
+    } catch (error) {
+      try { await this.manager.cancelTurn?.(room, { seatId: 'HOST' }); } catch { recordTurn('host_cancel_failed', { roomId: room.roomId, gameId }); }
+      if (!room.invalidated && room.gameId === gameId && room.nightConfirmation === window && window.status === 'requesting') {
+        window.status = 'failed'; window.errorCode = 'HOST_CONFIRM_FAILED';
+        appendEvent(room, { type: 'game.night_confirmation_changed', data: { windowId: window.windowId, status: window.status } });
+      }
+    } finally { clearTimeout(timer); room.hostDecisionRunning = false; this.publish(room); }
   }
   prewarmNext(room) {
     if (this.prewarming?.has(room.roomId) || !room.currentSeatId || room.speechPlayback?.status !== 'pending') return;
