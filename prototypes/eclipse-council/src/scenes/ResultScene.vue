@@ -94,18 +94,31 @@ function toLobby(): void {
   padding: 4vh 20px;
 }
 
+/* 半透明：让身后的剪影小屋像片尾字幕一样透出来 */
 .wash {
   position: absolute;
   inset: 0;
   background:
     radial-gradient(78% 46% at 50% 108%, rgba(96, 128, 168, 0.16), transparent 66%),
-    radial-gradient(90% 80% at 50% -10%, #24384f 0%, #0d1622 44%, #070b12 76%, #04060a 100%);
+    radial-gradient(
+      90% 80% at 50% -10%,
+      rgba(36, 56, 79, 0.84) 0%,
+      rgba(13, 22, 34, 0.88) 44%,
+      rgba(7, 11, 18, 0.92) 76%,
+      rgba(4, 6, 10, 0.95) 100%
+    );
 }
 
 .result.wolf .wash {
   background:
     radial-gradient(78% 46% at 50% 108%, rgba(168, 62, 58, 0.18), transparent 66%),
-    radial-gradient(90% 80% at 50% -10%, #4a1a1c 0%, #1b0810 46%, #090409 78%, #040305 100%);
+    radial-gradient(
+      90% 80% at 50% -10%,
+      rgba(74, 26, 28, 0.84) 0%,
+      rgba(27, 8, 16, 0.9) 46%,
+      rgba(9, 4, 9, 0.94) 78%,
+      rgba(4, 3, 5, 0.96) 100%
+    );
 }
 
 .glow {

@@ -97,7 +97,7 @@ watch(
   padding: 0 22px;
   text-align: left;
   border-top: 1px solid rgba(213, 177, 132, 0.1);
-  background: linear-gradient(180deg, rgba(4, 6, 10, 0.55), rgba(4, 6, 10, 0.92));
+  background: var(--bar-bg-2);
 }
 
 .badge {
@@ -176,9 +176,9 @@ watch(
   display: flex;
   flex-direction: column;
   padding: 14px 22px 6px;
-  background: linear-gradient(180deg, rgba(8, 11, 16, 0.92), rgba(5, 7, 11, 0.97));
+  background: var(--panel-bg);
   border-top: 1px solid rgba(213, 177, 132, 0.16);
-  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -20px 50px rgb(0 0 0 / 0.5);
 }
 
 .sheet-head {

@@ -108,7 +108,7 @@ const phase = computed(() => {
   gap: 18px;
   padding: 0 22px;
   border-bottom: 1px solid rgba(213, 177, 132, 0.12);
-  background: linear-gradient(180deg, rgba(6, 9, 14, 0.94), rgba(5, 7, 11, 0.62));
+  background: var(--bar-bg);
 }
 
 .brand {
@@ -151,7 +151,7 @@ const phase = computed(() => {
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid rgba(213, 177, 132, 0.12);
-  background: rgba(6, 9, 14, 0.5);
+  background: rgb(var(--chrome-rgb) / 0.5);
 }
 
 .step {
@@ -210,7 +210,7 @@ const phase = computed(() => {
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(213, 177, 132, 0.16);
-  background: rgba(6, 9, 14, 0.45);
+  background: rgb(var(--chrome-rgb) / 0.45);
   white-space: nowrap;
 }
 
@@ -239,7 +239,7 @@ const phase = computed(() => {
   border-radius: 50%;
   border: 1px solid rgba(213, 177, 132, 0.16);
   color: var(--ink-2);
-  background: rgba(6, 9, 14, 0.5);
+  background: rgb(var(--chrome-rgb) / 0.5);
   transition: color 260ms var(--ease), border-color 260ms var(--ease), background 260ms var(--ease);
 }
 

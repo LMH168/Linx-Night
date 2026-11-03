@@ -4,6 +4,7 @@ import * as E from '@/game/engine'
 import type { GameState, NightStep, Role } from '@/game/types'
 import type { UiRequest, RequestKind, DawnPayload, TransitionKind } from '@/game/requests'
 import { useSettingsStore } from './settings'
+import { SEAT_NAMES } from '@/data/names'
 import { witchOptions } from '@/game/rules/witch'
 import { stopPick } from '@/composables/useSeatPick'
 
@@ -15,6 +16,7 @@ export const useGameStore = defineStore('game', () => {
     transition: null as TransitionKind, finished: false, toast: null as {text: string; tone: 'info' | 'warn'} | null,
     hovered: null as number | null, selected: null as number | null, showRules: false, showSettings: false, logOpen: false })
   const flow = reactive({ roomId: '', nickname: '旅人', host: true, occupied: [1] as number[], humans: [1] as number[],
+    mySeat: 1,
     preparing: false, ready: 0, prepareFailed: false, connected: true, aiFailed: false,
     playback: 'idle' as 'idle' | 'playing' | 'paused' | 'failed', sound: true, identityOpen: false,
     afterLast: 'day' as 'day' | 'night', pkIndex: 0, busy: false, deadline: 0, endConfirm: false })
@@ -37,8 +39,50 @@ export const useGameStore = defineStore('game', () => {
   function createRoom(join = false, code = '') {
     if (!flow.nickname.trim()) return toast('请先填写昵称', 'warn')
     if (join && code.trim().toUpperCase() !== 'EC1024') return toast('演示房间不存在，请使用 EC1024', 'warn')
-    quitToLobby(); flow.host = !join; flow.roomId = 'EC1024'; flow.humans = join ? [1, 2] : [1]; flow.occupied = join ? [1, 2, 3, 4] : [1]
-    settings.names[join ? 2 : 1] = flow.nickname.trim().slice(0, 8); ui.toast = null
+    quitToLobby(); flow.host = !join; flow.roomId = 'EC1024'
+    flow.mySeat = join ? 2 : 1
+    flow.humans = join ? [1, 2] : [flow.mySeat]
+    flow.occupied = join ? [1, 2, 3, 4] : [flow.mySeat]
+    settings.names[flow.mySeat] = flow.nickname.trim().slice(0, 8); ui.toast = null
+  }
+  /**
+   * 大厅选座：把自己的牌子挪到另一个席位。
+   * 目标空着就搬过去；坐着 AI 就交换（AI 保留自己的名字坐到你的旧位子）。
+   */
+  function takeSeat(seat: number) {
+    if (!flow.host) return toast('加入者由房主安排席位', 'warn')
+    if (flow.preparing) return toast('准备中不能换座', 'warn')
+    if (!flow.roomId) return
+    if (!Number.isInteger(seat) || seat < 1 || seat > 9) return
+    const mine = flow.mySeat
+    if (seat === mine) return
+    if (flow.humans.includes(seat)) return toast('该席位已经有玩家了', 'warn')
+
+    const myName = settings.names[mine]?.trim() || flow.nickname
+    const there = flow.occupied.includes(seat)
+    const thereName = settings.names[seat]
+
+    const next = new Set(flow.occupied)
+    if (there) {
+      // 目标坐着 AI：AI 让到你的旧席，入座数不变
+      next.add(seat)
+    } else {
+      next.delete(mine)
+      next.add(seat)
+    }
+    flow.occupied = [...next].sort((a, b) => a - b)
+    flow.humans = flow.humans.map((n) => (n === mine ? seat : n)).sort((a, b) => a - b)
+    flow.mySeat = seat
+
+    if (there && thereName) {
+      settings.setName(mine, thereName)
+    } else {
+      // 空位：旧席位退回默认的 AI 称呼，别把真名留在空椅子上
+      settings.setName(mine, SEAT_NAMES[mine - 1] ?? '旅人')
+    }
+    settings.setName(seat, myName)
+    settings.humanSeats = [seat]
+    toast(`已入座 ${seat} 号`, 'info')
   }
   function addAi(all = false) {
     if (!flow.host || flow.preparing) return
@@ -71,7 +115,7 @@ export const useGameStore = defineStore('game', () => {
     }
   }
   function startGame(role: Role = 'seer') {
-    stopGame(); flow.roomId = 'EC1024'; flow.occupied = [1,2,3,4,5,6,7,8,9]; flow.humans = flow.host ? [1] : [1,2]; settings.humanSeats = [flow.host ? 1 : 2]; settings.turnSeconds = 30
+    stopGame(); flow.roomId = 'EC1024'; flow.occupied = [1,2,3,4,5,6,7,8,9]; flow.humans = flow.host ? [flow.mySeat] : [1,2]; settings.humanSeats = [flow.host ? flow.mySeat : 2]; settings.turnSeconds = 30
     let s = E.createGame({humanSeats: settings.humanSeats, names: {...settings.names}, personas: {}, seed: 1024, turnSeconds: 30})
     const roles: Role[] = ['seer','wolf','villager','witch','wolf','hunter','villager','wolf','villager']
     const own = settings.humanSeats[0]! - 1
@@ -204,6 +248,6 @@ export const useGameStore = defineStore('game', () => {
   function endPreview() { commit(x => ({...x, scene: 'result', winner: 'good', endReason: '全部狼人出局 · 好人阵营获胜', players: x.players.map(p => ({...p, revealed: true}))})) }
   function selfDestruct(_seat: number) { toast('本项目无自爆规则', 'warn') }
   return {state, request, ui, flow, scene, round, players, logs, viewerSeat, aiCount, speedFactor, blocked, commit, toast,
-    respond, startGame, stopGame, restart, quitToLobby, leaveRoom, createRoom, addAi, rename, prepare, failPreparation, retryPreparation,
+    respond, startGame, stopGame, restart, quitToLobby, leaveRoom, createRoom, addAi, rename, takeSeat, prepare, failPreparation, retryPreparation,
     cancelPreparation, advance, finishPlayback, endGame, preview, selfDestruct, isHumanSeat: (n: number) => flow.humans.includes(n)}
 })

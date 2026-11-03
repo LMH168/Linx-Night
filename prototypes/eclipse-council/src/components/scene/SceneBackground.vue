@@ -1,22 +1,22 @@
 <script setup lang="ts">
 /**
- * 场景背景调度：
- *   lobby（主页）        → 山林小屋（程序化绘制）
- *   night / day / vote   → 电影级摄影底图 + 分场景调色
+ * 场景背景调度
+ *   photo  → 摄影底图 + 光时（大厅、发牌、对局、投票）
+ *   forest → 程序化剪影插画（只留给结算页做片尾）
+ *
+ * 大厅不再换一套画法：它和对局共用同一机位，只是停在"黄昏"这一档。
  */
-import { computed } from 'vue'
+import type { LightKey } from '@/data/light'
 import CabinForest from './CabinForest.vue'
 import GatheringScene from './GatheringScene.vue'
 
-const props = defineProps<{ scene: string }>()
-
-const isLobby = computed(() => props.scene === 'lobby')
+defineProps<{ light: LightKey; variant: 'photo' | 'forest' }>()
 </script>
 
 <template>
   <div class="scene-bg" aria-hidden="true">
-    <CabinForest v-if="isLobby" />
-    <GatheringScene v-else :mode="scene" />
+    <CabinForest v-if="variant === 'forest'" />
+    <GatheringScene v-else :light="light" />
   </div>
 </template>
 
@@ -27,7 +27,7 @@ const isLobby = computed(() => props.scene === 'lobby')
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: #05070c;
+  background: var(--scene-bg);
   contain: strict;
 }
 </style>

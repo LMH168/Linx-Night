@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-type Mode = 'fog' | 'dust' | 'ember'
+type Mode = 'fog' | 'mist' | 'dust' | 'ember'
 
 const props = withDefaults(defineProps<{ mode?: Mode; count?: number }>(), {
   mode: 'fog',
@@ -64,6 +64,7 @@ function buildSprite(color: string): HTMLCanvasElement {
 function palette(mode: Mode): { color: string; speed: number; size: [number, number] } {
   if (mode === 'dust') return { color: 'rgba(255,248,226,0.8)', speed: 0.16, size: [0.6, 2.0] }
   if (mode === 'ember') return { color: 'rgba(255,198,132,0.85)', speed: 0.28, size: [0.7, 2.4] }
+  if (mode === 'mist') return { color: 'rgba(255,226,196,0.7)', speed: 0.13, size: [1.0, 3.4] }
   return { color: 'rgba(203,223,255,0.62)', speed: 0.11, size: [1.4, 5.0] }
 }
 

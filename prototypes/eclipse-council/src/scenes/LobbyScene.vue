@@ -4,6 +4,7 @@ import { useGameStore } from '@/stores/game'
 import { useSettingsStore } from '@/stores/settings'
 import { ROLES } from '@/game/roles'
 import RoleSilhouette from '@/components/seats/RoleSilhouette.vue'
+import LobbySeats from '@/components/seats/LobbySeats.vue'
 const game = useGameStore()
 const settings = useSettingsStore()
 const code = ref('EC1024')
@@ -30,15 +31,17 @@ const controllers = computed(() => [...f.occupied.filter(n => !f.humans.includes
           <p class="eyebrow">{{f.host?'你是房主':'你是加入者'}} · {{f.nickname}}</p>
           <h2 class="display">房间 {{f.roomId}}</h2>
           <p class="muted">{{f.occupied.length}} / 9 已入座 · 主持不占玩家席位</p>
+          <p v-if="f.host && !f.preparing" class="muted">在右侧点一个空位就能换座，AI 席位会和你交换。</p>
           <div v-if="f.host && !f.preparing" class="buttons"><button @click="game.addAi()" :disabled="f.occupied.length===9">添加一名 AI</button><button @click="game.addAi(true)" :disabled="f.occupied.length===9">补齐 AI 空位</button></div>
           <button v-if="f.host && !f.preparing" class="gold" :disabled="f.occupied.length!==9" @click="game.prepare()">{{f.occupied.length===9?'开始准备 →':'等待九席满员'}}</button>
           <p v-if="!f.host" class="waiting">九席满员后，由房主开始游戏。</p>
           <button class="text-button" @click="game.leaveRoom()">离开房间</button>
         </div>
-        <p v-if="game.ui.toast" class="error" role="status">{{game.ui.toast.text}}</p>
+        <p v-if="game.ui.toast" :class="game.ui.toast.tone === 'warn' ? 'error' : 'notice'" role="status">{{game.ui.toast.text}}</p>
         <button class="text-button" @click="game.ui.showRules=true">查看本局规则 ↗</button>
       </section>
       <section class="table-zone">
+        <LobbySeats v-if="f.roomId && !f.preparing" />
         <section v-if="f.preparing" class="preparation">
           <p class="eyebrow">入夜前的准备</p><h2 class="display">{{f.prepareFailed?'连接暂时中断':'正在召集议会'}}</h2><p class="muted">{{f.ready}} / {{controllers.length}} 已就绪 · 全部就绪后才分配身份</p>
           <div v-for="(name,i) in controllers" :key="name" class="controller"><span>{{name}}</span><b :class="{error:f.prepareFailed && i===f.ready}">{{i<f.ready?'已就绪':f.prepareFailed && i===f.ready?'连接失败':i===f.ready?'正在连接…':'等待连接'}}</b></div>
@@ -51,10 +54,11 @@ const controllers = computed(() => [...f.occupied.filter(n => !f.humans.includes
   </main>
 </template>
 <style scoped>
-.lobby{height:100dvh;overflow:auto;padding:26px 5vw 20px;background:linear-gradient(102deg,rgba(4,7,12,.86) 0%,rgba(4,7,12,.66) 24%,rgba(4,7,12,.34) 44%,rgba(4,7,12,.08) 60%,transparent 72%)}
+.lobby{height:100dvh;overflow:auto;padding:26px 5vw 20px;background:radial-gradient(120% 62% at 18% 0%,rgba(8,5,6,.72) 0%,transparent 62%),linear-gradient(102deg,rgba(10,7,8,.9) 0%,rgba(12,8,9,.70) 26%,rgba(12,8,9,.36) 46%,rgba(10,7,8,.10) 62%,transparent 74%)}
 .mast{display:flex;justify-content:space-between;gap:16px;font-size:10px;letter-spacing:.18em;color:var(--gold-text);padding-bottom:22px;border-bottom:1px solid rgba(213,177,132,.15)}
 .layout{max-width:1380px;min-height:calc(100dvh - 145px);margin:auto;display:grid;grid-template-columns: minmax(300px,.85fr) minmax(450px,1.15fr);align-items:center;gap:6vw;padding:36px 0}
 h1{font-size:clamp(42px,5vw,76px);line-height:1.2;letter-spacing:.15em;margin:15px 0 20px}h1 span{display:block;font-size:12px;letter-spacing:.7em;color:var(--gold-text);margin-top:12px}.story{color:var(--ink-2);font-size:13px;line-height:2}.roles{display:flex;gap:14px;margin-top:24px}.roles article{display:grid;gap:7px;justify-items:center;color:var(--ink-2);font-size:11px}.roles article :deep(.silhouette){width:55px;height:55px;border-radius:50%;background:#111a26}.board{font-size:11px;line-height:1.9;color:var(--ink-3);margin:18px 0}.entry,.room-info{max-width:365px;display:grid;gap:12px}.room-info h2{font-size:28px;letter-spacing:.08em}label{display:grid;gap:5px;font-size:10px;color:var(--ink-3)}input{min-width:0;width:100%;border:1px solid rgba(213,177,132,.22);border-radius:8px;background:rgba(5,8,14,.7);padding:10px 12px;color:var(--ink);outline-offset:2px}button{padding:10px 15px;border:1px solid rgba(213,177,132,.25);border-radius:8px;font-size:12px}button:hover{border-color:var(--gold-text)}button:disabled{opacity:.4}.gold{background:linear-gradient(135deg,#ead1a4,#b38c55);color:#20170b;border:0;display:flex;justify-content:space-between}.join{display:grid;grid-template-columns:1fr auto;align-items:end;gap:10px}.muted,.waiting{font-size:11px;color:var(--ink-3);line-height:1.8}.buttons{display:flex;gap:8px;flex-wrap:wrap}.text-button{padding:8px 0;border:0;color:var(--gold-text);text-align:left;font-size:11px}.error{color:#e7a5a0;font-size:12px}.table-zone{display:grid;justify-items:center;gap:34px}.table-zone:empty{display:none}.preparation{width:min(100%,460px);padding:26px;border:1px solid rgba(213,177,132,.25);border-radius:18px;background:rgba(8,12,20,.88)}.preparation h2{font-size:28px;margin:9px 0}.controller{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(213,177,132,.08);font-size:11px}.controller b{font-weight:400;color:var(--gold-text)}.preparation .buttons{margin-top:18px}footer{text-align:center;font-size:10px;letter-spacing:.18em;color:var(--ink-3)}
 @media(max-width:900px){.layout{grid-template-columns:1fr;gap:65px;justify-items:center}.intro{width:min(100%,480px)}.table-zone{width:100%;padding:25px 0}.entry,.room-info{max-width:none}.mast{font-size:9px}.roles{justify-content:space-between}.lobby{padding:20px 6vw}.layout{padding-top:24px}}
 @media(max-width:450px){.mast span:last-child{max-width:120px;text-align:right}h1{font-size:43px}.roles article :deep(.silhouette){width:46px;height:46px}}
+.notice{color:var(--gold-text);font-size:12px;letter-spacing:.06em}
 </style>

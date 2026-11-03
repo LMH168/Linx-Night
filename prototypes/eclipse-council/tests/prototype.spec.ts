@@ -1,6 +1,7 @@
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest'
 import {createPinia,setActivePinia} from 'pinia'
 import {useGameStore} from '@/stores/game'
+import {useSettingsStore} from '@/stores/settings'
 import {roleVisibleTo} from '@/game/selectors'
 import type {Role} from '@/game/types'
 beforeEach(()=>{setActivePinia(createPinia());vi.useFakeTimers()})
@@ -12,6 +13,18 @@ describe('原型流程',()=>{
    g.cancelPreparation();vi.runAllTimers();expect(g.state).toBeNull()
    g.createRoom(true,'EC1024');const n=g.flow.occupied.length;g.addAi(true);expect(g.flow.occupied).toHaveLength(n)
    g.preview('day');g.flow.endConfirm=true;g.endGame();expect(g.scene).not.toBe('result')
+ })
+ it('大厅选座：空位搬过去，AI 席位交换，开局按所选席位落地',()=>{
+   const g=useGameStore();const s=useSettingsStore()
+   g.createRoom();expect(g.flow.mySeat).toBe(1)
+   g.takeSeat(7);expect(g.flow.mySeat).toBe(7);expect(g.flow.occupied).toEqual([7]);expect(s.names[7]).toBe('旅人')
+   g.addAi(true);expect(g.flow.occupied).toHaveLength(9)
+   const seat7=s.names[7]!
+   g.takeSeat(3);expect(g.flow.mySeat).toBe(3);expect(g.flow.humans).toEqual([3])
+   expect(s.names[3]).toBe('旅人');expect(s.names[7]).not.toBe(seat7)
+   expect(g.flow.occupied).toHaveLength(9)
+   g.startGame('seer')
+   expect(g.state?.humanSeats).toEqual([3]);expect(g.state?.players.find(p=>p.isHuman)?.seat).toBe(3)
  })
  it('全部准备后发牌，失败可重试，取消后不迟到开局',()=>{
    const g=useGameStore();g.createRoom();g.addAi(true);g.prepare();vi.advanceTimersByTime(900);g.failPreparation()

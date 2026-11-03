@@ -40,11 +40,10 @@ withDefaults(
   min-height: 0;
   padding: 18px 18px 16px;
   border-radius: var(--radius);
-  background:
-    linear-gradient(180deg, rgba(23, 28, 39, 0.94) 0%, rgba(11, 14, 21, 0.96) 58%, rgba(7, 9, 14, 0.97) 100%);
-  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-line);
   box-shadow:
-    0 26px 64px rgba(0, 0, 0, 0.55),
+    var(--panel-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: border-color 400ms var(--ease), box-shadow 400ms var(--ease);
 }

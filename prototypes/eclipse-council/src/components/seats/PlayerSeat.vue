@@ -98,14 +98,16 @@ function onClick(): void {
           </svg>
         </span>
       </span>
-      <span class="index">{{ player.seat }}</span>
       <span v-if="isTeammate && !dead" class="mate" title="狼队友">狼</span>
       <span v-if="votes > 0" class="votes">{{ votes }}</span>
       <span v-if="dead" class="out-mark">出局</span>
     </span>
 
     <span class="meta">
-      <span class="name">{{ player.name }}</span>
+      <span class="line">
+        <span class="no">{{ String(player.seat).padStart(2, '0') }}</span>
+        <span class="name">{{ player.name }}</span>
+      </span>
       <span v-if="roleLabel" class="role" :style="{ color: tint[0] }">{{ roleLabel }}</span>
       <span v-else-if="player.isHuman" class="human">真人</span>
     </span>
@@ -173,28 +175,29 @@ function onClick(): void {
 }
 
 .avatar {
-  --bezel: max(2px, calc(var(--seat-size) * 0.038));
+  --bezel: max(2.5px, calc(var(--seat-size) * 0.032));
   position: relative;
   width: var(--seat-size);
   height: var(--seat-size);
   border-radius: 50%;
   overflow: visible;
-  /* 金属镜圈：斜上方受光，左下偏冷，右下压暗 —— 一圈就能立起来 */
-  background: conic-gradient(
-    from 208deg,
-    rgba(240, 217, 180, 0.92),
-    rgba(122, 98, 64, 0.34) 18%,
-    rgba(228, 200, 158, 0.78) 34%,
-    rgba(84, 66, 42, 0.3) 52%,
-    rgba(232, 208, 170, 0.86) 70%,
-    rgba(104, 82, 52, 0.34) 86%,
-    rgba(244, 224, 190, 0.94)
+  /* 一圈方向性金属：左上受光、右下压暗。比多段 conic 更干净，小尺寸也不糊 */
+  background: linear-gradient(
+    152deg,
+    #f6e2ba 0%,
+    #d8b888 14%,
+    #a5814f 30%,
+    #6d5230 48%,
+    #b7935f 62%,
+    #8a6a40 80%,
+    #ecd2a6 100%
   );
   box-shadow:
-    0 12px 26px -10px rgba(0, 0, 0, 0.92),
-    0 3px 10px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px rgba(255, 244, 220, 0.3);
+    0 0 0 1px rgba(0, 0, 0, 0.62),
+    0 10px 22px -10px rgba(0, 0, 0, 0.9),
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 248, 226, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
   transition: box-shadow 420ms var(--ease), transform 420ms var(--ease-out),
     filter 600ms var(--ease);
 }
@@ -202,14 +205,13 @@ function onClick(): void {
 /* 内井：肖像嵌在镜圈里，四边有内阴影，顶部有一道受光边 */
 .well {
   position: absolute;
-  inset: var(--bezel);
+  inset: calc(var(--bezel) + 1px);
   border-radius: 50%;
   overflow: hidden;
   background: radial-gradient(circle at 50% 26%, #1c2632 0%, #070b11 72%, #04070b 100%);
   box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.12),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+    inset 0 2px 5px rgba(0, 0, 0, 0.7),
+    inset 0 -1px 0 rgba(255, 235, 200, 0.18);
 }
 
 .portrait {
@@ -244,23 +246,29 @@ function onClick(): void {
 .is-actor .avatar,
 .is-speaker .avatar {
   box-shadow:
-    0 0 0 1.5px rgba(232, 204, 160, 0.9),
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 2.5px rgba(232, 204, 160, 0.9),
     0 0 32px 2px rgba(213, 177, 132, 0.34),
-    0 12px 26px -10px rgba(0, 0, 0, 0.92);
+    0 10px 22px -10px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 248, 226, 0.55);
 }
 
 .is-self .avatar {
   box-shadow:
-    0 0 0 1.5px rgba(242, 218, 172, 0.92),
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 2.5px rgba(242, 218, 172, 0.92),
     0 0 20px rgba(213, 177, 132, 0.26),
-    0 12px 26px -10px rgba(0, 0, 0, 0.92);
+    0 10px 22px -10px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 248, 226, 0.55);
 }
 
 .is-selected .avatar {
   box-shadow:
-    0 0 0 2px var(--gold),
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 3px var(--gold),
     0 0 42px 4px rgba(226, 190, 130, 0.42),
-    0 12px 26px -10px rgba(0, 0, 0, 0.92);
+    0 10px 22px -10px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 248, 226, 0.55);
   transform: scale(1.03);
 }
 
@@ -305,28 +313,6 @@ function onClick(): void {
   stroke: rgba(0, 0, 0, 0.72);
   stroke-width: 2.2;
   stroke-linejoin: round;
-}
-
-.index {
-  position: absolute;
-  left: -3px;
-  top: -3px;
-  width: 21px;
-  height: 21px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-  color: #f2dab2;
-  background: linear-gradient(158deg, #2c2418 0%, #10141b 52%, #070a0f 100%);
-  border: 1px solid rgba(226, 196, 150, 0.42);
-  box-shadow:
-    0 2px 7px rgba(0, 0, 0, 0.72),
-    inset 0 1px 0 rgba(255, 240, 210, 0.22);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .mate {
@@ -380,12 +366,34 @@ function onClick(): void {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  min-height: 22px;
+  min-height: 32px;
   max-width: 100%;
 }
 
+.line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+}
+
+/* 席位号：小铜牌，和名字同一行，省掉角上那个凸起的圆标 */
+.no {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(246, 226, 186, 0.92);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(213, 177, 132, 0.28);
+  background: linear-gradient(180deg, rgba(38, 30, 20, 0.95), rgba(14, 11, 8, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.14);
+}
+
 .name {
-  font-size: 12.5px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--ink-2);
   white-space: nowrap;
@@ -484,11 +492,6 @@ function onClick(): void {
   }
   .name {
     font-size: 11px;
-  }
-  .index {
-    width: 18px;
-    height: 18px;
-    font-size: 10px;
   }
 }
 </style>

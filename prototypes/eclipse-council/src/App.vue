@@ -9,27 +9,19 @@ import PrototypeDemo from '@/components/layout/PrototypeDemo.vue'
 import RulesPanel from '@/components/layout/RulesPanel.vue'
 import SettingsDialog from '@/components/layout/SettingsDialog.vue'
 import { cancelPick, confirmPick, pickSeat, seatPick } from '@/composables/useSeatPick'
+import { lightOfScene } from '@/data/light'
 
 const game = useGameStore()
 
 const inGame = computed(() => game.state != null)
 const finished = computed(() => game.state?.scene === 'result')
 
-const sceneKey = computed(() => {
-  const s = game.state
-  if (!s) return 'lobby'
-  return s.scene
-})
+const scene = computed(() => game.state?.scene ?? 'lobby')
 
-const bgScene = computed(() => {
-  const s = game.state
-  if (!s || s.scene === 'lobby') return 'lobby'
-  if (s.scene === 'deal') return 'vote'
-  if (s.scene === 'night') return 'night'
-  if (s.scene === 'dawn' || s.scene === 'day') return 'day'
-  if (s.scene === 'result') return 'vote'
-  return 'vote'
-})
+/** 光时：大厅/发牌/投票停在黄昏，夜里入夜，天亮后依次破晓、白昼 */
+const light = computed(() => lightOfScene(game.state?.scene))
+/** 结算页换成剪影插画，当作片尾；其余都是同一张摄影底图 */
+const bgVariant = computed<'photo' | 'forest'>(() => (scene.value === 'result' ? 'forest' : 'photo'))
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -85,8 +77,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="app" :data-scene="sceneKey">
-    <SceneBackground :scene="bgScene" />
+  <div class="app" :data-light="light">
+    <SceneBackground :light="light" :variant="bgVariant" />
 
     <LobbyScene v-if="!inGame" class="view" />
     <template v-else>
