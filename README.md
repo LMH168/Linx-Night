@@ -10,7 +10,7 @@
 
 Linx Night 是一个把 **真人网页玩家、灵矽 AI 玩家和独立 AI 主持** 放进同一局九人狼人杀的应用。默认阵容为 3 名狼人、预言家、女巫、猎人和 3 名平民，支持多名真人加入，由灵矽 AI 补齐九席。
 
-项目支持本机联调和服务器运行；房间状态保存在内存中，服务重启后需要重新创建房间。真实语音及完整对局的验收范围见下方“当前限制”。
+当前运行配置为 **1 名真人 + 8 名灵矽 AI 玩家 + 独立 AI 主持**，通过固定域名绑定的公网 MCP 接入，不使用规则机器人补位或故障降级。项目支持本机联调和服务器容器部署；房间状态仍保存在进程内存中，服务重启后需要重新创建房间。真实语音及完整对局的验收范围见下方“当前限制”。
 
 ## 访问入口
 
@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/b0b711d2-c47f-4c16-9743-b97e77e60d71
 
 ### 本机真实联调（Windows）
 
-需要 Node.js 22+、npm 和 cloudflared。完整的一次性安装、灵矽账号/设备激活、音频生成和环境变量说明见 [从零开始：在自己的 Windows 电脑运行](docs/local-setup.md)。
+需要 Node.js 22+ 和 npm。灵矽账号/设备激活、音频生成和环境变量说明见 [从零开始：在自己的 Windows 电脑运行](docs/local-setup.md)；其中临时隧道步骤属于旧联调方式，当前使用已配置的固定域名 MCP，域名与 HTTPS 反向代理配置见 [部署指南](deploy/README.md#https-反向代理)。
 
 安装依赖：
 
@@ -57,13 +57,20 @@ npm.cmd run build:client-vue
 node scripts/start-local.mjs "$env:LOCALAPPDATA\LinxNight-runtime.env"
 ~~~
 
-示例环境文件使用网页 5110、API 5100、MCP 9191，实际以你的环境文件为准。每次更新前端代码后重新运行 `npm.cmd run build:client-vue`；启动脚本仅在构建目录不存在时自动构建，不会自动替换旧产物。另开终端把 MCP 暴露为 HTTPS：
+示例环境文件使用网页 5110、API 5100、MCP 9191，实际以你的环境文件为准。每次更新前端代码后重新运行 `npm.cmd run build:client-vue`；启动脚本仅在构建目录不存在时自动构建，不会自动替换旧产物。将固定域名的 HTTPS 入口转发到实际运行实例的 MCP 端口，并在灵矽控制台配置：
 
-~~~powershell
-cloudflared tunnel --url http://127.0.0.1:9191
-~~~
+| 配置项 | 值 |
+| --- | --- |
+| MCP URL | `https://<已绑定的 MCP 域名>/mcp` |
+| 传输协议 | Streamable HTTP |
+| 认证请求头 | `Authorization: Bearer <MCP_AUTH_TOKEN>` |
+| Agent 关联 | 玩家 Agent 与独立主持 Agent |
 
-在灵矽控制台配置 https://<隧道域名>/mcp，选择 Streamable HTTP，并使用 Authorization: Bearer <MCP_AUTH_TOKEN>。然后打开 http://localhost:5110 创建房间。API 与 MCP 必须由同一个 run.mjs 进程启动，才能共享内存中的房间状态。
+固定域名配置完成后，无需每次启动临时隧道或更换 MCP URL。打开 http://localhost:5110 创建房间，添加八名 AI 后开始；全部 AI 玩家和主持准备就绪后才会分配角色，失败时可重试或取消。八个已激活玩家身份和独立主持身份的配置见 [八席灵矽与主持配置](docs/eight-player-host.md)。API 与 MCP 必须由同一个 run.mjs 进程启动，才能共享内存中的房间状态。
+
+### 服务器部署
+
+服务器使用 Docker Compose 运行统一服务，支持 GitHub Actions 构建、部署、健康检查和失败回滚。运行环境、灵矽身份与音频在服务器单独保存，不写入镜像。部署步骤与固定域名 HTTPS 配置见 [部署指南](deploy/README.md)。
 
 ### 仅运行本地代码和测试
 
@@ -145,7 +152,7 @@ apps/client-vue    正式 Vue 客户端、月蚀议会界面与组件测试
 apps/client        静态服务和旧版回滚客户端
 apps/server        HTTP API、SSE、房间和主持播放
 apps/mcp           灵矽 MCP 服务、工具和提示词
-apps/scheduler     Linx 回合调度、主持确认和规则测试辅助
+apps/scheduler     Linx 回合调度、主持确认、租约、超时与重试
 apps/linx          Linx 客户端、身份、语音和音频适配
 packages/domain    与网络无关的狼人杀领域模型
 packages/protocol  共享协议定义
@@ -157,9 +164,9 @@ tests              集成、语音、运行时和混合局测试
 ## 当前限制
 
 - 房间和绑定状态只在内存中，进程重启后必须新建房间。
-- Cloudflare 临时隧道地址会变化；当前本机身份和 Token 配置不适合作为公网多人网站直接使用。
+- 固定域名 MCP 已用于灵矽接入；MCP 鉴权不等于网页玩家鉴权，开放公网多人访问前仍需核对玩家身份保护与 HTTPS 配置。
+- 已有八名真实 AI 玩家及独立主持的 [网页联调记录](docs/evidence/eight-player-host/report.md)，覆盖准备、发言、投票结算及进入第二夜；这不等于完整多昼夜语音局和最终胜负均已验收。历史两席 AI 加规则机器人的测试仅作为开发回归，不代表当前运行配置。
 - 麦克风需要 HTTPS 或 localhost 安全上下文。浏览器语音识别的可用性取决于浏览器、权限和识别服务；不支持时需要手动补充文字，不能把空识别结果当作完整语义传给 AI。
-- 自动化测试通过不等于灵矽平台真实端到端验收；请按 [验收文档](docs/acceptance.md) 记录平台工具调用、服务端事件和网页结果。
 - 不要提交环境文件、Token、设备身份、音频、模型回复或真实玩家隐私数据。
 
 ## 相关文档
@@ -167,6 +174,8 @@ tests              集成、语音、运行时和混合局测试
 - [从零开始：在自己的 Windows 电脑运行](docs/local-setup.md)
 - [当前交付与本机开始游戏](docs/start-here.md)
 - [原型正式接入：换座、主持入夜、遗言与结算](docs/prototype-alignment.md)
+- [八席灵矽与独立主持配置](docs/eight-player-host.md)
+- [八席与主持真实网页联调记录](docs/evidence/eight-player-host/report.md)
 - [API 协议基线](docs/api-contract.md)
 - [本机自动灵矽回合](docs/automatic-turns.md)
 - [部署基线](deploy/README.md)
