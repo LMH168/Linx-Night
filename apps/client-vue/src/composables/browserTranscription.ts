@@ -19,7 +19,8 @@ export function browserRecognitionConstructor() {
 export function startBrowserTranscription({ onText, onWarning, valid }: { onText: (text: string) => void; onWarning: (message: string) => void; valid: () => boolean }) {
   const Constructor = browserRecognitionConstructor();
   if (!Constructor) { onWarning('当前浏览器不支持语音识别，请输入文字。原声仍会实时广播。'); return null; }
-  const recognition = new Constructor();
+  let recognition: BrowserRecognition;
+  try { recognition = new Constructor(); } catch { onWarning('浏览器语音识别无法启动，请输入文字。原声仍会广播。'); return null; }
   recognition.lang = 'zh-CN'; recognition.continuous = true; recognition.interimResults = true;
   let prefix = '', latest = '', stopping = false, active = true, fatal = false, restarts = 0, listening = false;
   let ended: (() => void) | undefined;

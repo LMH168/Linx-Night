@@ -87,6 +87,7 @@ export function useHumanVoice(options: HumanVoiceOptions) {
     if (revision > 0 && realtimeSocket?.readyState === WebSocket.OPEN && draft.value.recordingId) realtimeSocket.send(JSON.stringify({ type: 'transcript', recording_id: draft.value.recordingId, text: draft.value.text, revision, source: textSource }));
   };
   const setTranscript = (text: string, manual = true) => {
+    if (!manual && text.trim()) recognitionWarning.value = '';
     if (manual) { recognition?.abort(); recognition = null; textSource = 'submitted'; }
     const max = options.mode?.() === 'lastwords' ? 200 : 1200;
     draft.value = { ...draft.value, text: text.slice(0, max) }; revision++;
