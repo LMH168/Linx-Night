@@ -10,6 +10,7 @@ export interface PcmPlaybackOptions {
   valid?: () => boolean;
   onStart?: () => Promise<void> | void;
   onStatus?: (status: string) => void;
+  muted?: boolean;
 }
 
 function abortIfNeeded(signal?: AbortSignal) {
@@ -53,7 +54,7 @@ export async function playPcmStream(response: Response, context: AudioContext, o
       const audio = context.createBuffer(1, pcm.length / 2, 16_000);
       const channel = audio.getChannelData(0); const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
       for (let i = 0; i < channel.length; i += 1) channel[i] = view.getInt16(i * 2, true) / 32768;
-      const source = context.createBufferSource(); source.buffer = audio; source.connect(context.destination); sources.add(source);
+      const source = context.createBufferSource(); source.buffer = audio; if(!options.muted)source.connect(context.destination); sources.add(source);
       lastEnd = new Promise(resolve => { source.onended = () => { sources.delete(source); resolve(); }; });
       nextTime = Math.max(nextTime, context.currentTime + 0.015); source.start(nextTime); nextTime += audio.duration;
     }
@@ -97,6 +98,7 @@ export interface HostPlaybackOptions {
   roomId: Ref<string>;
   isHost: () => boolean;
   suspended?: () => boolean;
+  selfSeatId?: () => string | undefined;
 }
 
 /** Public host/player voice queue. The server remains the source of task text and ordering. */
@@ -142,7 +144,7 @@ export function useHostPlayback(options: HostPlaybackOptions) {
       const context = audioContext || (audioContext = new contextCtor());
       try {
         const response = await client.hostStream(roomId, current.id, controller.signal);
-        const result = await playPcmStream(response, context, { signal: controller.signal, ids: { gameId: current.gameId, taskId: current.id, attemptId: attempt }, valid: () => enabled.value && run === epoch && options.roomId.value === roomId, onStart: async () => { if (options.isHost()) await client.hostStarted(roomId, current.id, attempt, controller.signal); }, onStatus: value => { status.value = `${current.seatId || '主持'}：${value}`; } });
+        const result = await playPcmStream(response, context, { signal: controller.signal, muted:current.source==='human'&&current.seatId===options.selfSeatId?.(), ids: { gameId: current.gameId, taskId: current.id, attemptId: attempt }, valid: () => enabled.value && run === epoch && options.roomId.value === roomId, onStart: async () => { if (options.isHost()) await client.hostStarted(roomId, current.id, attempt, controller.signal); }, onStatus: value => { status.value = `${current.seatId || '主持'}：${value}`; } });
         if (!enabled.value || run !== epoch || options.roomId.value !== roomId) return;
         playbackFinished = true;
         if (options.isHost()) {

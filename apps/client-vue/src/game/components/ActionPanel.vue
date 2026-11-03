@@ -7,18 +7,16 @@ import { useHostPlayback } from '../../composables/useHostPlayback';
 const props = defineProps<{ mode: 'desktop' | 'mobile' }>();
 const store = useGameStore();
 const draft = ref('');
-const lastWords = ref('');
 const client = computed(() => store.client);
 const roomId = computed(() => store.roomId);
-const hostPlayback = useHostPlayback({ client, roomId, isHost: () => store.playerId === store.publicState?.hostPlayerId });
+const hostPlayback = useHostPlayback({ client, roomId, isHost: () => store.playerId === store.publicState?.hostPlayerId, selfSeatId: () => store.selfSeatId || undefined });
 const voice = useHumanVoice({
   client,
   roomId,
   realtime: true,
   contextKey: () => [store.roomId, store.publicState?.gameId, store.publicState?.round, store.phase, store.publicState?.currentSeatId, store.selfSeatId].join(':'),
-  canRecord: () => store.phase === 'SPEECH' && store.isMyAction,
-  onBusyStart: () => hostPlayback.suspend(),
-  onBusyEnd: () => hostPlayback.resume(),
+  canRecord: () => ['SPEECH','LAST_WORDS'].includes(store.phase) && store.isMyAction && !store.publicState?.hostPlaybackBlocked,
+  mode: () => store.phase === 'LAST_WORDS' ? 'lastwords' : 'speech',
   onDraft: text => { draft.value = text; },
 });
 onBeforeUnmount(() => { voice.reset(); hostPlayback.cleanup(); });
@@ -39,7 +37,7 @@ const title = computed(() => {
 });
 const eyebrow = computed(() => store.phase === 'SPEECH' ? 'SPEECH · ' + (store.selfSeat.seatId || '') : 'PHASE · ' + store.phase);
 const copy = computed(() => {
-  if (store.phase === 'NIGHT_WOLF') return '狼队共同选择一名非狼人玩家。确认后等待其他狼人。';
+  if (store.phase === 'NIGHT_WOLF') return '各自选择一名存活玩家，可以选择狼人；按票数决定，平票随机。';
   if (store.phase === 'NIGHT_SEER') return '查验一名玩家的阵营，结果只显示在你的身份卡中。';
   if (store.phase === 'NIGHT_WITCH') return '选择解药、毒药或不使用药剂。';
   if (store.phase === 'HUNTER_RESPONSE') return '你可以开枪带走一名仍存活的玩家，也可以放弃。';
@@ -48,11 +46,9 @@ const copy = computed(() => {
   return '';
 });
 const targetList = computed(() => {
-  const wolfIds = new Set(store.wolfTeammates.map(member => member.id));
   return store.publicSeats.map(seat => {
     let disabled = !seat.alive;
     let tag = !seat.alive ? '出局' : '';
-    if (store.phase === 'NIGHT_WOLF' && (seat.isSelf || wolfIds.has(seat.id))) { disabled = true; tag = '狼队'; }
     if (['NIGHT_SEER', 'NIGHT_WITCH'].includes(store.phase) && seat.isSelf) { disabled = true; tag = '你'; }
     if (store.phase === 'HUNTER_RESPONSE' && !seat.alive) { disabled = true; tag = '出局'; }
     if (seat.isSelected && !disabled) tag = tag || '已选';
@@ -62,12 +58,12 @@ const targetList = computed(() => {
 const selectedTarget = computed(() => store.publicSeats.find(seat => seat.id === store.selectedSeatId));
 const confirmLabel = computed(() => store.phase === 'NIGHT_WOLF' ? '确认袭击' : store.phase === 'NIGHT_SEER' ? '确认查验' : store.phase === 'VOTE' ? '确认投票' : store.phase === 'HUNTER_RESPONSE' ? '确认开枪' : '确认行动');
 
-watch(() => store.phase, () => { draft.value = ''; lastWords.value = ''; });
+watch(() => [store.roomId, store.publicState?.gameId, store.publicState?.round, store.phase, store.publicState?.currentSeatId].join(':'), () => { draft.value = ''; voice.reset(); });
+watch(() => store.isMyAction && ['SPEECH','LAST_WORDS'].includes(store.phase) && !store.publicState?.hostPlaybackBlocked, ready => { if(ready && voice.draft.value.stage === 'idle') void voice.start().catch(() => undefined); }, {immediate:true});
 
 function choose(id: string, disabled: boolean) { if (!disabled) store.selectSeat(id); }
 async function confirm() { await store.confirmAction(); }
 async function submitSpeech() { await store.submitSpeech(draft.value); if (!store.actionBusy) draft.value = ''; }
-async function submitLastWords() { if (!lastWords.value.trim()) return; await store.submitLastWords(lastWords.value); lastWords.value = ''; }
 async function skip() { await store.skipAction(); }
 </script>
 
@@ -89,15 +85,10 @@ async function skip() { await store.skipAction(); }
       <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button v-if="store.playerId === store.publicState?.hostPlayerId" class="btn gold" @click="store.announceNight">宣布天黑</button></div>
     </template>
 
-    <template v-else-if="store.phase === 'SPEECH' && store.isMyAction">
-      <p class="action-notice">必须开麦，识别完成后自动提交。</p>
-      <p v-if="voice.draft.value.stage !== 'idle'" class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '灵矽正在转写……' : voice.draft.value.error }}</p>
-      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="voice.busy.value" @click="voice.start">开始录音</button><button v-if="voice.draft.value.stage === 'recording'" class="btn ghost" @click="voice.stop">结束录音</button><button v-if="voice.draft.value.stage !== 'idle'" class="btn ghost" @click="voice.cancel()">取消录音</button></div>
-    </template>
-
-    <template v-else-if="store.phase === 'LAST_WORDS' && store.isMyAction">
-      <div class="speech-compose"><textarea v-model="lastWords" maxlength="200" aria-label="你的遗言" placeholder="输入遗言……"></textarea><span class="compose-count">{{ lastWords.length }} / 200</span></div>
-      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button class="btn ghost" :disabled="store.actionBusy" @click="skip">跳过遗言</button><button class="btn gold" :disabled="!lastWords.trim() || store.actionBusy" @click="submitLastWords">提交遗言</button></div>
+    <template v-else-if="['SPEECH','LAST_WORDS'].includes(store.phase) && store.isMyAction">
+      <p class="action-notice">轮到你时自动开麦，点击结束发言；保持安静也请点击结束。</p>
+      <p class="action-notice">{{ voice.draft.value.stage === 'recording' ? `录音中，剩余 ${Math.ceil(voice.remainingMs.value / 1000)} 秒` : voice.draft.value.stage === 'transcribing' ? '正在保存语音……' : voice.draft.value.error }}</p>
+      <div :class="isMobile ? 'mobile-actions' : 'action-buttons'"><button v-if="voice.draft.value.stage === 'recording'" class="btn gold" @click="voice.stop">结束发言</button><button v-if="voice.draft.value.stage === 'failed'" class="btn ghost" @click="voice.start">重试麦克风</button></div>
     </template>
 
     <template v-else-if="isWaiting">
@@ -127,6 +118,6 @@ async function skip() { await store.skipAction(); }
 
     <p v-if="store.notice" class="action-notice">{{ store.notice }}</p>
     <div v-if="!isMobile && store.privateState?.role" class="mini-id"><span class="mini-sigil" aria-hidden="true">◈</span><div><b>{{ store.selfMeta.name }}</b><span>{{ store.selfMeta.camp === 'wolf' ? '狼人阵营' : '好人阵营' }} · 仅你可见</span></div><span class="mini-lock" aria-hidden="true">⌑</span></div>
-    <div class="host-card"><span class="eyebrow">PUBLIC VOICE</span><p>{{ hostPlayback.status }}</p><button class="btn ghost" @click="hostPlayback.enabled ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage && hostPlayback.error" class="btn ghost" @click="hostPlayback.retry">重试播报</button><button v-if="hostPlayback.canManage && hostPlayback.task" class="btn ghost" @click="hostPlayback.skip">跳过当前播报</button></div>
+    <div class="host-card"><span class="eyebrow">PUBLIC VOICE</span><p>{{ hostPlayback.status.value }}</p><button class="btn ghost" @click="hostPlayback.enabled.value ? hostPlayback.stop() : hostPlayback.start()">{{ hostPlayback.enabled.value ? '停止公共声音' : '启用公共声音' }}</button><button v-if="hostPlayback.canManage.value && hostPlayback.error.value" class="btn ghost" @click="hostPlayback.retry">重试播报</button><button v-if="hostPlayback.canManage.value && hostPlayback.task.value" class="btn ghost" @click="hostPlayback.skip">跳过当前播报</button></div>
   </aside>
 </template>
