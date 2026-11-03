@@ -166,6 +166,7 @@ export function publicEventData(type, data = {}) {
   const fields = {
     'room.seat_changed': ['fromSeatId', 'targetSeatId'],
     'game.night_confirmed': ['windowId'],
+    'game.night_confirmation_changed': ['windowId', 'status'],
     'game.last_words_playback_completed': ['lastWordsId', 'seatId'],
     'game.phase_changed': ['phase', 'seatId', 'winner', 'pk', 'candidates'],
     'game.night_resolved': ['round', 'deathSeatIds'],

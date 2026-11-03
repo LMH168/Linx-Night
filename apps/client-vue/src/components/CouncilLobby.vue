@@ -638,16 +638,4 @@ footer {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 共用原型椭圆桌与等弧长席位；身份与操作仍来自正式房间。 */
-.orbit { --size: min(48vw, 700px); --radius: calc(var(--size) * .44); --tw: calc(var(--size) * .84); --th: calc(var(--tw) * .56); width:var(--size); height:calc(var(--size) * .76); border:0; background:none; }
-.seat { z-index:3; transform:translate(calc(var(--x) * var(--radius)), calc(var(--y) * var(--radius) * .56)) translate(-50%,-50%); }
-.core { z-index:2; inset:32% 25%; }
-.portrait { padding:3px; border-radius:50%; box-shadow:0 8px 15px #0009,inset 0 0 0 3px #bda37330; }
-.portrait:disabled { opacity:1; cursor:default; }
-.empty .portrait { opacity:.6; }
-.portrait:not(:disabled):hover { border-color:#f6d8a0; transform:translateY(-3px); }
-.self .portrait { border:2px solid #e6c792; }
-.seat-help { text-align:center; font-size:11px; color:var(--gold-text); }
-@media(max-width:900px) { .orbit { --size:min(84vw,620px); } }
-@media(max-width:450px) { .orbit { --size:86vw; --radius:calc(var(--size) * .43); height:calc(var(--size) * .86); } .seat { width:64px; } .portrait { width:46px; height:46px; } .core h2 { font-size:12px; } .core > span { font-size:20px; } }
 </style>

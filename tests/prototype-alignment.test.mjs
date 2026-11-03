@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRoom, addPlayer, fillAiSeats, assignRoles, changeSeat, beginControllerPreparation, updateController } from '../packages/domain/src/model.mjs';
-import { startGame, confirmNight, completeNightAnnouncement, submitLastWords, submitVote, skipSpeech } from '../packages/domain/src/engine.mjs';
+import { createRoom, addPlayer, fillAiSeats, assignRoles, changeSeat, beginControllerPreparation, updateController, publicEvent } from '../packages/domain/src/model.mjs';
+import { startGame, confirmNight, completeNightAnnouncement, expireLastWords, submitLastWords, submitVote, skipSpeech } from '../packages/domain/src/engine.mjs';
 import { HostPlayback } from '../apps/server/src/host-playback.mjs';
 import { createApiServer, rooms } from '../apps/server/src/api.mjs';
 import { createMcpServer, bindController } from '../apps/mcp/src/server.mjs';
@@ -58,6 +58,15 @@ await runtime.tick(room);assert.equal(requests,1);
 room.nightConfirmation={gameId:room.gameId,windowId:'timeout-night',status:'waiting'};
 const failingRuntime=new LinxTurnRuntime({manager:{async requestNight(){throw Error('transport unavailable');},async cancelTurn(){throw Error('already closed');}},timeoutMs:10});
 await failingRuntime.tick(room);assert.equal(room.nightConfirmation.status,'failed');assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');
+const recoveryEvent = publicEvent(room.events.at(-1));
+assert.equal(recoveryEvent.type,'game.night_confirmation_changed');
+assert.deepEqual(recoveryEvent.data,{windowId:'timeout-night',status:'failed'});
+assert.equal(room.nightConfirmation.errorCode,'HOST_CONFIRM_FAILED');
+// A completed human recording must not consume the next player's window while narration is queued.
+room.phase='LAST_WORDS';room.lastWords={windowId:'waiting-words',seatId:'P2',status:'open',waitingForPlayback:true,expiresAt:new Date(0).toISOString()};
+room.humanAudioTask={status:'played'};
+assert.equal(expireLastWords(room),false);assert.equal(room.lastWords.windowId,'waiting-words');
+room.lastWords=null;room.humanAudioTask=null;
 // REST authentication and optimistic concurrency use actual HTTP, not only domain calls.
 const api=createApiServer({port:0});await new Promise(r=>api.server.listen(0,r));
 const base=`http://127.0.0.1:${api.server.address().port}`;

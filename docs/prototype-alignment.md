@@ -38,4 +38,8 @@
 
 ## 迁移与本地改动保护
 
+## PR 审查补充（#227）
+
+2026-11-03：主持确认的 requesting/failed/retry 状态新增公开 SSE 事件，错误信息统一公开为稳定错误码；修复已完成真人录音残留引用导致后续等待播报时遗言窗口提前过期。移除重复大厅样式和过期注释，契约回归接入 CI。扩大验证至 68 条后端/配置/传统客户端命令；31 个 Vue 测试、类型检查、构建通过。可审查截图见 `docs/evidence/prototype-alignment/`。本次部署改由 SSH 手动执行，不调用 GitHub 部署工作流；人工 review 尚待完成。
+
 本次实际交付目录是 `C:\Users\Administrator\Desktop\Linx-Night`。原分支 `codex/latency-streaming` 及其已有提交完整保留。原有 8 个已修改文件和 84 个未跟踪文件已逐文件 SHA-256 校验备份到 `C:\Users\Administrator\Desktop\Linx-Night-backup-20261103-141159`，并保存为命名 stash `preserve latency-streaming local work before prototype migration 2026-11-03`。旧实验分支的屠边、PK、旧客户端样式修改没有混入本次主线实现。没有与主线冲突的未跟踪素材、工具已恢复到项目目录；冲突文件的原件仍在备份及 stash 中。

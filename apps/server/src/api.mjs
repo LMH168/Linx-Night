@@ -94,7 +94,8 @@ export function createApiServer({ port = Number(process.env.PORT || 5000), sessi
         if(req.method==='POST'&&parts[4]==='retry-confirmation'){
           if(actor.playerId!==room.hostPlayerId)throw Object.assign(Error('only host can retry'),{status:403});
           if(room.phase!=='NIGHT_ANNOUNCEMENT'||room.nightConfirmation?.status!=='failed')throw Error('没有可重试的主持确认');
-          room.nightConfirmation.windowId=`night_${randomUUID()}`;room.nightConfirmation.status='waiting';room.nightConfirmation.errorCode=null;room.version++;publishNewEvents(room);return json(res,200,{state:publicState(room)});
+          room.nightConfirmation.windowId=`night_${randomUUID()}`;room.nightConfirmation.status='waiting';room.nightConfirmation.errorCode=null;
+          appendEvent(room,{type:'game.night_confirmation_changed',data:{windowId:room.nightConfirmation.windowId,status:'waiting'}});publishNewEvents(room);return json(res,200,{state:publicState(room)});
         }
         if(req.method==='POST'&&parts[4]==='retry'){if(actor.playerId!==room.hostPlayerId)throw new Error('仅房主重试');await hostPlayback.retry(room);return json(res,200,hostPlayback.state(room));}
         if(req.method==='POST'&&parts[4]==='skip'){if(actor.playerId!==room.hostPlayerId)throw new Error('仅房主跳过音频');const b=await readBody(req);hostPlayback.skip(room,b.task_id);return json(res,200,hostPlayback.state(room));}

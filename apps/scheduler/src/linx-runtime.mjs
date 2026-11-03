@@ -1,6 +1,6 @@
 import { recordTurn } from '../../server/src/turn-diagnostics.mjs';
 import { expireHunterResponse, expireLastWords, skipSpeech } from '../../../packages/domain/src/engine.mjs';
-import { completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
+import { appendEvent, completeTurn, createTurn, expireTurn, updateController } from '../../../packages/domain/src/model.mjs';
 import { actionAvailable } from '../../../packages/domain/src/turns.mjs';
 import { defaultTurn } from './local.mjs';
 
@@ -47,13 +47,17 @@ export class LinxTurnRuntime {
   }
   async requestNight(room, window) {
     const gameId = room.gameId; let timer;
-    window.status = 'requesting'; window.errorCode = null; room.hostDecisionRunning = true; this.publish(room);
+    window.status = 'requesting'; window.errorCode = null; room.hostDecisionRunning = true;
+    appendEvent(room, { type: 'game.night_confirmation_changed', data: { windowId: window.windowId, status: window.status } }); this.publish(room);
     try {
       await Promise.race([this.manager.requestNight(room, window), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('HOST_CONFIRM_TIMEOUT')), this.timeoutMs); })]);
       if (room.gameId === gameId && room.nightConfirmation === window && window.status === 'requesting') throw Error('HOST_CONFIRM_NOT_SUBMITTED');
     } catch (error) {
       try { await this.manager.cancelTurn?.(room, { seatId: 'HOST' }); } catch { recordTurn('host_cancel_failed', { roomId: room.roomId, gameId }); }
-      if (!room.invalidated && room.gameId === gameId && room.nightConfirmation === window && window.status === 'requesting') { window.status = 'failed'; window.errorCode = error.message; }
+      if (!room.invalidated && room.gameId === gameId && room.nightConfirmation === window && window.status === 'requesting') {
+        window.status = 'failed'; window.errorCode = 'HOST_CONFIRM_FAILED';
+        appendEvent(room, { type: 'game.night_confirmation_changed', data: { windowId: window.windowId, status: window.status } });
+      }
     } finally { clearTimeout(timer); room.hostDecisionRunning = false; this.publish(room); }
   }
   prewarmNext(room) {

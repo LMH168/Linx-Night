@@ -280,7 +280,7 @@ export function skipLastWords(room, seatId, actionId, windowId) {
 }
 
 export function expireLastWords(room, now = Date.now()) {
-  if (room.lastWords?.waitingForPlayback && !room.humanAudioTask) return false;
+  if (room.lastWords?.waitingForPlayback && room.humanAudioTask?.status !== 'generating') return false;
   if (room.phase !== PHASES.LAST_WORDS || !room.lastWords || room.lastWords.status !== 'open' || now < Date.parse(room.lastWords.expiresAt)) return false;
   closeLastWords(room, 'expired'); return true;
 }
