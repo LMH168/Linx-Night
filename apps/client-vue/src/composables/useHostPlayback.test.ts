@@ -38,6 +38,14 @@ describe('host PCM playback validation', () => {
     expect(result.samples).toBe(320);
   });
 
+  it('drains the speaker own audio without scheduling sound or waiting its duration', async () => {
+    const ids = { gameId: 'g', taskId: 'own', attemptId: 'a' };
+    const lines = [JSON.stringify({ type: 'start', ...ids, sampleRate: 16000, channels: 1, format: 's16le' }), JSON.stringify({ type: 'audio', ...ids, seq: 0, data: btoa('\0\0'.repeat(320)) }), JSON.stringify({ type: 'end', ...ids, chunks: 1, samples: 320 })].map(s => s + '\n');
+    const context = { createBufferSource: () => { throw Error('Speaker must not schedule audio'); } } as unknown as AudioContext;
+    const result = await playPcmStream(stream(lines), context, { ids, muted: true });
+    expect(result.samples).toBe(320); expect(result.firstPlayMs).toBeUndefined();
+  });
+
   it('rejects a stream without the start frame', async () => {
     const ids = { gameId: 'g', taskId: 't', attemptId: 'a' };
     const pcm = btoa(String.fromCharCode(...new Uint8Array(2)));
@@ -59,5 +67,28 @@ describe('host PCM playback validation', () => {
     await Promise.resolve();
     playback.cleanup();
     (globalThis as typeof globalThis & { AudioContext: typeof AudioContext }).AudioContext = previous;
+  });
+});
+
+describe('independent playback progress', () => {
+  it('replays acknowledged history once per player and retains interrupted work', async () => {
+    const previous = globalThis.AudioContext;
+    globalThis.AudioContext = FakeContext as unknown as typeof AudioContext;
+    const roomId = 'cursor-test-' + Date.now();
+    const task = { id: 'history', sequence: 1, attemptId: 'attempt', gameId: 'g', status: 'played', source: 'human', seatId: 'P1', text: '' };
+    const ids = { gameId: 'g', taskId: task.id, attemptId: task.attemptId };
+    const lines = [JSON.stringify({ type: 'start', ...ids, sampleRate: 16000, channels: 1, format: 's16le' }), JSON.stringify({ type: 'audio', ...ids, seq: 0, data: btoa('\0\0'.repeat(320)) }), JSON.stringify({ type: 'end', ...ids, chunks: 1, samples: 320 })].map(s => s + '\n');
+    let streams = 0, broken = true;
+    const client = { playerId: 'listener', hostState: async () => ({ task: null }), hostTasks: async (_r: string, after: number) => ({ tasks: after < 1 ? [task] : [], oldestSequence: 1, latestSequence: 1 }), hostStream: async () => { streams++; if (broken) throw Error('disconnected'); return stream(lines); } };
+    const make = () => useHostPlayback({ client: ref(client as never), roomId: ref(roomId), isHost: () => false });
+    const flush = () => new Promise(resolve => setTimeout(resolve, 10));
+    const interrupted = make(); interrupted.start(); await flush(); interrupted.cleanup();
+    expect(localStorage.getItem(`linx-playback:${roomId}:listener`)).toBeNull();
+    broken = false;
+    const resumed = make(); resumed.start(); await flush(); resumed.cleanup();
+    expect(streams).toBe(2); expect(localStorage.getItem(`linx-playback:${roomId}:listener`)).toBe('1');
+    const reload = make(); reload.start(); await flush(); reload.cleanup(); expect(streams).toBe(2);
+    client.playerId = 'another-human'; const another = make(); another.start(); await flush(); another.cleanup(); expect(streams).toBe(3);
+    globalThis.AudioContext = previous;
   });
 });

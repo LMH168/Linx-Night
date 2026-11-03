@@ -18,9 +18,10 @@ speechRoom.speeches.push({speechId:'human-audio',seatId:'P1',round:1,text:'',aud
 speechRoom.events.push({eventId:'human-event',type:'game.speech_submitted',data:{speechId:'human-audio',seatId:'P1'}});
 const beforeHearing=sends;
 await manager.ensureConnected(speechRoom,speechRoom.seats[1]);
-assert.equal(sends,beforeHearing+1);assert.equal(lastAudio,wav);assert.equal(lastOptions.inputOnly,true);
-assert.equal(speechRoom.speeches.at(-1).text,'我认为五号值得怀疑');
-await manager.ensureConnected(speechRoom,speechRoom.seats[1]);assert.equal(sends,beforeHearing+1);
+assert.equal(sends,beforeHearing,'Game sessions never receive human audio for transcription');
+assert.equal(speechRoom.speeches.at(-1).text,'');
+speechRoom.speeches.at(-1).text='我认为五号值得怀疑';speechRoom.speeches.at(-1).transcriptionStatus='completed';
+await manager.ensureConnected(speechRoom,speechRoom.seats[1]);assert.equal(sends,beforeHearing);
 await manager.sendTurn(speechRoom,speechRoom.seats[1]);assert.match(lastAudio,/submit_speech/);
 await manager.releaseSeat(speechRoom,speechRoom.seats[1]);
 const beforeReconnect=sends;

@@ -30,3 +30,12 @@ test('cancellation, invalid WAV and reused game profile do not expose credential
  await assert.rejects(x.run({kind:'transcribe',wav:Buffer.alloc(0)}));
  const wrong=createVoiceService({env:{LINX_VOICE_PROFILE:'player-a'}});await assert.rejects(wrong({kind:'speak',text:'hello'}),/独立/);
 });
+test('startup readiness checks activation, device independence and hello connection',async()=>{
+ let closed=0,connected=0;
+ const options={env:{LINX_VOICE_PROFILE:'web-voice',LINX_PROFILES:'a',LINX_HOST_PROFILE:'host'},readIdentity:async name=>({deviceId:name}),connectInfo:async()=>({state:'bound'}),clientFactory:()=>({async connect(){connected++;},close(){closed++;}})};
+ assert.deepEqual(await createVoiceService(options).checkReady(),{available:true});assert.equal(connected,1);assert.equal(closed,1);
+ await assert.rejects(createVoiceService({...options,connectInfo:async()=>({state:'unbound'})}).checkReady(),/UNBOUND/);
+ await assert.rejects(createVoiceService({...options,readIdentity:async()=>({deviceId:'same-device'})}).checkReady(),/NOT_INDEPENDENT/);
+ await assert.rejects(createVoiceService({...options,clientFactory:()=>({async connect(){throw Error('network');},close(){closed++;}})}).checkReady(),/network/);
+ assert.equal(closed,2);
+});

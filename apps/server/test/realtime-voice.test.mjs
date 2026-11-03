@@ -15,9 +15,9 @@ addPlayer(room,{playerId:'human',displayName:'真人'});
 addPlayer(room,{playerId:'listener',displayName:'另一位真人'});
 room.gameId='direct-game'; room.phase='SPEECH'; room.currentSeatId='P1'; room.hostPlaybackEnabled=true;
 rooms.set(room.roomId,room);
-let privateCalls=0;
+let privateCalls=0,transcriptionCalls=0;
 const playback=new HostPlayback({manager:{ensureConnected(){privateCalls++;throw Error('No Linx for human audio');}}});
-const {server}=createApiServer({hostPlayback:playback, voice: async () => { privateCalls++; throw Error('Transcription unavailable'); }, realtimeVoice:()=>{privateCalls++;throw Error('Not activated');}});
+const {server}=createApiServer({hostPlayback:playback, voice: async () => { transcriptionCalls++; throw Error('Transcription unavailable'); }, realtimeVoice:()=>{privateCalls++;throw Error('Not activated');}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}/api/rooms/${room.roomId}`;
 const post=(path,body)=>fetch(base+'/'+path,{method:'POST',headers:{'content-type':'application/json','x-player-id':'human'},body:JSON.stringify(body)});
@@ -51,6 +51,15 @@ try{
  const pub=publicState(room);assert.equal(pub.speeches[0].audioId,speech.audioId);assert.doesNotMatch(JSON.stringify(pub),/audioPath|human-audio-/);
  assert.equal((await fetch(base+'/voice/audio?audio_id='+speech.audioId)).status,403);
  assert.equal((await fetch(base+'/voice/audio?audio_id='+speech.audioId,{headers:{'x-player-id':'human'}})).status,200);
+ for(let i=0;i<100 && speech.transcriptionStatus!=='failed';i++)await new Promise(r=>setTimeout(r,20));
+ assert.equal(speech.transcriptionStatus,'failed');
+ const supplement=(player,text)=>fetch(base+'/voice/supplement',{method:'POST',headers:{'content-type':'application/json','x-player-id':player},body:JSON.stringify({kind:'speech',record_id:speech.speechId,text})});
+ assert.equal((await supplement('listener','篡改')).status,403);
+ assert.notEqual((await supplement('human','字'.repeat(1201))).status,200);
+ assert.equal((await supplement('human','五号值得怀疑')).status,200);
+ assert.equal(publicState(room).records[0].text,'五号值得怀疑');assert.equal(publicState(room).records[0].textSource,'player_supplement');
+ assert.notEqual((await supplement('human','重复修改')).status,200);
+
  room.phase='SPEECH';room.currentSeatId='P1';room.speechClock=null;room.hostPlaybackBlocked=false;
  await speak(null);assert.equal(room.speeches.length,1);assert.equal(room.currentSeatId,'P2');
  room.seats.forEach((s,i)=>{s.camp=i===1?'werewolf':'good';s.role=i===1?'werewolf':'villager';});room.phase='LAST_WORDS';room.currentSeatId='P1';room.lastWords={windowId:'w',lastWordsId:'w',seatId:'P1',round:0,cause:'vote',status:'open',expiresAt:new Date(Date.now()+30000).toISOString()};room.lastWordsContinuation='NIGHT_WOLF';

@@ -10,7 +10,16 @@ export function wavFromPcm(pcm) {
 // This connection never receives a game binding. Raw replies stay in this scope.
 export function createVoiceService({env=process.env,readIdentity=readProfile,connectInfo=ota,clientFactory=identity=>new LinxClient(identity),timeoutMs=60000}={}) {
   let busy=false;
-  return async ({kind,wav,text,signal}) => {
+  const independentIdentity = async profile => {
+    const identity=await readIdentity(profile);
+    const reserved=[env.LINX_HOST_PROFILE,...String(env.LINX_PROFILES||'').split(',')].map(s=>s?.trim()).filter(Boolean);
+    for(const name of new Set(reserved)) {
+      const other=await readIdentity(name);
+      if(identity.deviceId && other.deviceId===identity.deviceId)throw Error('VOICE_IDENTITY_NOT_INDEPENDENT');
+    }
+    return identity;
+  };
+  const service = async ({kind,wav,text,signal}) => {
     const profile=env.LINX_VOICE_PROFILE;
     if(!profile || profile===env.LINX_HOST_PROFILE || String(env.LINX_PROFILES||'player-a,player-b').split(',').map(s=>s.trim()).includes(profile)) throw new Error('请配置独立 LINX_VOICE_PROFILE');
     if(busy) throw new Error('语音服务忙，请稍后重试');
@@ -19,7 +28,7 @@ export function createVoiceService({env=process.env,readIdentity=readProfile,con
     busy=true;let client,timer,abortHandler;
     const bounded=signal?AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)]):AbortSignal.timeout(timeoutMs);
     try {
-      const identity=await readIdentity(profile);bounded.throwIfAborted();
+      const identity=await independentIdentity(profile);bounded.throwIfAborted();
       const config=await connectInfo(identity,{signal:bounded});if(config.state!=='bound')throw new Error('语音身份尚未激活');
       bounded.throwIfAborted();client=clientFactory(identity);await client.connect(config);bounded.throwIfAborted();
       return await new Promise((resolve,reject)=>{
@@ -48,12 +57,26 @@ export function createVoiceService({env=process.env,readIdentity=readProfile,con
             resolve({wav:wavFromPcm(Buffer.concat(chunks))});
           }
         });
-        if(kind==='transcribe')client.send(wav).catch(fail);
+        if(kind==='transcribe')client.send(wav,{inputOnly:true,timeoutMs:Math.min(timeoutMs,wav.length/32+10000)}).catch(fail);
         else client.socket.send(JSON.stringify({session_id:client.sessionId,type:'listen',state:'detect',text:'公开事件播报',text_response:text}),error=>{if(error)fail();});
       });
     } catch { throw new Error('灵矽语音未完成，请重试或使用文字'); }
     finally {clearTimeout(timer);if(abortHandler)bounded.removeEventListener('abort',abortHandler);client?.close();busy=false;}
   };
+  service.checkReady = async () => {
+    const profile=env.LINX_VOICE_PROFILE;
+    if(!profile || profile===env.LINX_HOST_PROFILE || String(env.LINX_PROFILES||'player-a,player-b').split(',').map(s=>s.trim()).includes(profile))throw Error('REALTIME_TRANSCRIBE_UNAVAILABLE');
+    let client;
+    try {
+      const identity=await independentIdentity(profile);
+      const config=await connectInfo(identity,{signal:AbortSignal.timeout(10000)});
+      if(config.state!=='bound')throw Error('VOICE_PROFILE_UNBOUND');
+      client=clientFactory(identity);await client.connect(config);
+      return {available:true};
+    } finally {client?.close();}
+  };
+  return service;
+
 }
 
 /** Opens one long-lived realtime microphone session for a human speaker. */

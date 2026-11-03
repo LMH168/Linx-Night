@@ -19,6 +19,7 @@ const manager={
   else if(room.phase==='LAST_WORDS'){name='submit_last_words';args.text='模拟协议玩家遗言';args.window_id=room.lastWords.windowId;}
   else {name='skip_hunter_response';args.window_id=room.hunterResponse.windowId;}
   args.turn_id=mine.currentTurn.turnId;args.action_id=randomUUID();
+  await fetch(base,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer test','x-linx-session-id':c.sessionId,'x-linx-device-id':c.deviceId,'x-linx-agent-id':c.agentId},body:JSON.stringify({jsonrpc:'2.0',id:0,method:'tools/call',params:{name:'get_recent_speeches',arguments:{}}})});
   const response=await fetch(base,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer test','x-linx-session-id':c.sessionId,'x-linx-device-id':c.deviceId,'x-linx-agent-id':c.agentId},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}).then(r=>r.json());
   assert.equal(response.result?.isError,false,JSON.stringify(response));writes++;
  },

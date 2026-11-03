@@ -23,7 +23,7 @@ const manager={
     contexts.set(seat.seatId, context); lastContext=context; bindController(context); c.status='ready';
   },
   async sendTurn(room,seat) {
-    calls++;
+    const invocation=++calls;
     const context=contexts.get(seat.seatId); const mine=privateState(room,seat.playerId); assert.ok(mine.currentTurn.turnId);
     if (room.phase === 'VOTE') {
       const response = await call('get_my_private_state', {}, context);
@@ -35,12 +35,13 @@ const manager={
     }
     const payload = toolName === 'submit_speech' ? {text:'公开测试发言'} : toolName === 'submit_witch_action' ? {action:'skip'} : toolName === 'skip_hunter_response' ? {window_id:room.hunterResponse.windowId} : {target_player_id:'P9',...(toolName === 'submit_hunter_shot' ? {window_id:room.hunterResponse.windowId} : {})};
     const args={...payload,turn_id:mine.currentTurn.turnId,action_id:`a-${count}`}; lastArgs=args;
-    if(mode==='timeout' || (mode==='timeout_once' && calls===1)) return new Promise(()=>{});
+    if(mode==='timeout' || (mode==='timeout_once' && invocation===1)) return new Promise(()=>{});
+    await call('get_recent_speeches',{},context);
     const before=structuredClone(room);
-    assert.equal((await call(toolName,{...args,turn_id:'old'},context)).result.isError,true);assert.deepEqual(room,before);
+    assert.equal((await call(toolName,{...args,turn_id:'old'},context)).result.isError,true);assert.deepEqual(room.actions.filter(a=>a.seatId===seat.seatId),before.actions.filter(a=>a.seatId===seat.seatId));
     assert.equal((await call(toolName,args,context)).result.isError,false);
     const accepted=structuredClone(room);
-    assert.equal((await call(toolName,args,context)).result.isError,true);assert.deepEqual(room,accepted);
+    assert.equal((await call(toolName,args,context)).result.isError,true);assert.deepEqual(room.actions.filter(a=>a.seatId===seat.seatId),accepted.actions.filter(a=>a.seatId===seat.seatId));
     return new Promise(()=>{}); // Platform TTS need not end for game success.
   },
   async releaseSeat(room,seat) { const c=room.controllers.find(c=>c.seatId===seat.seatId);releaseController({sessionId:c.sessionId}); },
@@ -59,7 +60,7 @@ try {
   assert.equal(room.currentSeatId,'P3'); assert.equal(room.speeches.length,0);
   setup('VOTE'); mode='timeout_once'; calls=0; toolName='submit_vote';
   await new LinxTurnRuntime({manager,timeoutMs:100}).tick(room);
-  assert.equal(calls,2); assert.equal(room.votes.length,1);
+  assert.equal(calls,3); assert.equal(room.votes.length,2);
 const expiredVote = room.turns.find(turn => turn.status === 'expired');
 assert.ok(expiredVote); assert.ok(room.turns.some(turn => turn.status === 'completed'));
   const voted=structuredClone(room);
