@@ -55,7 +55,7 @@ try {
   await runtime.tick(room); assert.equal(room.currentSeatId,'P4'); assert.equal(room.speeches.length,2);
   setup(); mode='timeout'; calls=0;
   const timeout=new LinxTurnRuntime({manager,timeoutMs:15}); await timeout.tick(room);
-  assert.equal(room.controllers[0].status,'ready'); assert.equal(room.turns[0].status,'completed');
+  assert.equal(calls,2); assert.equal(room.controllers[0].status,'ready'); assert.equal(room.turns[0].status,'expired');
   assert.equal(room.currentSeatId,'P3'); assert.equal(room.speeches.length,0);
   setup('VOTE'); mode='timeout_once'; calls=0; toolName='submit_vote';
   await new LinxTurnRuntime({manager,timeoutMs:100}).tick(room);
@@ -100,6 +100,7 @@ assert.equal(calls,4,'失败的 AI 不会阻止同批其他投票完成');
   assert.equal(room.controllers[0].status,'ready','expired AI last words must not pause the next round');
   setup('SPEECH'); mode='timeout'; calls=0; toolName='submit_speech'; room.hostPlaybackEnabled=false; room.currentSeatId='P2';
   await new LinxTurnRuntime({manager,timeoutMs:15}).tick(room);
+  assert.equal(calls,2,'AI 发言超时应重试一次');
   assert.equal(room.phase,'SPEECH');
   assert.equal(room.currentSeatId,'P3','AI 发言超时应跳过当前席位并推进下一席');
   assert.equal(room.speeches.length,0,'发言超时不应伪造规则机器人文本');
