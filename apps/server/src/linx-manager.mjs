@@ -237,6 +237,18 @@ export function createLinxControllerManager({ env = process.env, fetchImpl = fet
       } finally {clearTimeout(timer);}
     },
     clientFor(room, seatId) { return adapters.get(room.roomId)?.clients.get(seatId)?.client; },
+    async requestNight(room, window = room.nightConfirmation) {
+      const gameId = room.gameId;
+      if (room.controllers.find(c => c.seatId === 'HOST')?.status === 'failed') await this.retry(room, 'HOST');
+      await this.ensureConnected(room, { seatId: 'HOST' });
+      if (!window || room.gameId !== gameId || room.nightConfirmation !== window || window.status !== 'requesting' || room.invalidated) return;
+      const client = this.clientFor(room, 'HOST');
+      if (!client || client.pending) throw Error('CLIENT_BUSY');
+      const key = room.roomId + ':HOST';
+      const work = client.send(deviceCue(`你是本房间独立主持。所有公共播放已完成。立即使用 game_ 设备工具 confirm_night，参数 game_id=${room.gameId}，window_id=${window.windowId}。只调用工具，不代读遗言，不口头宣布；系统将在确认后生成唯一入夜播报。只有 accepted:true 才算成功。`), { voiceId: room.publicVoices?.HOST });
+      sends.set(key, work);
+      try { await work; } finally { if (sends.get(key) === work) sends.delete(key); }
+    },
     async sendTurn(room, seat) {
       const client = adapters.get(room.roomId)?.clients.get(seat.seatId)?.client;
       if (!client) throw new Error('CONTROLLER_MISSING');

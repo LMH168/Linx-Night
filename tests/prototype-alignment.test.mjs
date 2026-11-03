@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { createRoom, addPlayer, fillAiSeats, assignRoles, changeSeat, beginControllerPreparation, updateController } from '../packages/domain/src/model.mjs';
+import { startGame, confirmNight, completeNightAnnouncement, submitLastWords, submitVote, skipSpeech } from '../packages/domain/src/engine.mjs';
+import { HostPlayback } from '../apps/server/src/host-playback.mjs';
+import { createApiServer, rooms } from '../apps/server/src/api.mjs';
+import { createMcpServer, bindController } from '../apps/mcp/src/server.mjs';
+import { LinxTurnRuntime } from '../apps/scheduler/src/linx-runtime.mjs';
+const room = createRoom({ hostPlayerId: 'owner' });
+addPlayer(room, { playerId: 'owner', displayName: '房主' });
+addPlayer(room, { playerId: 'guest', displayName: '朋友' });
+addPlayer(room, { playerId: 'ai', displayName: 'AI名字', playerType: 'ai' });
+const move = (playerId, target, version=room.version, action_id=crypto.randomUUID()) => changeSeat(room, playerId, { target_seat_id: target, version, action_id });
+const oldVersion=room.version; move('guest','P3');
+assert.equal(room.seats[2].playerId,'guest');assert.equal(room.seats[1].displayName,'AI名字');assert.equal(room.hostPlayerId,'owner');
+assert.throws(()=>move('owner','P4',oldVersion),e=>e.status===409);
+assert.throws(()=>move('owner','P3'),e=>e.status===409);
+move('owner','P9');assert.equal(room.seats[0].playerId,null);assert.equal(room.hostPlayerId,'owner');
+room.preparing=true;assert.throws(()=>move('guest','P1'),e=>e.status===409);room.preparing=false;
+fillAiSeats(room);room.requireHostConfirmation=true;room.hostPlaybackEnabled=true;
+beginControllerPreparation(room,{includeHost:true});assignRoles(room);startGame(room);
+assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');const window=room.nightConfirmation;
+assert.throws(()=>confirmNight(room,'stale',window.windowId));
+const manager={ async ensureConnected(){}, clientFor(){return {};},async retry(){} };
+let voice,spoken;const host=new HostPlayback({manager,speak:async(_client,text,options)=>{voice=options.voiceId;spoken=text;return Buffer.from('wav');}});
+confirmNight(room,room.gameId,window.windowId);confirmNight(room,room.gameId,window.windowId);host.sync(room);await host.running.get(room.roomId);
+assert.equal(room.hostTasks.filter(t=>t.kind==='night-announcement').length,1);
+const task=host.state(room).task;assert.equal(task.kind,'night-announcement');assert.equal(spoken,'天黑请闭眼。');
+assert.throws(()=>host.skip(room,task.id));host.playbackFailed(room,task.id,task.attemptId);
+assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');assert.equal(host.recoveryTimers.size,0);
+await host.retry(room);await host.running.get(room.roomId);assert.throws(()=>host.acknowledge(room,task.id,task.attemptId));
+const retried=host.state(room).task;host.acknowledge(room,retried.id,retried.attemptId);assert.equal(room.phase,'NIGHT_WOLF');assert.equal(room.round,0);
+assert.throws(()=>host.acknowledge(room,retried.id,retried.attemptId));host.cancel(room);
+room.phase='LAST_WORDS';room.lastWordsContinuation='NIGHT_WOLF';room.publicVoices={P2:'ai-seat',HOST:'host'};
+room.lastWords={windowId:'words',lastWordsId:'words',seatId:'P2',round:0,status:'open'};
+submitLastWords(room,'P2','这是我自己的遗言','words-action','words');
+assert.equal(room.phase,'LAST_WORDS');assert.ok(room.lastWordsPlayback);host.sync(room);
+while(host.running.has(room.roomId))await host.running.get(room.roomId);
+assert.equal(voice,'ai-seat');assert.equal(spoken,'这是我自己的遗言');const words=host.state(room).task;
+assert.equal(words.kind,'lastwords');assert.throws(()=>host.skip(room,words.id));host.acknowledge(room,words.id,words.attemptId);assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');host.cancel(room);
+// First-night last words continue with daytime speech, rather than night confirmation.
+room.phase='LAST_WORDS';room.lastWordsContinuation='SPEECH';room.lastWords={windowId:'dawn',lastWordsId:'dawn',seatId:'P2',round:0,status:'open'};
+submitLastWords(room,'P2','首夜遗言','dawn-action','dawn');host.sync(room);while(host.running.has(room.roomId))await host.running.get(room.roomId);
+const dawn=host.state(room).task;host.acknowledge(room,dawn.id,dawn.attemptId);assert.equal(room.phase,'SPEECH');host.cancel(room);
+// A second tied PK vote (no elimination) uses the same night confirmation gate.
+room.phase='VOTE';room.pk={round:0,stage:'vote',candidates:['P1','P2']};room.votes=[];room.voteResolutions=[];
+const voters=room.seats.filter(s=>!['P1','P2'].includes(s.seatId));
+// Seven voters cannot tie two candidates; use six alive voters.
+room.seats[8].alive=false;
+room.seats.filter(s=>s.alive&&!['P1','P2'].includes(s.seatId)).forEach((s,i)=>submitVote(room,s.seatId,i%2?'P1':'P2','pk-'+i));
+assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');
+// Runtime requests the independent host once and waits for its tool, including timeout recovery.
+room.hostPlaybackEnabled=false; host.cancel(room);
+room.requireActionLease=true; room.hostPlaybackBlocked=false; room.controllers.forEach(c=>c.status='ready');
+let requests=0;
+const runtime=new LinxTurnRuntime({manager:{async requestNight(r,w){requests++;confirmNight(r,r.gameId,w.windowId);}},timeoutMs:50});
+await Promise.all([runtime.tick(room),runtime.tick(room)]);assert.equal(requests,1);assert.equal(room.nightConfirmation.status,'announcing');
+await runtime.tick(room);assert.equal(requests,1);
+room.nightConfirmation={gameId:room.gameId,windowId:'timeout-night',status:'waiting'};
+const failingRuntime=new LinxTurnRuntime({manager:{async requestNight(){throw Error('transport unavailable');},async cancelTurn(){throw Error('already closed');}},timeoutMs:10});
+await failingRuntime.tick(room);assert.equal(room.nightConfirmation.status,'failed');assert.equal(room.phase,'NIGHT_ANNOUNCEMENT');
+// REST authentication and optimistic concurrency use actual HTTP, not only domain calls.
+const api=createApiServer({port:0});await new Promise(r=>api.server.listen(0,r));
+const base=`http://127.0.0.1:${api.server.address().port}`;
+const request=(path,player,body)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-player-id':player},body:JSON.stringify(body)});
+const created=await (await request('/api/rooms','',{display_name:'人类'})).json();const path=`/api/rooms/${created.room_id}/seat-change`;
+assert.equal((await request(path,'forged',{target_seat_id:'P2',version:created.state.version,action_id:'a'})).status,403);
+const moves=await Promise.all(['P2','P3'].map((target,i)=>request(path,created.player_id,{target_seat_id:target,version:created.state.version,action_id:'race'+i})));
+assert.deepEqual(moves.map(r=>r.status).sort(),[200,409]);await new Promise(r=>api.server.close(r));
+// Only the current production-bound HOST session can call confirm_night.
+rooms.set(room.roomId,room);room.invalidated=false;room.phase='NIGHT_ANNOUNCEMENT';room.nightConfirmation={gameId:room.gameId,windowId:'mcp-night',status:'waiting'};room.hostPlaybackBlocked=false;
+const controller=room.controllers.find(c=>c.seatId==='HOST');controller.status='pending';
+bindController({roomId:room.roomId,gameId:room.gameId,controllerEpoch:room.controllerEpoch,seatId:'HOST',sessionId:'host-session',deviceId:'host-device',agentId:'host-agent'});updateController(room,'HOST',{status:'ready'});
+const mcp=createMcpServer({port:0,authToken:'test'});await new Promise(r=>mcp.server.listen(0,r));
+const call=async(session='host-session')=>(await fetch(`http://127.0.0.1:${mcp.server.address().port}/mcp`,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer test','x-linx-session-id':session,'x-linx-device-id':'host-device','x-linx-agent-id':'host-agent'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'confirm_night',arguments:{game_id:room.gameId,window_id:'mcp-night'}}})})).json();
+assert.equal((await call()).result.isError,false);assert.equal(room.nightConfirmation.status,'announcing');
+controller.status='released';assert.ok((await call()).error);
+await new Promise(r=>mcp.server.close(r));rooms.clear();console.log('Seat concurrency, identity, host binding, night playback and last-words gates passed');
