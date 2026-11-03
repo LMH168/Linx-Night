@@ -38,6 +38,14 @@ describe('host PCM playback validation', () => {
     expect(result.samples).toBe(320);
   });
 
+  it('drains the speaker own audio without scheduling sound or waiting its duration', async () => {
+    const ids = { gameId: 'g', taskId: 'own', attemptId: 'a' };
+    const lines = [JSON.stringify({ type: 'start', ...ids, sampleRate: 16000, channels: 1, format: 's16le' }), JSON.stringify({ type: 'audio', ...ids, seq: 0, data: btoa('\0\0'.repeat(320)) }), JSON.stringify({ type: 'end', ...ids, chunks: 1, samples: 320 })].map(s => s + '\n');
+    const context = { createBufferSource: () => { throw Error('Speaker must not schedule audio'); } } as unknown as AudioContext;
+    const result = await playPcmStream(stream(lines), context, { ids, muted: true });
+    expect(result.samples).toBe(320); expect(result.firstPlayMs).toBeUndefined();
+  });
+
   it('rejects a stream without the start frame', async () => {
     const ids = { gameId: 'g', taskId: 't', attemptId: 'a' };
     const pcm = btoa(String.fromCharCode(...new Uint8Array(2)));

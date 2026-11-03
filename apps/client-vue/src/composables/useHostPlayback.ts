@@ -45,6 +45,8 @@ export async function playPcmStream(response: Response, context: AudioContext, o
   options.signal?.addEventListener('abort', onAbort, { once: true });
   const schedule = async () => {
     if (!queue.length) return;
+    // The speaker already heard their own microphone. Drain without echo or a second playback delay.
+    if (options.muted) { queue.length = 0; queuedSamples = 0; return; }
     await context.resume(); abortIfNeeded(options.signal); if (!valid()) throw new Error('播放已取消');
     if (!started) {
       await options.onStart?.(); abortIfNeeded(options.signal); if (!valid()) throw new Error('播放已取消');
