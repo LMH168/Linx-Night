@@ -1,6 +1,6 @@
 # 新原型正式接入
 
-基线：2026-11-03 同步 main `05ed11b`，视觉参考 feat/prototype-eclipse-council `a3ae5af`。开发分支 `codex/prototype-live-alignment`。原工作目录的本地改动未覆盖；原型 stash 保留。
+基线：2026-11-03 已迁入 `C:\Users\Administrator\Desktop\Linx-Night` 正式项目，重新同步 main `72cbb3e`（保留 #226 真人原声直接提交与转写发布修复），视觉参考 feat/prototype-eclipse-council `a3ae5af`。开发分支 `codex/live-prototype-integration`。先前在原型目录形成的两笔改动已 cherry-pick 到此处。
 
 ## 增量契约
 
@@ -30,8 +30,12 @@
 
 本机启动正式后端时先加载现有 Linx 配置并确保 `PORT=5100`（与本地客户端默认值一致），执行 `node run.mjs`；再执行 `node node_modules/vite/bin/vite.js --config apps/client-vue/vite.config.ts --host 127.0.0.1`。也可以用页面 `?api=...` 指向实际 API 地址。不要将仅供 UI 验证的模拟控制器服务用作真实游戏后端。
 
-最终验证：类型检查通过；Vue 12 个测试文件、30 个测试通过（含授权报告到达前不翻牌、重连不重播、动画不能推进游戏）；生产构建通过。后端语法及 domain/API/权限隐私/SSE/MCP/回合/控制器/实时语音/播放回归共 61 条命令通过。构建仍有原有独立 3D werewolf 入口的大包提示；jsdom 无 canvas 的提示不影响测试。
+最终验证：类型检查通过；在 main 72cbb3e 基线上重新验证：Vue 12 个测试文件、31 个测试通过（含授权报告到达前不翻牌、重连不重播、动画不能推进游戏）；生产构建通过。后端语法及 domain/API/权限隐私/SSE/MCP/回合/控制器/实时语音/播放回归共 61 条命令通过。构建仍有原有独立 3D werewolf 入口的大包提示；jsdom 无 canvas 的提示不影响测试。
 
 浏览器实际检查 1600×1000、1280×800、390×844 的大厅和对局，验证创建房间、空位移动、与 AI 交换、刷新恢复及授权结束结算。手机大厅整页滚动且无横向溢出；截图位于 `artifacts/eclipse-live/`。浏览器验证使用隔离的本地 API 和模拟控制器；没有据此宣称实际 Linx 音色或主持工具已验收。
 
 当前进程未配置 LINX_HOST_PROFILE、LINX_HOST_AGENT_ID、LINX_AGENT_ID、LINX_MCP_ADMIN_URL、MCP_AUTH_TOKEN，两个项目目录也没有 .env；因此真实 Linx 主持、真人麦克风与实际音色联调尚未完成。
+
+## 迁移与本地改动保护
+
+本次实际交付目录是 `C:\Users\Administrator\Desktop\Linx-Night`。原分支 `codex/latency-streaming` 及其已有提交完整保留。原有 8 个已修改文件和 84 个未跟踪文件已逐文件 SHA-256 校验备份到 `C:\Users\Administrator\Desktop\Linx-Night-backup-20261103-141159`，并保存为命名 stash `preserve latency-streaming local work before prototype migration 2026-11-03`。旧实验分支的屠边、PK、旧客户端样式修改没有混入本次主线实现。没有与主线冲突的未跟踪素材、工具已恢复到项目目录；冲突文件的原件仍在备份及 stash 中。
