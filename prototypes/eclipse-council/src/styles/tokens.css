@@ -1,0 +1,137 @@
+:root {
+  color-scheme: dark;
+
+  --font-display: "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "Songti SC",
+    "STSong", "SimSun", serif;
+  --font-body: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Hiragino Sans GB",
+    system-ui, -apple-system, sans-serif;
+
+  --ink: #ece7dd;
+  --ink-2: #b6afa2;
+  --ink-3: #7b766d;
+  --gold: #d5b184;
+  --gold-text: #e7cba1;
+  --gold-soft: rgba(213, 177, 132, 0.55);
+  --line: rgba(213, 177, 132, 0.16);
+  --line-strong: rgba(213, 177, 132, 0.4);
+
+  --glass: rgba(9, 12, 18, 0.58);
+  --glass-2: rgba(9, 12, 18, 0.8);
+  --glass-3: rgba(6, 8, 12, 0.92);
+
+  --danger: #c25a4e;
+  --danger-soft: rgba(194, 90, 78, 0.18);
+  --good: #7cb69c;
+  --good-soft: rgba(124, 182, 156, 0.16);
+
+  --radius-s: 10px;
+  --radius: 16px;
+  --radius-l: 24px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-seat: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  --header-h: 62px;
+  --log-h: 62px;
+  --dock-w: 372px;
+
+  /*
+   * 场景色 = 光时色。由 .app 上的 data-light 覆盖。
+   * 只覆盖颜色令牌，不改组件结构，所以换光不会让任何布局重算。
+   */
+  --scene-tint: #9cb9e8;
+  --scene-glow: rgba(122, 160, 214, 0.4);
+  --scene-bg: #04070d;
+
+  /* 玻璃面板与顶栏的底色：换成 RGB 三元组，就能在组件里自由配 alpha */
+  --chrome-rgb: 6 9 14;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgb(23 28 39 / 0.94) 0%,
+    rgb(11 14 21 / 0.96) 58%,
+    rgb(7 9 14 / 0.97) 100%
+  );
+  --panel-line: rgba(213, 177, 132, 0.16);
+  --panel-shadow: 0 26px 64px rgb(0 0 0 / 0.55);
+  --bar-bg: linear-gradient(180deg, rgb(6 9 14 / 0.94), rgb(5 7 11 / 0.62));
+  --bar-bg-2: linear-gradient(180deg, rgb(4 6 10 / 0.55), rgb(4 6 10 / 0.92));
+}
+
+/* 黄昏 · 大厅 / 发牌 / 投票：一束从左下打来的暖光，夜还没完全落下来 */
+[data-light='dusk'] {
+  --scene-tint: #ecc094;
+  --scene-glow: rgba(240, 170, 110, 0.38);
+  --scene-bg: #120d10;
+
+  --chrome-rgb: 20 14 14;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgb(34 26 25 / 0.95) 0%,
+    rgb(18 14 14 / 0.96) 58%,
+    rgb(12 9 10 / 0.97) 100%
+  );
+  --panel-line: rgba(226, 178, 132, 0.18);
+  --panel-shadow: 0 26px 64px rgb(8 2 0 / 0.5);
+  --bar-bg: linear-gradient(180deg, rgb(22 14 13 / 0.94), rgb(14 9 9 / 0.62));
+  --bar-bg-2: linear-gradient(180deg, rgb(18 11 10 / 0.55), rgb(10 6 6 / 0.92));
+}
+
+/* 深夜 · 狼人行动：冷、低、只剩桌心一点暖 */
+[data-light='night'] {
+  --scene-tint: #9cb9e8;
+  --scene-glow: rgba(122, 160, 214, 0.4);
+  --scene-bg: #04070d;
+
+  --chrome-rgb: 6 9 14;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgb(23 28 39 / 0.94) 0%,
+    rgb(11 14 21 / 0.96) 58%,
+    rgb(7 9 14 / 0.97) 100%
+  );
+  --panel-line: rgba(213, 177, 132, 0.16);
+  --panel-shadow: 0 26px 64px rgb(0 0 0 / 0.55);
+  --bar-bg: linear-gradient(180deg, rgb(6 9 14 / 0.94), rgb(5 7 11 / 0.62));
+  --bar-bg-2: linear-gradient(180deg, rgb(4 6 10 / 0.55), rgb(4 6 10 / 0.92));
+}
+
+/* 破晓 · 天亮那一刻：暖从地平线渗进来，蓝还压在天顶 */
+[data-light='dawn'] {
+  --scene-tint: #e8c6a0;
+  --scene-glow: rgba(240, 196, 150, 0.36);
+  --scene-bg: #161219;
+
+  --chrome-rgb: 22 17 19;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgb(32 27 30 / 0.95) 0%,
+    rgb(18 15 19 / 0.96) 58%,
+    rgb(12 10 14 / 0.97) 100%
+  );
+  --panel-line: rgba(226, 190, 148, 0.18);
+  --panel-shadow: 0 26px 64px rgb(6 4 6 / 0.52);
+  --bar-bg: linear-gradient(180deg, rgb(24 18 20 / 0.94), rgb(14 11 13 / 0.62));
+  --bar-bg-2: linear-gradient(180deg, rgb(18 13 15 / 0.55), rgb(10 8 10 / 0.92));
+}
+
+/* 白昼 · 阴天：提亮、去饱和、灯火全灭，面板从冷黑转石墨灰 */
+[data-light='day'] {
+  --scene-tint: #c8d8d2;
+  --scene-glow: rgba(190, 214, 206, 0.26);
+  --scene-bg: #283133;
+
+  --chrome-rgb: 30 35 38;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgb(34 40 43 / 0.95) 0%,
+    rgb(20 25 28 / 0.96) 58%,
+    rgb(14 18 21 / 0.97) 100%
+  );
+  --panel-line: rgba(198, 214, 206, 0.2);
+  --panel-shadow: 0 26px 64px rgb(6 10 10 / 0.46);
+  --bar-bg: linear-gradient(180deg, rgb(30 36 38 / 0.94), rgb(20 25 27 / 0.62));
+  --bar-bg-2: linear-gradient(180deg, rgb(24 30 32 / 0.55), rgb(14 18 20 / 0.92));
+}

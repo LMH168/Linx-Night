@@ -1,0 +1,13 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useGameStore } from '@/stores/game'
+import type { Role } from '@/game/types'
+const g=useGameStore()
+const role=ref<Role>('seer')
+const scenario=ref('day')
+const scenarios=[['deal','身份牌'],['night','夜间技能'],['day','白天发言'],['vote','放逐投票'],['pk','平票 PK'],['hunter','猎人响应'],['lastwords','遗言'],['preparation','准备失败'],['ai','AI 失败'],['offline','断线'],['playback','播放失败'],['result','结算']]
+</script>
+<template><details class="demo"><summary>原型演示 <span>本地模拟</span></summary><div class="demo-body"><p>固定牌局 · 点击“继续流程”逐步演示</p><label>玩家视角<select :value="g.flow.host?'host':'guest'" @change="g.quitToLobby();g.flow.host=($event.target as HTMLSelectElement).value==='host';g.flow.roomId=''"><option value="host">房主</option><option value="guest">加入者</option></select></label><label>本人角色<select v-model="role"><option value="wolf">狼人</option><option value="seer">预言家</option><option value="witch">女巫</option><option value="hunter">猎人</option><option value="villager">平民</option></select></label><label>预览场景<select v-model="scenario"><option v-for="[key,label] in scenarios" :key="key" :value="key">{{label}}</option></select></label><button @click="g.preview(scenario,role)">打开场景 →</button><button @click="g.startGame(role)">从发牌完整演示</button><div v-if="g.state" class="faults"><button @click="g.flow.aiFailed=true">模拟 AI 失败</button><button @click="g.flow.connected=false">模拟断线</button><button @click="g.flow.playback='failed'">模拟播放失败</button></div><button v-if="g.flow.preparing" @click="g.failPreparation()">模拟准备失败</button><button v-if="!g.flow.host && g.flow.roomId && !g.state" @click="g.preview('deal',role)">模拟房主开局</button><button @click="g.leaveRoom()">返回入口</button></div></details></template>
+<style scoped>
+.demo{position:fixed;right:18px;top:74px;z-index:140;width:128px;color:var(--gold-text);font-size:10px}.demo[open]{width:250px}summary{cursor:pointer;list-style:none;border:1px solid rgba(213,177,132,.25);background:#0a0f19ef;border-radius:8px;padding:7px 10px;display:flex;justify-content:space-between}summary span{color:var(--ink-3);font-size:9px}.demo-body{margin-top:6px;max-height:70dvh;overflow:auto;display:grid;gap:10px;padding:16px;border:1px solid rgba(213,177,132,.25);border-radius:12px;background:#090e18fa;box-shadow:0 20px 60px #0009}label{display:grid;gap:4px;color:var(--ink-3)}select{background:#151d2b;color:var(--ink);border:1px solid #394151;border-radius:6px;padding:7px;font:inherit}button{border:1px solid rgba(213,177,132,.3);border-radius:6px;padding:7px;font-size:11px;text-align:left}.faults{display:grid;gap:6px}p{color:var(--ink-3);font-size:10px}@media(max-width:640px){.demo{top:62px;right:10px}}
+</style>

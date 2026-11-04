@@ -1,0 +1,232 @@
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--gold-soft), 0 0 22px 0 rgba(213, 177, 132, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--gold-soft), 0 0 46px 6px rgba(213, 177, 132, 0.4);
+  }
+}
+
+@keyframes drift-fog {
+  0% {
+    transform: translate3d(-6%, 0, 0) scale(1.05);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(5%, -2%, 0) scale(1.12);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(-6%, 0, 0) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%) skewX(-14deg);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(160%) skewX(-14deg);
+    opacity: 0;
+  }
+}
+
+@keyframes moon-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    filter: blur(26px);
+  }
+  50% {
+    opacity: 0.95;
+    filter: blur(34px);
+  }
+}
+
+@keyframes beam-sway {
+  0% {
+    transform: rotate(-2deg) translateX(-1%);
+    opacity: 0.4;
+  }
+  50% {
+    transform: rotate(2deg) translateX(1.5%);
+    opacity: 0.72;
+  }
+  100% {
+    transform: rotate(-2deg) translateX(-1%);
+    opacity: 0.4;
+  }
+}
+
+@keyframes dots {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 只改透明度：需要保留定位 transform 的元素用这个 */
+@keyframes slot-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.955) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes shake-soft {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1px);
+  }
+  75% {
+    transform: translateX(1px);
+  }
+}
+
+@keyframes crack-in {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes sweep-light {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%) scaleX(0.6);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%) scaleX(1.2);
+  }
+}
+
+@keyframes devour {
+  0% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  55% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes flash-boom {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes streak {
+  0% {
+    transform: translateX(-30%) translateY(0) scaleX(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(60%) translateY(-8%) scaleX(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

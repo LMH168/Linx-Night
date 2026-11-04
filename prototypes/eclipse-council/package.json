@@ -1,0 +1,29 @@
+{
+  "name": "eclipse-council",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "暗林月夜 · 九人局狼人杀（AI 主持 + AI 玩家）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:single": "vue-tsc --noEmit && vite build --mode single",
+    "preview": "vite preview --port 4178 --strictPort",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vite-plugin-singlefile": "^2.0.3",
+    "vitest": "^3.0.5",
+    "vue-tsc": "^2.2.0"
+  }
+}
